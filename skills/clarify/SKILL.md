@@ -6,7 +6,7 @@ allowed-tools: Read, Glob, Grep, AskUserQuestion
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.

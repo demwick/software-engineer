@@ -1,12 +1,12 @@
 ---
 name: spec
-description: Write the single source of truth for a feature to disk at `.sea/specs/<feature>.md` from a requirements digest. **Normally invoked by `/triage`'s full-flow right after `/clarify`**, but also use directly when the user says "write the spec", "document the requirements", "lock down what we're building". The spec is binding: during implementation, any contradiction between the code and the spec STOPS the flow and asks the user — it is never silently worked around. Mandatory content: what we're building, non-goals, edge cases, acceptance criteria, trade-offs.
+description: Write the single source of truth for a feature to disk at `.se/specs/<feature>.md` from a requirements digest. **Normally invoked by `/triage`'s full-flow right after `/clarify`**, but also use directly when the user says "write the spec", "document the requirements", "lock down what we're building". The spec is binding: during implementation, any contradiction between the code and the spec STOPS the flow and asks the user — it is never silently worked around. Mandatory content: what we're building, non-goals, edge cases, acceptance criteria, trade-offs.
 argument-hint: [feature name or requirements digest]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -14,7 +14,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 
 # spec
 
-Write the binding specification for a feature. After this file exists, it is the contract: planner plans against it, executor builds to it, verifier checks it. Announce: **"Writing the spec to .sea/specs/."**
+Write the binding specification for a feature. After this file exists, it is the contract: planner plans against it, executor builds to it, verifier checks it. Announce: **"Writing the spec to .se/specs/."**
 
 Input: $ARGUMENTS (a feature name and/or the requirements digest from `/clarify`)
 
@@ -25,15 +25,15 @@ Input: $ARGUMENTS (a feature name and/or the requirements digest from `/clarify`
 
 ## Step 2: Choose the path
 
-Feature-level specs live at `.sea/specs/<feature>.md`, where `<feature>` is a short kebab-case slug. This is distinct from the per-phase `.sea/specs/phase-N.md` files the planner writes for execution — the feature spec is the *why and what*; the phase spec is the *acceptance criteria for one slice*. Both can coexist.
+Feature-level specs live at `.se/specs/<feature>.md`, where `<feature>` is a short kebab-case slug. This is distinct from the per-phase `.se/specs/phase-N.md` files the planner writes for execution — the feature spec is the *why and what*; the phase spec is the *acceptance criteria for one slice*. Both can coexist.
 
 ```bash
-mkdir -p .sea/specs
+mkdir -p .se/specs
 ```
 
 ## Step 3: Write the spec
 
-Write `.sea/specs/<feature>.md` with **all** of these sections — none are optional:
+Write `.se/specs/<feature>.md` with **all** of these sections — none are optional:
 
 ```markdown
 # Spec: <feature>
@@ -84,5 +84,5 @@ This is the spec's reason to exist. During later implementation, **if reality co
 
 - `/clarify` — produces the digest this consumes
 - `/triage` — full-flow invokes clarify → spec → planner
-- `planner` agent — writes per-phase `.sea/specs/phase-N.md` acceptance criteria derived from this feature spec
+- `planner` agent — writes per-phase `.se/specs/phase-N.md` acceptance criteria derived from this feature spec
 - `/adr` — significant trade-offs in the "Trade-offs" section graduate to a numbered decision record

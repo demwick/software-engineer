@@ -1,12 +1,12 @@
 ---
 name: risk
-description: Forward-looking risk foresight BEFORE a change is made — warns what a planned change could break, expose, or regress, while it is still cheap to adjust the plan. The forward counterpart to `/sea-diagnose` (which audits what already exists). **Invoked by `/triage`'s light-plan and full-flow before the executor runs**, and usable directly when the user asks "what could go wrong with this", "is this risky", "what might this break". This is plan-phase only — it does NOT score a committed diff at acceptance time; that is centaur-layer's job if present.
+description: Forward-looking risk foresight BEFORE a change is made — warns what a planned change could break, expose, or regress, while it is still cheap to adjust the plan. The forward counterpart to `/se-diagnose` (which audits what already exists). **Invoked by `/triage`'s light-plan and full-flow before the executor runs**, and usable directly when the user asks "what could go wrong with this", "is this risky", "what might this break". This is plan-phase only — it does NOT score a committed diff at acceptance time; that is centaur-layer's job if present.
 argument-hint: [the planned change]
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -20,7 +20,7 @@ Planned change: $ARGUMENTS
 
 ## Scope boundary (read first)
 
-This is **forward-looking, plan-phase risk only.** You analyze a change that has *not happened yet* and warn about it. You do **not** score a diff at commit/acceptance time — if centaur-layer is present (`.sea/state.json` `integrations.centaur` true, or `.claude/knowledge/centaur/`), acceptance-time diff-risk scoring is its job. Stay in the "before" half of the timeline. Surface this boundary if the user asks for a diff score: *"That's acceptance-time scoring — centaur-layer owns it; I cover the before-the-change risk."*
+This is **forward-looking, plan-phase risk only.** You analyze a change that has *not happened yet* and warn about it. You do **not** score a diff at commit/acceptance time — if centaur-layer is present (`.se/state.json` `integrations.centaur` true, or `.claude/knowledge/centaur/`), acceptance-time diff-risk scoring is its job. Stay in the "before" half of the timeline. Surface this boundary if the user asks for a diff score: *"That's acceptance-time scoring — centaur-layer owns it; I cover the before-the-change risk."*
 
 ## What to assess
 
@@ -59,6 +59,6 @@ Each risk is **specific and located** (`src/auth/login.ts:42`, not "the auth cod
 
 ## Related
 
-- `/sea-diagnose` — backward-looking audit of existing code (this is its forward twin)
+- `/se-diagnose` — backward-looking audit of existing code (this is its forward twin)
 - `/triage` light-plan / full-flow — call this before the executor; HIGH findings become `risk_gates`
 - centaur-layer — acceptance-time diff-risk scoring (the "after" half), when present

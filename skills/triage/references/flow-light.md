@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -17,13 +17,13 @@ You are *mostly* clear. If 1–2 answers would change the implementation materia
 
 Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc slice. Pass the user's request plus any answers from Step 1. The planner writes:
 
-- `.sea/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
-- `.sea/phases/phase-<slug>/plan.md` — tasks with verification commands, `risk_gates`, complexity
+- `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
+- `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, `risk_gates`, complexity
 
 Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".sea/specs/phase-<slug>.md"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".se/specs/phase-<slug>.md"
 ```
 
 If validation fails, surface the error and stop. Read the plan; if it contains `[[ ASK: ... ]]` markers, surface them and stop — do not guess.
@@ -42,7 +42,7 @@ This is the plugin's *only* risk role: warn before the change. **Acceptance-time
 
 ## Step 4: Execute
 
-Check `.sea/phases/phase-<slug>/progress.json`:
+Check `.se/phases/phase-<slug>/progress.json`:
 
 - **exists** → resume: *"Resuming from task \<current_task\>; tasks \<completed\> done."*
 - **absent** → fresh start.
@@ -56,17 +56,17 @@ Launch the `executor` agent with the plan path, the plan's context, and resume c
 ## Step 5: Arm Auto-QA
 
 ```bash
-mkdir -p .sea && : > .sea/.needs-verify
+mkdir -p .se && : > .se/.needs-verify
 ```
 
-Existence-only marker. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.sea/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+Existence-only marker. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
 ## Step 6: Act decision (verification feedback)
 
-After auto-QA passes, read `.sea/verification/phase-<slug>.json` if present:
+After auto-QA passes, read `.se/verification/phase-<slug>.json` if present:
 
 - **pass** → finish (Step 7).
-- **partial** → surface `unmet_criteria[]`; offer to add follow-ups to the roadmap (`/sea-roadmap`) or handle now. Then finish.
+- **partial** → surface `unmet_criteria[]`; offer to add follow-ups to the roadmap (`/se-roadmap`) or handle now. Then finish.
 - **fail** → do not mark complete; surface `reason`; stop. User fixes and re-runs.
 
 No verification file (pre-v3.1.0 or no spec) → skip to Step 7.

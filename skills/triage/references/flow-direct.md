@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -33,17 +33,17 @@ Launch the `executor` agent. Pass it:
 Executor returns `done` or `blocked`.
 
 - **blocked** → surface the report to the user verbatim and stop. Do not retry. If `superpowers:systematic-debugging` (or an external debugging skill) is installed, recommend it for triage.
-- **done** → arm auto-QA if the project already has `.sea/` state (next step).
+- **done** → arm auto-QA if the project already has `.se/` state (next step).
 
 ## Step 3: Arm the Auto-QA hook (conditionally)
 
-Only if `.sea/` **already exists**, touch the existence-only marker so the Stop hook verifies:
+Only if `.se/` **already exists**, touch the existence-only marker so the Stop hook verifies:
 
 ```bash
-: > .sea/.needs-verify
+: > .se/.needs-verify
 ```
 
-Do not write a number into the marker; the hook owns the retry counter in `.sea/.verify-attempts`. If the project is not SEA-initialized, skip this — direct tasks never create `.sea/` themselves.
+Do not write a number into the marker; the hook owns the retry counter in `.se/.verify-attempts`. If the project is not SE-initialized, skip this — direct tasks never create `.se/` themselves.
 
 On arm, the Stop hook runs the detected test runner. Pass → clears the marker. Fail → returns a `block` so Claude auto-retries the fix (up to 2 retries). You do **not** invoke the verifier agent manually. For the full protocol see `auto-qa-protocol.md`.
 
@@ -51,11 +51,11 @@ On arm, the Stop hook runs the detected test runner. Pass → clears the marker.
 
 > Done: \<what\>. Commit: \<short-sha\>.
 
-If the task came from a recent `.sea/diagnose.json` priority action, add: *"Re-run /sea-diagnose to confirm and see the next priority."*
+If the task came from a recent `.se/diagnose.json` priority action, add: *"Re-run /se-diagnose to confirm and see the next priority."*
 
 ## Rules
 
 - **One commit only.** If it splits into multiple commits, it wasn't direct — stop and escalate to light-plan.
 - **No scope creep.** Executor stays strictly within the request; notes anything else wrong in the report, doesn't fix it.
-- **No roadmap mutation.** Don't write `.sea/roadmap.md` or create phase dirs. The `.needs-verify` touch is the only `.sea/` write.
+- **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch is the only `.se/` write.
 - **Honor the ecosystem.** Guardrails for destructive ops are charter's job when charter is present; don't add your own.

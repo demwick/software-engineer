@@ -1,12 +1,12 @@
 ---
 name: triage
-description: The single entry point for ALL software-engineering work in a SEA-managed or candidate project. **Use this skill aggressively whenever** the user describes engineering work in natural language — "fix this button", "add auth", "build me a SaaS", "I have an idea", "finish this project", "implement X", "refactor Y", "make it work", "clean this up", "ship a feature". Triage reads the request, classifies it on two axes (uncertainty × scope), and routes — invisibly to the user — into the right depth of flow: direct-apply, light-plan, or full-flow. Do NOT make the user pick a mode; that decision is yours. This skill does NOT handle pure read-only asks — "where am I"/"status" → use `/sea-status`; "audit"/"what's broken" → use `/sea-diagnose`; "show/edit the roadmap" → use `/sea-roadmap`.
+description: The single entry point for ALL software-engineering work in a SE-managed or candidate project. **Use this skill aggressively whenever** the user describes engineering work in natural language — "fix this button", "add auth", "build me a SaaS", "I have an idea", "finish this project", "implement X", "refactor Y", "make it work", "clean this up", "ship a feature". Triage reads the request, classifies it on two axes (uncertainty × scope), and routes — invisibly to the user — into the right depth of flow: direct-apply, light-plan, or full-flow. Do NOT make the user pick a mode; that decision is yours. This skill does NOT handle pure read-only asks — "where am I"/"status" → use `/se-status`; "audit"/"what's broken" → use `/se-diagnose`; "show/edit the roadmap" → use `/se-roadmap`.
 argument-hint: [the engineering request, in natural language]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -26,10 +26,10 @@ Before anything, learn what else is installed. This governs ADR location, guardr
 [ -d ".claude/knowledge/charter" ] && echo "charter=yes" || echo "charter=no"
 ```
 
-- `.claude/knowledge/charter/` present → **charter mode**: ADRs are written into `.claude/knowledge/adr/` in charter's `0000-template.md` format (not `.sea/adr/`); destructive-op guardrails are charter's PreToolUse job — never invent your own; the verifier inherits charter's adversarial `/verify` verdict format (PASS/FAIL/PARTIAL, "try to break it, don't rubber-stamp").
-- absent → **standalone mode**: ADRs go to `.sea/adr/NNNN-*.md`; the plugin stays silent on destructive-op guardrails (writes no PreToolUse hook); the verifier uses its own senior-review severities (blocker/major/minor/nit).
+- `.claude/knowledge/charter/` present → **charter mode**: ADRs are written into `.claude/knowledge/adr/` in charter's `0000-template.md` format (not `.se/adr/`); destructive-op guardrails are charter's PreToolUse job — never invent your own; the verifier inherits charter's adversarial `/verify` verdict format (PASS/FAIL/PARTIAL, "try to break it, don't rubber-stamp").
+- absent → **standalone mode**: ADRs go to `.se/adr/NNNN-*.md`; the plugin stays silent on destructive-op guardrails (writes no PreToolUse hook); the verifier uses its own senior-review severities (blocker/major/minor/nit).
 
-The `SessionStart` hook records this in `.sea/state.json.integrations` when `.sea/` exists. Either way, **acceptance-time diff-risk scoring is never the plugin's job** — that is delegated to centaur-layer if present. The plugin's `risk` mechanism is *forward-looking only* (warn before a change, in the plan phase).
+The `SessionStart` hook records this in `.se/state.json.integrations` when `.se/` exists. Either way, **acceptance-time diff-risk scoring is never the plugin's job** — that is delegated to centaur-layer if present. The plugin's `risk` mechanism is *forward-looking only* (warn before a change, in the plan phase).
 
 Carry the detected mode into whichever flow you run.
 
@@ -88,13 +88,13 @@ If the user corrects your read, re-route. Classification is a hypothesis, not a 
 - **One sentence of self-classification** so the user can veto — then proceed. Do not ask "should I proceed?".
 - **Round up under doubt.** See Step 3 bias rule.
 - **Honor the ecosystem.** Carry the Step 0 charter/standalone decision into the flow; do not duplicate charter's guardrails or centaur's diff-risk scoring.
-- **Stay out of read-only lanes.** Status, audit, and roadmap-editing asks belong to `/sea-status`, `/sea-diagnose`, `/sea-roadmap` — don't absorb them here.
+- **Stay out of read-only lanes.** Status, audit, and roadmap-editing asks belong to `/se-status`, `/se-diagnose`, `/se-roadmap` — don't absorb them here.
 
 ## When NOT to use
 
-- "where am I", "status", "progress" → `/sea-status`
-- "audit", "health check", "what's broken" → `/sea-diagnose`
-- "show roadmap", "add/remove/reorder a phase" → `/sea-roadmap`
+- "where am I", "status", "progress" → `/se-status`
+- "audit", "health check", "what's broken" → `/se-diagnose`
+- "show roadmap", "add/remove/reorder a phase" → `/se-roadmap`
 - The user is answering a question from a flow already in progress → continue that flow, don't re-triage.
 
 ## Related
@@ -103,4 +103,4 @@ If the user corrects your read, re-route. Classification is a hypothesis, not a 
 - `references/auto-qa-protocol.md` — Stop-hook verify loop semantics (shared by all flows)
 - `/clarify` — requirements dialogue invoked by full-flow
 - `/spec` — single-source-of-truth writer invoked by full-flow
-- `/sea-status`, `/sea-diagnose`, `/sea-roadmap` — read-only / roadmap helpers (not entry points)
+- `/se-status`, `/se-diagnose`, `/se-roadmap` — read-only / roadmap helpers (not entry points)

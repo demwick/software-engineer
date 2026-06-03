@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -12,20 +12,20 @@ Fuzzy intent and/or broad scope — a new product, "finish this project", a feat
 ## Step 0: Is the project new or existing?
 
 ```bash
-[ -d ".sea" ] && echo "sea=yes" || echo "sea=no"
+[ -d ".se" ] && echo "sea=yes" || echo "sea=no"
 ```
 
-- `.sea/` already exists → don't overwrite. Offer: extend via `/sea-roadmap add`, check `/sea-status`, or (only if the direction fundamentally changed) re-scaffold with `scripts/archive-state.sh`. Stop until the user picks.
-- No `.sea/` and the directory is effectively empty (only README/LICENSE/.git) → **from-scratch MVP**.
-- No `.sea/` and code exists → **finish-existing**: launch the `researcher` agent first (below).
+- `.se/` already exists → don't overwrite. Offer: extend via `/se-roadmap add`, check `/se-status`, or (only if the direction fundamentally changed) re-scaffold with `scripts/archive-state.sh`. Stop until the user picks.
+- No `.se/` and the directory is effectively empty (only README/LICENSE/.git) → **from-scratch MVP**.
+- No `.se/` and code exists → **finish-existing**: launch the `researcher` agent first (below).
 
 ### Finish-existing: research first
 
 Launch the `researcher` agent:
 
-> Analyze this codebase. Produce the standard report: tech stack, structure, findings, priority actions. Focus on test coverage, error handling, security basics, doc coverage. **Output file: `.sea/research.md`** — write incrementally as you verify. Keep mandatory reading tight: CLAUDE.md + at most 3 context files. If multiple subrepos exist, audit the one most central to the goal and list the others as "not audited in this pass".
+> Analyze this codebase. Produce the standard report: tech stack, structure, findings, priority actions. Focus on test coverage, error handling, security basics, doc coverage. **Output file: `.se/research.md`** — write incrementally as you verify. Keep mandatory reading tight: CLAUDE.md + at most 3 context files. If multiple subrepos exist, audit the one most central to the goal and list the others as "not audited in this pass".
 
-Read `.sea/research.md` (fall back to the agent's final message). Summarize the top 3 findings and top 3 priority actions in your own words. If the report header is `## STATUS: TRUNCATED`, tell the user the audit was partial and offer a scoped re-run before building the roadmap.
+Read `.se/research.md` (fall back to the agent's final message). Summarize the top 3 findings and top 3 priority actions in your own words. If the report header is `## STATUS: TRUNCATED`, tell the user the audit was partial and offer a scoped re-run before building the roadmap.
 
 ## Step 1: Clarify requirements
 
@@ -35,7 +35,7 @@ If the user said "uzatma / just build it", triage would not have sent you here �
 
 ## Step 2: Write the spec
 
-Invoke `/spec` with the digest. It writes `.sea/specs/<feature>.md` with what/non-goals/acceptance-criteria/edge-cases/trade-offs and gets the user's confirmation (status `draft` → `accepted`). The spec is now binding: later contradictions STOP the flow and ask, never route around it.
+Invoke `/spec` with the digest. It writes `.se/specs/<feature>.md` with what/non-goals/acceptance-criteria/edge-cases/trade-offs and gets the user's confirmation (status `draft` → `accepted`). The spec is now binding: later contradictions STOP the flow and ask, never route around it.
 
 ## Step 3: Record significant decisions (ADR)
 
@@ -44,11 +44,11 @@ When the spec's trade-offs include a real architectural decision (database choic
 **Detect & Defer — ADR location:**
 
 ```bash
-[ -d ".claude/knowledge/adr" ] && echo "charter-adr" || echo "sea-adr"
+[ -d ".claude/knowledge/adr" ] && echo "charter-adr" || echo "se-adr"
 ```
 
-- charter present (`.claude/knowledge/adr/`) → write the ADR there in charter's `0000-template.md` format. Do **not** write `.sea/adr/`.
-- standalone → write `.sea/adr/NNNN-<slug>.md` (zero-padded, incrementing).
+- charter present (`.claude/knowledge/adr/`) → write the ADR there in charter's `0000-template.md` format. Do **not** write `.se/adr/`.
+- standalone → write `.se/adr/NNNN-<slug>.md` (zero-padded, incrementing).
 
 The `/adr` skill encapsulates this conditional — invoke it; don't hand-write the record.
 
@@ -58,8 +58,8 @@ For from-scratch, scaffold the minimum to run (`npm run dev` or equivalent) — 
 
 Write state files at the project root:
 
-- `.sea/roadmap.md` — the planner's phase list
-- `.sea/state.json` (initial `Write` only — the one place raw Write is allowed):
+- `.se/roadmap.md` — the planner's phase list
+- `.se/state.json` (initial `Write` only — the one place raw Write is allowed):
   ```json
   {
     "schema_version": 2,
@@ -73,9 +73,9 @@ Write state files at the project root:
   }
   ```
   Set `integrations.charter` from the Step 3 detection. All **subsequent** mutations go through `scripts/state-update.sh` — never raw-edit `state.json`.
-- `.sea/phases/` — empty dir for future phase plans
+- `.se/phases/` — empty dir for future phase plans
 
-Append `.sea/` to `.gitignore` (create if missing). Do **not** auto-commit during setup — the first commit belongs to the first real phase.
+Append `.se/` to `.gitignore` (create if missing). Do **not** auto-commit during setup — the first commit belongs to the first real phase.
 
 ## Step 5: Run the phase loop
 
@@ -89,7 +89,7 @@ Run **one phase per turn** unless the user says to keep going. After each phase:
 
 - **Clarify before code on fuzzy work.** Non-goals are mandatory output — no spec without them.
 - **The spec is binding.** Contradictions stop the flow and ask; they are never silently worked around.
-- **ADRs honor the ecosystem.** charter location when present, `.sea/adr/` otherwise.
+- **ADRs honor the ecosystem.** charter location when present, `.se/adr/` otherwise.
 - **One phase per turn**; respect blockers and gates; never rewrite the executor's commits.
 - **Forward-looking risk only.** Acceptance-time diff-risk scoring is centaur-layer's job if present.
-- **Don't overwrite existing `.sea/`** — extend, archive, or stop.
+- **Don't overwrite existing `.se/`** — extend, archive, or stop.

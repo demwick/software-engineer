@@ -1,12 +1,12 @@
 ---
 name: adr
-description: Record an Architecture Decision Record when a significant technical decision is made — database choice, auth strategy, sync vs async, monolith vs services, a framework or protocol commitment, anything expensive to reverse. **Invoked automatically by `/triage`'s full-flow** when the spec's trade-offs contain a real architectural fork, and usable directly when the user says "record this decision", "write an ADR", "document why we chose X". Writes a numbered, versioned record. Location is conditional: if claude-charter is installed it writes into `.claude/knowledge/adr/` in charter's template; otherwise into `.sea/adr/`.
+description: Record an Architecture Decision Record when a significant technical decision is made — database choice, auth strategy, sync vs async, monolith vs services, a framework or protocol commitment, anything expensive to reverse. **Invoked automatically by `/triage`'s full-flow** when the spec's trade-offs contain a real architectural fork, and usable directly when the user says "record this decision", "write an ADR", "document why we chose X". Writes a numbered, versioned record. Location is conditional: if claude-charter is installed it writes into `.claude/knowledge/adr/` in charter's template; otherwise into `.se/adr/`.
 argument-hint: [the decision to record]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -29,13 +29,13 @@ Do **not** write ADRs for routine choices (a variable name, a small refactor, wh
 ## Step 2: Choose the location (Detect & Defer)
 
 ```bash
-if [ -d ".claude/knowledge/adr" ]; then echo "DIR=.claude/knowledge/adr"; else echo "DIR=.sea/adr"; fi
+if [ -d ".claude/knowledge/adr" ]; then echo "DIR=.claude/knowledge/adr"; else echo "DIR=.se/adr"; fi
 ```
 
-- **charter present** (`.claude/knowledge/adr/` exists) → write there, in charter's `0000-template.md` format. This is the authoritative location; do **not** also write `.sea/adr/`.
-- **standalone** → write `.sea/adr/`, creating it if needed (`mkdir -p .sea/adr`). Use the same template for consistency.
+- **charter present** (`.claude/knowledge/adr/` exists) → write there, in charter's `0000-template.md` format. This is the authoritative location; do **not** also write `.se/adr/`.
+- **standalone** → write `.se/adr/`, creating it if needed (`mkdir -p .se/adr`). Use the same template for consistency.
 
-You can confirm the ecosystem from `.sea/state.json` `integrations.charter` if state exists; the directory probe above is authoritative and works even without `.sea/`.
+You can confirm the ecosystem from `.se/state.json` `integrations.charter` if state exists; the directory probe above is authoritative and works even without `.se/`.
 
 ## Step 3: Number it
 
@@ -86,7 +86,7 @@ The change, as a single sentence if possible, then the mechanism.
 
 ## References
 
-- Related spec (`.sea/specs/<feature>.md`), issues, prior ADRs.
+- Related spec (`.se/specs/<feature>.md`), issues, prior ADRs.
 ```
 
 Link the originating spec under References, and if this decision supersedes an earlier ADR, set the old one's status to `Superseded by NNNN` and note it here.
