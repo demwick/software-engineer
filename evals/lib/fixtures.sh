@@ -22,7 +22,7 @@ fixture_repo() {
     printf '%s' "$dst"
 }
 
-# Copy a named state fixture into <workdir>/.sea/state.json.
+# Copy a named state fixture into <workdir>/.se/state.json.
 fixture_state() {
     local workdir="$1" name="$2"
     local src="$(_fixtures_dir)/states/$name.json"
@@ -30,6 +30,6 @@ fixture_state() {
         printf 'fixture_state: no such state: %s\n' "$name" >&2
         return 1
     fi
-    mkdir -p "$workdir/.sea"
-    cp "$src" "$workdir/.sea/state.json"
+    mkdir -p "$workdir/.se"
+    cp "$src" "$workdir/.se/state.json"
 }

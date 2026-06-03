@@ -27,8 +27,8 @@ JSON
 
 # Arm the v2 two-file marker scheme with attempts=2 (max retries
 # reached) so loop-protection kicks in on the next hook invocation.
-: > "$WORKDIR/.sea/.needs-verify"
-printf '{"attempts":2}' > "$WORKDIR/.sea/.verify-attempts"
+: > "$WORKDIR/.se/.needs-verify"
+printf '{"attempts":2}' > "$WORKDIR/.se/.verify-attempts"
 
 # Simulate Claude Code's loop-protection: stop_hook_active=true means the hook
 # is being called again inside an already-running stop-hook loop.

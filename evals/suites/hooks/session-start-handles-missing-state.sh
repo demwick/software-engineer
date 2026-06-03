@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify session-start emits a valid JSON object even when no .sea/ directory exists.
+# Verify session-start emits a valid JSON object even when no .se/ directory exists.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
 
@@ -15,4 +15,4 @@ output="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
 
 # Must emit a JSON object (empty context is fine)
 assert_jq "$output" '.hookSpecificOutput' '!= null' \
-    "hookSpecificOutput should be present even without .sea/"
+    "hookSpecificOutput should be present even without .se/"

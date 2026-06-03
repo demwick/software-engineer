@@ -1,7 +1,7 @@
 # Phase 1 Plan: Scaffolding & data layer
 
 ## Context
-First real phase after /sea-init. The project directory was empty. We're creating a Next.js 15 + TS scaffold, a typed data layer with an in-memory Map, and a runnable dev server. No persistence or UI yet — those live in Phase 2 and Phase 3.
+First real phase after /se-init. The project directory was empty. We're creating a Next.js 15 + TS scaffold, a typed data layer with an in-memory Map, and a runnable dev server. No persistence or UI yet — those live in Phase 2 and Phase 3.
 
 ## Complexity
 medium
@@ -44,6 +44,6 @@ medium
 - **Files:** `README.md` (modified, replace auto-generated content)
 - **Steps:**
   1. Replace Next.js boilerplate with 6-line project blurb + quickstart
-  2. Link to the roadmap: `See .sea/roadmap.md for upcoming phases`
+  2. Link to the roadmap: `See .se/roadmap.md for upcoming phases`
 - **Verification:** `head -20 README.md` shows the quickstart, no boilerplate words like "bootstrapped with create-next-app"
 - **Commit:** `docs(readme): project quickstart`

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
@@ -53,12 +53,12 @@ cat > "$MARKER" <<'JSON'
   "phase": 3,
   "task": 2,
   "kind": "schema-migration",
-  "confirmation_prompt": "Confirm state migration. Back up .sea/ first?",
+  "confirmation_prompt": "Confirm state migration. Back up .se/ first?",
   "created": "2026-04-15T00:00:00Z"
 }
 JSON
 
-# sea-go's resume branch would parse these four fields
+# se-go's resume branch would parse these four fields
 PHASE="$(jq -r .phase "$MARKER")"
 TASK="$(jq -r .task "$MARKER")"
 KIND="$(jq -r .kind "$MARKER")"
