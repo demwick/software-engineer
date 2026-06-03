@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
-# PostToolUse hook for software-engineer-agents.
-# Keeps .sea/state.json's last_edit timestamp fresh whenever Claude
-# edits a file in a project that's already initialized with software-engineer-agents.
+# PostToolUse hook for software-engineer.
+# Keeps .se/state.json's last_edit timestamp fresh whenever Claude
+# edits a file in a project that's already initialized with software-engineer.
 
 set -euo pipefail
 
 ACTION="${1:-file-touched}"
 
-STATE_DIR=".sea"
+STATE_DIR=".se"
 STATE_FILE="${STATE_DIR}/state.json"
 
 # Only operate in initialized projects. In every other case, silently no-op.
@@ -33,7 +33,7 @@ case "$ACTION" in
         ;;
     verification-feedback)
         # Act feedback loop: read the latest verification result and update state.json.
-        # Called after verifier writes .sea/verification/phase-<N>.json.
+        # Called after verifier writes .se/verification/phase-<N>.json.
         CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
         VERIFY_FILE="${STATE_DIR}/verification/phase-${CURRENT_PHASE}.json"
         [ -f "$VERIFY_FILE" ] || exit 0
@@ -60,7 +60,7 @@ case "$ACTION" in
         fi
         ;;
     *)
-        echo "software-engineer-agents state-tracker: unknown action '${ACTION}'" >&2
+        echo "software-engineer state-tracker: unknown action '${ACTION}'" >&2
         ;;
 esac
 

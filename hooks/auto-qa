@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
-# Stop hook for software-engineer-agents.
-# When .sea/.needs-verify exists, runs the project's test runner and
+# Stop hook for software-engineer.
+# When .se/.needs-verify exists, runs the project's test runner and
 # reports failures back to Claude so it can auto-retry. Gives up after 2 retries.
 #
 # v2.0.0 schema: the marker and retry counter are separate files.
-#   .sea/.needs-verify   — existence-only flag (content ignored).
-#   .sea/.verify-attempts — JSON object {"attempts": N}, written atomically.
+#   .se/.needs-verify   — existence-only flag (content ignored).
+#   .se/.verify-attempts — JSON object {"attempts": N}, written atomically.
 # v1 fixtures that wrote an integer into .needs-verify still work: if
 # .verify-attempts is absent we fall back to reading the marker's content
 # as an integer. This keeps the hook backward-compatible across the
@@ -35,7 +35,7 @@ MAX_RETRIES=2
 # raise this in 10-line steps.
 TEST_TAIL_LINES=30
 
-STATE_DIR=".sea"
+STATE_DIR=".se"
 MARKER="${STATE_DIR}/.needs-verify"
 ATTEMPTS_FILE="${STATE_DIR}/.verify-attempts"
 
@@ -101,7 +101,7 @@ if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
     if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$COMPAT_SCRIPT" ]; then
         COMPAT_OUT=$(bash "$COMPAT_SCRIPT" . 2>/dev/null) && COMPAT_EXIT=0 || COMPAT_EXIT=$?
         if [ "$COMPAT_EXIT" = "10" ] && [ -n "$COMPAT_OUT" ]; then
-            # Append to log so /sea-status and humans can see it later.
+            # Append to log so /se-status and humans can see it later.
             printf '\n\n=== host-compat warning ===\n%s\n' "$COMPAT_OUT" >> "$TEST_LOG"
             # Return a block so Claude fixes it now rather than shipping broken packaging.
             rm -f "$MARKER" "$ATTEMPTS_FILE"
@@ -111,7 +111,7 @@ if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
         fi
     fi
     # Tests passed — run spec-based verification before clearing marker.
-    # This produces .sea/verification/phase-N.json for the Act feedback loop.
+    # This produces .se/verification/phase-N.json for the Act feedback loop.
     VERIFY_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/verify-phase.sh"
     if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$VERIFY_SCRIPT" ]; then
         bash "$VERIFY_SCRIPT" . 2>/dev/null || true
@@ -151,6 +151,6 @@ jq -cn \
     --arg max "$MAX_RETRIES" \
     '{
         decision: "block",
-        reason: ("Auto-QA: tests failed (attempt " + $n + "/" + $max + "). Test command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nRead the full log at .sea/.last-verify.log, diagnose the root cause, and fix the failing tests. The Stop hook will re-verify automatically.")
+        reason: ("Auto-QA: tests failed (attempt " + $n + "/" + $max + "). Test command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nRead the full log at .se/.last-verify.log, diagnose the root cause, and fix the failing tests. The Stop hook will re-verify automatically.")
     }'
 exit 0

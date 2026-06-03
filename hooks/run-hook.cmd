@@ -1,11 +1,11 @@
 : << 'CMDBLOCK'
 @echo off
-REM software-engineer-agents
+REM software-engineer
 REM Copyright (C) 2026 demwick
 REM Licensed under the GNU Affero General Public License v3.0 or later.
 REM See LICENSE in the repository root for the full license text.
 REM
-REM Cross-platform polyglot wrapper for software-engineer-agents hook scripts.
+REM Cross-platform polyglot wrapper for software-engineer hook scripts.
 REM On Windows: cmd.exe runs the batch portion, finds bash, and calls the target script.
 REM On Unix: the shell interprets this file as bash (": ..." is a no-op).
 REM
