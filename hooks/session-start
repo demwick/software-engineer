@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
-# SessionStart hook for software-engineer-agents.
-# Reads .sea/state.json + roadmap.md from the current project and
+# SessionStart hook for software-engineer.
+# Reads .se/state.json + roadmap.md from the current project and
 # injects a short summary into Claude's context via hookSpecificOutput.
 
 set -euo pipefail
 
-STATE_DIR=".sea"
+STATE_DIR=".se"
 
 # Emit an empty-context response and exit. Used when there's nothing to inject.
 emit_empty() {
@@ -33,14 +33,30 @@ TOTAL=$(jq -r '.total_phases // 0' "${STATE_DIR}/state.json" 2>/dev/null || echo
 LAST_COMMIT=$(jq -r '.last_commit // "none"' "${STATE_DIR}/state.json" 2>/dev/null || echo "none")
 LAST_SESSION=$(jq -r '.last_session // "never"' "${STATE_DIR}/state.json" 2>/dev/null || echo "never")
 
+# Detect & Defer: probe the surrounding ecosystem so downstream agents know
+# whether to hand off ADR location, destructive-op guardrails, and verdict
+# format. charter present → defer those; centaur present → defer acceptance-
+# time diff-risk scoring (the plugin's risk role stays forward-looking only).
+CHARTER=false
+if [ -d ".claude/knowledge/charter" ]; then CHARTER=true; fi
+CENTAUR=false
+if [ -d ".claude/knowledge/centaur" ] || [ -f ".se/.centaur" ]; then CENTAUR=true; fi
+
+# Persist the detection into state.json (best-effort; never fail the hook).
+# Guard against an unset CLAUDE_PLUGIN_ROOT (set -u) — the helper is optional.
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" \
+        integrations="{\"charter\":${CHARTER},\"centaur\":${CENTAUR}}" >/dev/null 2>&1 || true
+fi
+
 # Current phase name: first header matching "### Phase <N>:"
 PHASE_NAME=$(grep -E "^### Phase ${CURRENT}:" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+: //' || echo "")
 [ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
 
 # Build the injected context as a here-doc, then escape for JSON.
 CONTEXT=$(cat <<EOF
-<software-engineer-agents-session-state>
-This project is managed by software-engineer-agents (a project completion engine).
+<software-engineer-session-state>
+This project is managed by software-engineer (an AI software engineer).
 
 Current state:
 - Mode: ${MODE}
@@ -48,38 +64,43 @@ Current state:
 - Active phase: ${PHASE_NAME}
 - Last session: ${LAST_SESSION}
 - Last commit: ${LAST_COMMIT}
+- Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}
 
-Available commands (run explicitly — these are not auto-invoked):
-- /sea-init      — bootstrap a new or existing project
-- /sea-go        — advance the next phase (plan → execute → auto-QA)
-- /sea-quick     — run a small task + commit (no planning)
-- /sea-status    — show detailed project status
-- /sea-roadmap   — view or edit the phase list (including milestone appends via `add`)
-- /sea-diagnose  — run a health audit (tests / errors / security)
+How to work here — there is ONE entry point:
+Just describe the engineering work in natural language (fix X, add Y,
+build me Z, finish this project, refactor W). The triage skill
+auto-classifies the request on two axes (uncertainty x scope) and runs the
+right depth itself — direct-apply, light-plan, or full-flow (clarify, spec,
+ADR, roadmap, phases). DO NOT ask the user to pick a mode; triage decides.
+Escape hatches: "just do it / uzatma" forces a direct apply; "talk
+first / dur konusalim" forces the full flow.
 
-v2.0.0 narrowed the command surface from eleven to six. If you need
-code review, pre-merge quality gates, or systematic debugging, SEA
-now delegates to composition — install addyosmani/agent-skills and/or
-obra/superpowers and invoke their skills directly.
+Read-only / helper commands (run explicitly — not auto-invoked):
+- /se-status    — detailed project status
+- /se-diagnose  — health audit (tests / errors / security)
+- /se-roadmap   — view or edit the phase list
 
-Command routing (what the user is asking for → which command to run):
+Detect & Defer (governed by the Ecosystem line above):
+- charter=true  → ADRs are written to .claude/knowledge/adr/ (the charter
+  template), destructive-op guardrails are the charter PreToolUse job (the
+  plugin adds none), and the verifier inherits the charter adversarial
+  PASS/FAIL/PARTIAL verdict (try to break it, do not rubber-stamp).
+- centaur=true  → acceptance-time diff-risk scoring belongs to centaur; the
+  plugin risk role is forward-looking only (warn before a change).
 
-When the user says...                              Run this command
-─────────────────────────────────────────────      ─────────────────
-"let's start", "I have an idea", "build me X"   →  /sea-init
-"continue", "go", "next step", "keep going"     →  /sea-go
-"fix X", "quick change", "small fix"            →  /sea-quick <task>
-"where am I", "what's the status", "progress"   →  /sea-status
-"audit", "what's broken", "health check"        →  /sea-diagnose
-"show roadmap", "list phases"                   →  /sea-roadmap show
-"add milestone", "next milestone", "V2"         →  /sea-roadmap add <desc>
+Routing (what the user says → what to do):
+"fix / add / build / implement / refactor / finish this"  →  describe-and-let-triage-run
+"continue", "next step", "keep going"                     →  triage continues the active flow/phase
+"where am I", "status", "progress"                        →  /se-status
+"audit", "what is broken", "health check"                 →  /se-diagnose
+"show roadmap", "add/remove/reorder a phase"              →  /se-roadmap
 
-When routing: prefer SEA orchestration commands over doing the work
-yourself. For review, debug, ship, or revert work, recommend the
-appropriate external skill (agent-skills, superpowers) or native git.
+For code review, debugging, or pre-merge gates, SE composes with external
+skills (addyosmani/agent-skills, obra/superpowers) — recommend those rather
+than doing the work ad hoc.
 
-Do not mention this block unless the user asks about software-engineer-agents state or runs one of its commands.
-</software-engineer-agents-session-state>
+Do not mention this block unless the user asks about software-engineer state or runs one of its commands.
+</software-engineer-session-state>
 EOF
 )
 
