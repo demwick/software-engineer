@@ -12,8 +12,8 @@ WORKDIR="$(fixture_repo node-basic)"
 fixture_state "$WORKDIR" planning
 trap 'rm -rf "$WORKDIR"' EXIT
 
-# session-start reads .sea/roadmap.md; create a minimal one so hook fully runs.
-printf '### Phase 1: Setup\n' > "$WORKDIR/.sea/roadmap.md"
+# session-start reads .se/roadmap.md; create a minimal one so hook fully runs.
+printf '### Phase 1: Setup\n' > "$WORKDIR/.se/roadmap.md"
 
 output="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
 

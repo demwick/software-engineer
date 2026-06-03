@@ -13,10 +13,10 @@ fixture_state "$WORKDIR" executing
 trap 'rm -rf "$WORKDIR"' EXIT
 
 # Create .needs-verify marker and a spec file.
-mkdir -p "$WORKDIR/.sea/specs"
-: > "$WORKDIR/.sea/.needs-verify"
+mkdir -p "$WORKDIR/.se/specs"
+: > "$WORKDIR/.se/.needs-verify"
 
-cat > "$WORKDIR/.sea/specs/phase-2.md" << 'SPEC'
+cat > "$WORKDIR/.se/specs/phase-2.md" << 'SPEC'
 # Phase 2 Spec: Test Feature
 
 ## Goal
@@ -32,8 +32,8 @@ Add a test feature.
 SPEC
 
 # Create a fake plan with tasks.
-mkdir -p "$WORKDIR/.sea/phases/phase-2"
-cat > "$WORKDIR/.sea/phases/phase-2/plan.md" << 'PLAN'
+mkdir -p "$WORKDIR/.se/phases/phase-2"
+cat > "$WORKDIR/.se/phases/phase-2/plan.md" << 'PLAN'
 # Phase 2 Plan
 
 ## Tasks
@@ -55,13 +55,13 @@ git commit -q --allow-empty -m "feat(feature): implement feature"
 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/auto-qa" < /dev/null
 
 # Verify: .needs-verify should be cleared.
-if [ -f "$WORKDIR/.sea/.needs-verify" ]; then
+if [ -f "$WORKDIR/.se/.needs-verify" ]; then
     echo "FAIL: .needs-verify should have been cleared" >&2
     exit 1
 fi
 
 # Verify: verification JSON should exist.
-VERIFY_FILE="$WORKDIR/.sea/verification/phase-2.json"
+VERIFY_FILE="$WORKDIR/.se/verification/phase-2.json"
 assert_file_exists "$VERIFY_FILE" "verification JSON must exist"
 
 # Verify: JSON structure.
@@ -73,6 +73,6 @@ assert_jq "$VJSON" '.tdd_compliance' '!= null' "tdd_compliance must exist"
 assert_jq "$VJSON" '.verified_at' '!= null' "verified_at must exist"
 
 # Verify: state.json should have last_verification.
-STATE=$(cat "$WORKDIR/.sea/state.json")
+STATE=$(cat "$WORKDIR/.se/state.json")
 assert_jq "$STATE" '.last_verification' '!= null' "last_verification must exist in state"
 assert_jq "$STATE" '.last_verification.status' '!= null' "verification status in state"

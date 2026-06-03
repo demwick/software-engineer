@@ -16,8 +16,8 @@ trap 'rm -rf "$WORKDIR"' EXIT
 # Arm auto-QA by touching the v2 existence-only marker. Pre-seed
 # .verify-attempts with a stale counter to verify the clean-run
 # branch also clears the counter file.
-: > "$WORKDIR/.sea/.needs-verify"
-printf '{"attempts":1}' > "$WORKDIR/.sea/.verify-attempts"
+: > "$WORKDIR/.se/.needs-verify"
+printf '{"attempts":1}' > "$WORKDIR/.se/.verify-attempts"
 
 output="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
     bash "$REPO_ROOT/hooks/auto-qa" <<< '{"stop_hook_active":false}')"
@@ -33,11 +33,11 @@ if printf '%s' "$output" | jq -e '.decision == "block"' >/dev/null 2>&1; then
 fi
 
 # Both marker and counter must be cleaned up on pass.
-if [[ -f "$WORKDIR/.sea/.needs-verify" ]]; then
+if [[ -f "$WORKDIR/.se/.needs-verify" ]]; then
     printf 'FAIL: .needs-verify marker was not removed after passing tests\n' >&2
     exit 1
 fi
-if [[ -f "$WORKDIR/.sea/.verify-attempts" ]]; then
+if [[ -f "$WORKDIR/.se/.verify-attempts" ]]; then
     printf 'FAIL: .verify-attempts counter was not removed after passing tests\n' >&2
     exit 1
 fi

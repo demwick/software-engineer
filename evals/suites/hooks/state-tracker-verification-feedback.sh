@@ -14,7 +14,7 @@ fixture_state "$WORKDIR" executing
 trap 'rm -rf "$WORKDIR"' EXIT
 
 # Create a verification result file for phase 2 (executing fixture has current_phase=2).
-mkdir -p "$WORKDIR/.sea/verification"
+mkdir -p "$WORKDIR/.se/verification"
 jq -n '{
   phase: 2,
   status: "partial",
@@ -23,11 +23,11 @@ jq -n '{
   new_findings: ["no deno support in detect-test"],
   tdd_compliance: {compliant: false, skips: [{"task": 3, "reason": "docs-only"}]},
   verified_at: "2026-04-16T01:00:00Z"
-}' > "$WORKDIR/.sea/verification/phase-2.json"
+}' > "$WORKDIR/.se/verification/phase-2.json"
 
 cd "$WORKDIR" && bash "$REPO_ROOT/hooks/state-tracker" verification-feedback
 
-state="$(cat "$WORKDIR/.sea/state.json")"
+state="$(cat "$WORKDIR/.se/state.json")"
 
 # Verify last_verification was written
 assert_jq "$state" '.last_verification' '!= null' "last_verification must exist"

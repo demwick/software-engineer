@@ -48,11 +48,12 @@ grep -q 'Gate-pause protocol' agents/executor.md \
 grep -q 'STATUS: gate' agents/executor.md \
   || fail "executor.md missing STATUS: gate exit format"
 
-# sea-go has Step 4.5 risk gate inspection (v2.1.0 Iter 3)
-grep -q 'Risk gate inspection' skills/sea-go/SKILL.md \
-  || fail "sea-go/SKILL.md missing Step 4.5 'Risk gate inspection'"
-grep -q 'Resume after gate' skills/sea-go/SKILL.md \
-  || fail "sea-go/SKILL.md missing 'Resume after gate' section"
+# v4.0.0: the go flow moved into triage/references/flow-light.md.
+# Risk-gate inspection and gate-resume must survive the migration.
+grep -q 'risk_gates\|risk gate\|risk check' skills/triage/references/flow-light.md \
+  || fail "flow-light.md missing forward-looking risk-gate inspection"
+grep -q 'Resume from gate\|gate-pending' skills/triage/references/flow-light.md \
+  || fail "flow-light.md missing gate-resume handling"
 
 # v2.1.0 Iter 4: _common.md is auto-injected by SubagentStart hook,
 # so the manual "Read agents/_common.md first" imperative must be

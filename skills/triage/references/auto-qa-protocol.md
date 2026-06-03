@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -8,8 +8,9 @@
 # Auto-QA Protocol (Detailed)
 
 This is the extended reference for the auto-QA verification loop that
-runs after `/sea-go` (and `/sea-quick`) executor finishes. SKILL.md
-describes the basic flow; read this when you need the full semantics,
+runs after the executor finishes in any triage flow (direct-apply or
+light-plan). The flow reference describes the basic arming step; read
+this when you need the full semantics,
 retry counter rules, host-compat integration, or failure recovery
 protocol.
 
@@ -18,10 +19,10 @@ protocol.
 v2.0.0 split the marker into two files so the "should we verify?"
 signal is not overloaded with the "how many retries already?" counter.
 
-- **`.sea/.needs-verify`** — existence-only flag. Contents ignored.
+- **`.se/.needs-verify`** — existence-only flag. Contents ignored.
   Its presence tells the Stop hook to run; its absence tells the
   hook to exit 0 silently.
-- **`.sea/.verify-attempts`** — JSON object `{"attempts": N}`. The
+- **`.se/.verify-attempts`** — JSON object `{"attempts": N}`. The
   hook owns this file: it reads the counter, increments on failure
   via an atomic jq + mv into a temp file, and deletes the file on
   any terminal state (pass, loop-protection give-up, hard give-up,
@@ -32,7 +33,7 @@ number into `.needs-verify`, never create `.verify-attempts`
 yourself — both are owned by the hook.
 
 ```bash
-mkdir -p .sea && : > .sea/.needs-verify
+mkdir -p .se && : > .se/.needs-verify
 ```
 
 When the Stop hook runs:
@@ -70,7 +71,7 @@ phases and very early MVPs).
 
 ## Retry Counter Semantics
 
-Counter lives in `.sea/.verify-attempts` as `{"attempts": N}`.
+Counter lives in `.se/.verify-attempts` as `{"attempts": N}`.
 "marker deleted" below means both files (`.needs-verify` and
 `.verify-attempts`) are removed.
 
@@ -95,7 +96,7 @@ before letting Claude stop. Currently checks:
 
 - `pyproject.toml` `requires-python` vs `python3 --version` on host
 
-If mismatched, it appends a warning to `.sea/.last-verify.log` and
+If mismatched, it appends a warning to `.se/.last-verify.log` and
 returns a block decision. The reasoning: pytest can pass inside a
 managed venv while `pip install -e .` fails on the user's host. The
 test suite is not proof of packaging correctness.
@@ -115,11 +116,11 @@ not "tests failed" but something like:
 > tests/test_storage.py::test_save FAILED
 > AssertionError: expected 'high', got None in Todo.priority
 >
-> Read the full log at .sea/.last-verify.log, diagnose the root cause,
+> Read the full log at .se/.last-verify.log, diagnose the root cause,
 > and fix the failing tests. The Stop hook will re-verify automatically.
 
 Claude then:
-1. Reads `.sea/.last-verify.log`
+1. Reads `.se/.last-verify.log`
 2. Identifies the failing assertion / error
 3. Fixes the code
 4. The Stop hook fires again on the next response end
@@ -128,7 +129,7 @@ Claude then:
 ## Do Not Invoke Verifier Manually
 
 The `verifier` subagent exists as a documented interface, but in the
-current architecture `/sea-go` never calls it directly. The `Stop`
+current architecture no flow calls it directly. The `Stop`
 hook handles auto-QA without subagent invocation — it's just bash +
 `detect-test.sh`. Calling verifier manually would create a
 double-verification loop and confuse the retry counter.

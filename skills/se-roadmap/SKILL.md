@@ -1,27 +1,27 @@
 ---
-name: sea-roadmap
-description: View or edit the SEA project roadmap — verbs: `show`, `add <desc>`, `remove <N>`, `move <N> <to>`, `rename <N> <new>`. Refuses to modify done phases (they're immutable history). **Use this skill whenever** the user asks any of "show roadmap", "list phases", "add a phase", "remove that phase", "reorder", "rename phase N", "change the plan", or wants to tweak the phase list without re-running /sea-init. Also use when /sea-diagnose surfaces 4+ priority actions that should become their own phase.
+name: se-roadmap
+description: View or edit the SE project roadmap — verbs: `show`, `add <desc>`, `remove <N>`, `move <N> <to>`, `rename <N> <new>`. Refuses to modify done phases (they're immutable history). **Use this skill whenever** the user asks any of "show roadmap", "list phases", "add a phase", "remove that phase", "reorder", "rename phase N", "change the plan", or wants to tweak the phase list without re-bootstrapping the whole project. Also use when /se-diagnose surfaces 4+ priority actions that should become their own phase.
 argument-hint: [show | add <description> | remove <N> | move <N> <to> | rename <N> <new-name>]
 allowed-tools: Read, Write, Edit, Glob, Bash
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
 -->
 
-# /sea-roadmap
+# /se-roadmap
 
-View or modify `.sea/roadmap.md`. Announce: **"Using the roadmap skill."**
+View or modify `.se/roadmap.md`. Announce: **"Using the roadmap skill."**
 
 Argument: $ARGUMENTS (optional — `show` or empty to view; one of the edit verbs to modify)
 
 ## Step 1: Preconditions
 
-If `.sea/roadmap.md` doesn't exist, tell the user:
-> No roadmap found. Run `/sea-init` first.
+If `.se/roadmap.md` doesn't exist, tell the user:
+> No roadmap found. Describe your goal so triage can bootstrap it first.
 
 Then stop.
 
@@ -46,7 +46,7 @@ Format the roadmap and print it:
 
 Progress: ██████░░░░  2/4
 
-Run /sea-go to advance.
+Say "continue" to advance.
 ```
 
 No file writes for `show`.
@@ -60,13 +60,13 @@ Use this template:
 ```markdown
 ### Phase <N+1>: <short-name derived from description>
 **Goal:** <description, rewritten as one sentence>
-**Scope:** TBD — run `/sea-go` to let the planner fill this in.
+**Scope:** TBD — say "continue" to let the planner fill this in.
 **Deliverable:** TBD
 **Depends on:** Phase N
 **Status:** pending
 ```
 
-After approval, append to `.sea/roadmap.md`. Update `state.json`'s `total_phases`.
+After approval, append to `.se/roadmap.md`. Update `state.json`'s `total_phases`.
 
 ### `remove <N>`
 
@@ -74,12 +74,12 @@ Refuse to remove a phase whose status is `done` — those are historical record.
 
 1. Delete the phase block from `roadmap.md`.
 2. Renumber all subsequent phases (Phase N+1 → N, N+2 → N+1, …).
-3. If the removed phase had a plan dir at `.sea/phases/phase-N/`, move it to `.sea/phases/archived-<timestamp>-phase-N/` rather than deleting.
+3. If the removed phase had a plan dir at `.se/phases/phase-N/`, move it to `.se/phases/archived-<timestamp>-phase-N/` rather than deleting.
 4. Update `state.json`: decrement `total_phases`; if `current_phase > N`, decrement `current_phase`.
 
 ### `move <N> <to>`
 
-Reorder: move phase N to position `to`. Refuse if either slot is a `done` phase — done phases are anchored. Swap the blocks, renumber, and renumber any phase dirs in `.sea/phases/` accordingly (use the same archive-on-rename pattern to avoid losing data if something goes wrong).
+Reorder: move phase N to position `to`. Refuse if either slot is a `done` phase — done phases are anchored. Swap the blocks, renumber, and renumber any phase dirs in `.se/phases/` accordingly (use the same archive-on-rename pattern to avoid losing data if something goes wrong).
 
 Show a diff of the old order vs new order and ask for confirmation before writing.
 
@@ -89,7 +89,7 @@ Just change the `### Phase N: <name>` header line. No confirmation needed — it
 
 ## Adding a milestone to a completed project
 
-v2.0.0 removed the standalone `/sea-milestone` skill and folded its
+v2.0.0 removed the standalone `/se-milestone` skill and folded its
 functionality here. When every existing phase is `done` and the user
 describes a new direction — "V2 of this", "add a web UI", "extend the
 MVP with feature X", "next chunk", "migrate to Postgres" — treat the
@@ -182,15 +182,15 @@ appends.
    Milestone <N+1> added: "<goal>"
    - New phases: <LAST+1> ... <LAST+count>
    - Total phases: <new total>
-   - Plan files: not yet written — /sea-go will generate them per phase
+   - Plan files: not yet written — triage generates them per phase as you advance
 
-   Run /sea-go when ready to start Phase <LAST+1>.
+   Say "continue" when ready to start Phase <LAST+1>.
    ```
 
 ### Milestone rules
 
-- **Never archive or overwrite existing phases.** Unlike `/sea-init`,
-  the milestone flow always preserves history. Done phases stay done.
+- **Never archive or overwrite existing phases.** Unlike the full-flow
+  bootstrap, the milestone flow always preserves history. Done phases stay done.
 - **Do not renumber existing phases.** New phases continue from
   `LAST+1`.
 - **Do not call the executor.** The milestone flow is planning-only.
@@ -199,7 +199,7 @@ appends.
   directions, ask which one to tackle first and defer the other to
   a second call.
 - **Respect scope discipline.** If the described work is actually a
-  single fix, suggest `/sea-quick` and stop. If it is bigger than
+  single fix, suggest just asking for the fix (triage direct-applies it) and stop. If it is bigger than
   ~5 phases, suggest splitting into two milestones and stop.
 
 ## Step 3: After Any Edit
@@ -214,17 +214,17 @@ appends.
 - **Confirm before destructive edits.** `remove` and `move` always ask first, `add` asks before writing, `rename` doesn't need to.
 - **Archive, don't delete.** If you have to discard a phase directory, move it to `archived-<timestamp>-…/`.
 - **Keep `state.json` consistent.** Any operation that changes phase numbers must update `total_phases` and possibly `current_phase`.
-- **Do not launch agents.** Roadmap edits are mechanical — no planner, no executor. If the user wants planner help to redesign phases, they should use `/sea-init` with the archive flow.
+- **Do not launch agents.** Roadmap edits are mechanical — no planner, no executor. If the user wants planner help to redesign phases, they should re-bootstrap via the full-flow with the archive flow.
 
 ## When NOT to Use
 
-- No `.sea/roadmap.md` exists → `/sea-init` first
-- The user wants to *execute* a phase, not edit the list → `/sea-go`
+- No `.se/roadmap.md` exists → describe your goal so triage can bootstrap it first
+- The user wants to *execute* a phase, not edit the list → say "continue" (triage advances it)
 - The user wants to remove a phase that's `done` — this skill refuses. Run `git revert` on the phase's commit range first, then use `remove` here to drop the entry.
 
 ## Related
 
-- `/sea-init` — bootstraps the roadmap this skill edits
-- `/sea-go` — runs the phases this skill manages
-- `/sea-status` — shows the same roadmap in a more summary format
-- **Native `git revert`** — when "remove this phase" really means "undo what it did" (SEA no longer ships a revert wrapper in v2.0.0; the migration guide has the details)
+- `triage` full-flow — bootstraps the roadmap this skill edits
+- `triage` — runs the phases this skill manages (say "continue")
+- `/se-status` — shows the same roadmap in a more summary format
+- **Native `git revert`** — when "remove this phase" really means "undo what it did" (SE no longer ships a revert wrapper in v2.0.0; the migration guide has the details)

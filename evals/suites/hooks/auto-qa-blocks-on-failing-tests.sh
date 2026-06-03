@@ -25,7 +25,7 @@ cat > "$WORKDIR/package.json" <<'JSON'
 JSON
 
 # Arm auto-QA by touching the v2 existence-only marker.
-: > "$WORKDIR/.sea/.needs-verify"
+: > "$WORKDIR/.se/.needs-verify"
 
 output="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
     bash "$REPO_ROOT/hooks/auto-qa" <<< '{"stop_hook_active":false}')"
@@ -34,11 +34,11 @@ assert_jq "$output" '.decision' '== "block"' \
     "auto-qa should block when tests fail"
 
 # .verify-attempts must exist with attempts=1 after the first failure.
-if [[ ! -f "$WORKDIR/.sea/.verify-attempts" ]]; then
+if [[ ! -f "$WORKDIR/.se/.verify-attempts" ]]; then
     printf 'FAIL: .verify-attempts not created on first failure\n' >&2
     exit 1
 fi
-attempts=$(jq -r '.attempts' "$WORKDIR/.sea/.verify-attempts")
+attempts=$(jq -r '.attempts' "$WORKDIR/.se/.verify-attempts")
 if [[ "$attempts" != "1" ]]; then
     printf 'FAIL: expected .verify-attempts.attempts=1, got %s\n' "$attempts" >&2
     exit 1

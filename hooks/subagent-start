@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
-# SubagentStart hook for software-engineer-agents.
+# SubagentStart hook for software-engineer.
 #
 # Auto-injects agents/_common.md (the shared Operating Behaviors) into
-# every SEA subagent's launch context, so the rules become a structural
+# every SE subagent's launch context, so the rules become a structural
 # guarantee instead of a manual "Read _common.md first" instruction at
 # the top of each agent file.
 #
@@ -16,15 +16,15 @@
 # semantics for SubagentStart matchers are not formally documented
 # (see anthropics/claude-code#19170). This hook instead filters on
 # the stdin payload's agent_type field, which the runtime sets to
-# "<plugin-name>:<agent-name>" (e.g. "software-engineer-agents:researcher").
-# Only SEA agents get the injection; other plugins' subagents are
+# "<plugin-name>:<agent-name>" (e.g. "software-engineer:researcher").
+# Only SE agents get the injection; other plugins' subagents are
 # untouched.
 #
 # Stdout contract (exit 0):
 #     {"hookSpecificOutput":{"hookEventName":"SubagentStart",
 #                            "additionalContext":"<_common.md content>"}}
 #
-# If the target agent is not a SEA agent, or if _common.md is missing,
+# If the target agent is not a SE agent, or if _common.md is missing,
 # the hook emits an empty-context response. It never blocks a subagent
 # launch.
 
@@ -49,16 +49,16 @@ command -v jq >/dev/null 2>&1 || emit_empty
 
 # Read stdin payload. The SubagentStart event includes fields:
 #   session_id, transcript_path, cwd, agent_id, agent_type, hook_event_name
-# agent_type is plugin-qualified: "software-engineer-agents:researcher".
+# agent_type is plugin-qualified: "software-engineer:researcher".
 STDIN_PAYLOAD="$(cat 2>/dev/null || echo '{}')"
 AGENT_TYPE="$(printf '%s' "$STDIN_PAYLOAD" | jq -r '.agent_type // empty' 2>/dev/null || true)"
 
-# Filter: only SEA subagents get the injection.
+# Filter: only SE subagents get the injection.
 case "$AGENT_TYPE" in
-    software-engineer-agents:researcher|\
-    software-engineer-agents:planner|\
-    software-engineer-agents:executor|\
-    software-engineer-agents:verifier) ;;
+    software-engineer:researcher|\
+    software-engineer:planner|\
+    software-engineer:executor|\
+    software-engineer:verifier) ;;
     *) emit_empty ;;
 esac
 

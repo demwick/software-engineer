@@ -31,29 +31,29 @@ JSON
 
 # Arm the v2 existence-only marker. .verify-attempts does not exist
 # yet — the hook treats its absence as attempts=0 on the first call.
-: > "$WORKDIR/.sea/.needs-verify"
+: > "$WORKDIR/.se/.needs-verify"
 
 # ---- First failure: attempts 0 → 1 ----
 out1="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
     bash "$REPO_ROOT/hooks/auto-qa" <<< '{"stop_hook_active":false}')"
 assert_jq "$out1" '.decision' '== "block"' \
     "first failure emits block"
-if [[ ! -f "$WORKDIR/.sea/.verify-attempts" ]]; then
+if [[ ! -f "$WORKDIR/.se/.verify-attempts" ]]; then
     printf 'FAIL: .verify-attempts not created on first failure\n' >&2
     exit 1
 fi
-n1=$(jq -r '.attempts' "$WORKDIR/.sea/.verify-attempts")
+n1=$(jq -r '.attempts' "$WORKDIR/.se/.verify-attempts")
 assert_eq "1" "$n1" "attempts incremented to 1 after first failure"
-[[ -f "$WORKDIR/.sea/.needs-verify" ]] || { printf 'FAIL: marker disappeared mid-retry\n' >&2; exit 1; }
+[[ -f "$WORKDIR/.se/.needs-verify" ]] || { printf 'FAIL: marker disappeared mid-retry\n' >&2; exit 1; }
 
 # ---- Second failure: attempts 1 → 2 ----
 out2="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
     bash "$REPO_ROOT/hooks/auto-qa" <<< '{"stop_hook_active":false}')"
 assert_jq "$out2" '.decision' '== "block"' \
     "second failure emits block"
-n2=$(jq -r '.attempts' "$WORKDIR/.sea/.verify-attempts")
+n2=$(jq -r '.attempts' "$WORKDIR/.se/.verify-attempts")
 assert_eq "2" "$n2" "attempts incremented to 2 after second failure"
-[[ -f "$WORKDIR/.sea/.needs-verify" ]] || { printf 'FAIL: marker disappeared before give-up\n' >&2; exit 1; }
+[[ -f "$WORKDIR/.se/.needs-verify" ]] || { printf 'FAIL: marker disappeared before give-up\n' >&2; exit 1; }
 
 # ---- Third failure with stop_hook_active=true: give-up branch ----
 out3="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
@@ -67,11 +67,11 @@ if ! printf '%s' "$reason3" | grep -qi 'loop-protection\|gave up\|give up\|Do no
 fi
 
 # Both files must be cleared after give-up.
-if [[ -f "$WORKDIR/.sea/.needs-verify" ]]; then
+if [[ -f "$WORKDIR/.se/.needs-verify" ]]; then
     printf 'FAIL: .needs-verify not cleared after give-up\n' >&2
     exit 1
 fi
-if [[ -f "$WORKDIR/.sea/.verify-attempts" ]]; then
+if [[ -f "$WORKDIR/.se/.verify-attempts" ]]; then
     printf 'FAIL: .verify-attempts not cleared after give-up\n' >&2
     exit 1
 fi

@@ -6,13 +6,13 @@
   },
   "plugins": [
     {
-      "name": "software-engineer-agents",
+      "name": "software-engineer",
       "source": "./",
       "description": "AI Software Engineer — automates core SE responsibilities: architecture, planning, implementation, testing, code review, debugging, and documentation as a Claude Code plugin.",
       "version": "1.0.0",
       "license": "AGPL-3.0-or-later",
-      "homepage": "https://github.com/demwick/software-engineer-agents",
-      "repository": "https://github.com/demwick/software-engineer-agents",
+      "homepage": "https://github.com/demwick/software-engineer",
+      "repository": "https://github.com/demwick/software-engineer",
       "keywords": [
         "software-engineer",
         "ai-agent",

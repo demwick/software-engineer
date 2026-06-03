@@ -259,7 +259,7 @@ fixture_repo() {
     printf '%s' "$dst"
 }
 
-# Copy a named state fixture into <workdir>/.sea/state.json.
+# Copy a named state fixture into <workdir>/.se/state.json.
 fixture_state() {
     local workdir="$1" name="$2"
     local src="$(_fixtures_dir)/states/$name.json"
@@ -267,8 +267,8 @@ fixture_state() {
         printf 'fixture_state: no such state: %s\n' "$name" >&2
         return 1
     fi
-    mkdir -p "$workdir/.sea"
-    cp "$src" "$workdir/.sea/state.json"
+    mkdir -p "$workdir/.se"
+    cp "$src" "$workdir/.se/state.json"
 }
 ```
 
@@ -500,7 +500,7 @@ git commit -m "feat(evals): add state fixtures for fresh, planning, executing, b
 - Create: `evals/suites/state/update-rejects-bad-json.sh`
 - Create: `evals/suites/state/update-rejects-missing-schema-version.sh`
 
-Before writing the tests, read `scripts/state-update.sh` to learn its exact CLI — what it accepts (jq expression? key=value? file path?), how it signals error, and whether it requires `.sea/state.json` to already exist. The tests below assume `state-update.sh <jq-expression>` run from inside a directory that contains `.sea/state.json`. If the real CLI differs, adjust the Act sections accordingly before committing.
+Before writing the tests, read `scripts/state-update.sh` to learn its exact CLI — what it accepts (jq expression? key=value? file path?), how it signals error, and whether it requires `.se/state.json` to already exist. The tests below assume `state-update.sh <jq-expression>` run from inside a directory that contains `.se/state.json`. If the real CLI differs, adjust the Act sections accordingly before committing.
 
 - [ ] **Step 1: Write `update-preserves-required-fields.sh`**
 
@@ -523,7 +523,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 cd "$WORKDIR"
 bash "$REPO_ROOT/scripts/state-update.sh" '.current_phase = "phase-2"'
 
-result="$(cat .sea/state.json)"
+result="$(cat .se/state.json)"
 assert_jq "$result" '.schema_version' '. == 1' "schema_version preserved"
 assert_jq "$result" '.mode'           '. == "planning"' "mode preserved"
 assert_jq "$result" '.last_session'   'type == "string"' "last_session still a string"
@@ -548,9 +548,9 @@ fixture_state "$WORKDIR" planning
 trap 'rm -rf "$WORKDIR"' EXIT
 
 cd "$WORKDIR"
-before="$(jq -r '.last_session' .sea/state.json)"
+before="$(jq -r '.last_session' .se/state.json)"
 bash "$REPO_ROOT/scripts/state-update.sh" '.mode = "executing"'
-after="$(jq -r '.last_session' .sea/state.json)"
+after="$(jq -r '.last_session' .se/state.json)"
 
 if [[ "$before" == "$after" ]]; then
     printf 'FAIL: last_session was not refreshed\n  before=%s\n  after=%s\n' \
@@ -573,8 +573,8 @@ source "$REPO_ROOT/evals/lib/assert.sh"
 source "$REPO_ROOT/evals/lib/fixtures.sh"
 
 WORKDIR="$(fixture_repo empty)"
-mkdir -p "$WORKDIR/.sea"
-printf 'not valid json' > "$WORKDIR/.sea/state.json"
+mkdir -p "$WORKDIR/.se"
+printf 'not valid json' > "$WORKDIR/.se/state.json"
 trap 'rm -rf "$WORKDIR"' EXIT
 
 cd "$WORKDIR"
@@ -584,7 +584,7 @@ if [[ "$rc" -eq 0 ]]; then
     echo "FAIL: state-update.sh accepted invalid input" >&2
     exit 1
 fi
-assert_file_contains .sea/state.json 'not valid json' "original content untouched"
+assert_file_contains .se/state.json 'not valid json' "original content untouched"
 ```
 
 - [ ] **Step 4: Write `update-rejects-missing-schema-version.sh`**
@@ -916,7 +916,7 @@ git commit -m "feat(evals): validate agent and skill frontmatter schemas"
 Before writing, read each hook script (`hooks/session-start`, `hooks/auto-qa`, `hooks/state-tracker`) to learn:
 1. **Invocation surface.** What stdin does each hook read (the Claude Code hook JSON input)? What env vars does it require (`CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`, etc.)?
 2. **Output contract.** Does it print a JSON object with `hookSpecificOutput.additionalContext`? Does it print a `{"decision": "block", "reason": "..."}` object on stdout, or exit with code 2?
-3. **State coupling.** Which keys in `.sea/state.json` does each hook read/write?
+3. **State coupling.** Which keys in `.se/state.json` does each hook read/write?
 
 The skeletons below assume the current Claude Code hook contract: stdin receives a JSON event, stdout receives a JSON response, `CLAUDE_PROJECT_DIR` points at the target repo. If your hooks read different env vars, swap them.
 
@@ -955,7 +955,7 @@ assert_jq "$output" '.hookSpecificOutput.additionalContext' \
 
 ```bash
 #!/usr/bin/env bash
-# session-start must not crash when .sea/state.json is missing.
+# session-start must not crash when .se/state.json is missing.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
 
@@ -1097,7 +1097,7 @@ CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
 CLAUDE_PROJECT_DIR="$WORKDIR" \
     bash "$REPO_ROOT/hooks/state-tracker" < /dev/null >/dev/null
 
-result="$(cat "$WORKDIR/.sea/state.json")"
+result="$(cat "$WORKDIR/.se/state.json")"
 assert_jq "$result" '.schema_version' '. == 1'              "schema_version preserved"
 assert_jq "$result" '.mode'           'type == "string"'    "mode present"
 assert_jq "$result" '.last_session'   'type == "string"'    "last_session present"

@@ -14,7 +14,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 cd "$WORKDIR" && bash "$REPO_ROOT/hooks/state-tracker" file-touched
 
-state="$(cat "$WORKDIR/.sea/state.json")"
+state="$(cat "$WORKDIR/.se/state.json")"
 
 assert_jq "$state" '.schema_version' '!= null' "schema_version must be preserved"
 assert_jq "$state" '.mode' '!= null'           "mode must be preserved"

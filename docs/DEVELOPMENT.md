@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -7,7 +7,7 @@
 
 # Development Reference
 
-Developer internals for contributors to `software-engineer-agents`. For user-facing docs, see [`README.md`](../README.md).
+Developer internals for contributors to `software-engineer`. For user-facing docs, see [`README.md`](../README.md).
 
 ---
 
@@ -21,10 +21,10 @@ The plugin is a thin layer over Claude Code's native primitives. No external run
 
 | Agent | Model | Tools | Memory | Called from |
 |-------|-------|-------|--------|-------------|
-| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | `/sea-init`, `/sea-diagnose` |
-| `planner` | Sonnet | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/sea-init`, `/sea-go` |
-| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | `/sea-go`, `/sea-quick` |
-| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), `/sea-go` |
+| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | `/se-init`, `/se-diagnose` |
+| `planner` | Sonnet | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/se-init`, `/se-go` |
+| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | `/se-go`, `/se-quick` |
+| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), `/se-go` |
 
 All four agents share `agents/_common.md` — an operating constitution (surface assumptions, manage confusion, push back with evidence, enforce simplicity, stop-the-line, commit discipline) that overrides any task-specific instruction it conflicts with.
 
@@ -32,13 +32,13 @@ Each agent has `memory: project` in its frontmatter. Claude Code manages a per-a
 
 **Hooks** (`hooks/hooks.json`):
 
-- **`SessionStart`** — reads `.sea/state.json` and `.sea/roadmap.md`, injects a short state summary into Claude's context via `additionalContext`. Every session starts with project awareness.
-- **`Stop` (auto-QA)** — when `.sea/.needs-verify` is present (set by `/sea-go` or `/sea-quick` after the executor finishes), auto-detects the test runner, runs it, and either lets Claude stop (pass) or returns a `block` decision with failure details. Claude auto-retries up to 2 times before giving up.
+- **`SessionStart`** — reads `.se/state.json` and `.se/roadmap.md`, injects a short state summary into Claude's context via `additionalContext`. Every session starts with project awareness.
+- **`Stop` (auto-QA)** — when `.se/.needs-verify` is present (set by `/se-go` or `/se-quick` after the executor finishes), auto-detects the test runner, runs it, and either lets Claude stop (pass) or returns a `block` decision with failure details. Claude auto-retries up to 2 times before giving up.
 - **`PostToolUse` (state-tracker)** — refreshes `last_edit` in `state.json` every time Claude modifies a file in an initialized project.
 
 **State** lives in two layers:
 
-- `<project>/.sea/` — project runtime state (roadmap, phase plans, current state, transient markers)
+- `<project>/.se/` — project runtime state (roadmap, phase plans, current state, transient markers)
 - `.claude/agent-memory/<agent>/MEMORY.md` — per-agent cross-session learnings (platform-managed)
 
 See [`STATE.md`](STATE.md) for the full file layout and schemas. See [`../examples/state/`](../examples/state/) for populated sample files.
@@ -48,7 +48,7 @@ See [`STATE.md`](STATE.md) for the full file layout and schemas. See [`../exampl
 ## Directory layout
 
 ```
-software-engineer-agents/
+software-engineer/
 ├── .claude-plugin/plugin.json     # manifest
 ├── CLAUDE.md                      # context for developing the plugin itself
 ├── DESIGN.md                      # architectural decisions and rationale
@@ -62,12 +62,12 @@ software-engineer-agents/
 │   ├── executor.md                # Sonnet, full tools, memory: project
 │   └── verifier.md                # Haiku, read-only + Bash, memory: project
 ├── skills/
-│   ├── sea-init/SKILL.md          # disable-model-invocation
-│   ├── sea-go/SKILL.md            # disable-model-invocation
-│   ├── sea-quick/SKILL.md         # disable-model-invocation
-│   ├── sea-diagnose/SKILL.md      # auto-invocable
-│   ├── sea-status/SKILL.md        # auto-invocable
-│   └── sea-roadmap/SKILL.md       # auto-invocable
+│   ├── se-init/SKILL.md          # disable-model-invocation
+│   ├── se-go/SKILL.md            # disable-model-invocation
+│   ├── se-quick/SKILL.md         # disable-model-invocation
+│   ├── se-diagnose/SKILL.md      # auto-invocable
+│   ├── se-status/SKILL.md        # auto-invocable
+│   └── se-roadmap/SKILL.md       # auto-invocable
 ├── hooks/
 │   ├── hooks.json                 # SessionStart + Stop + PostToolUse registration
 │   ├── run-hook.cmd               # polyglot cross-platform wrapper
@@ -78,10 +78,10 @@ software-engineer-agents/
 │   ├── detect-test.sh             # auto-detects the project's test runner
 │   ├── detect-quality.sh          # detects lint / typecheck / build / audit commands
 │   ├── check-host-compat.sh       # host Python / tool compat post-check for auto-qa
-│   ├── state-update.sh            # safe jq-based .sea/state.json writer
-│   └── archive-state.sh           # moves .sea/ aside for a clean reset
+│   ├── state-update.sh            # safe jq-based .se/state.json writer
+│   └── archive-state.sh           # moves .se/ aside for a clean reset
 ├── docs/
-│   ├── STATE.md                   # .sea/ reference
+│   ├── STATE.md                   # .se/ reference
 │   ├── DEVELOPMENT.md             # this file
 │   └── specs/                     # refactor specs and companion journals
 ├── evals/                         # deterministic CI eval suites (run via evals/run.sh)
@@ -131,7 +131,7 @@ bash evals/suites/hooks/auto-qa-blocks-on-failing-tests.sh
 ## Debugging hooks
 
 ```bash
-claude --debug-file /tmp/sea.log --plugin-dir /path/to/software-engineer-agents
+claude --debug-file /tmp/sea.log --plugin-dir /path/to/software-engineer
 # in another terminal:
 tail -f /tmp/sea.log
 ```
@@ -157,13 +157,13 @@ v2.0.0 removed five commands. The table below maps each to its replacement:
 
 | v1.x command | Replacement |
 |---|---|
-| `/sea-ship` | `git push` + your CI pipeline |
-| `/sea-review` | `/sea-diagnose` for a health audit; manual review for PR gates |
-| `/sea-debug` | `/sea-diagnose` with a focus argument (`security`, `errors`, `tests`) |
-| `/sea-milestone` | `/sea-roadmap add "<description>"` |
-| `/sea-undo` | `git revert <commit>` |
+| `/se-ship` | `git push` + your CI pipeline |
+| `/se-review` | `/se-diagnose` for a health audit; manual review for PR gates |
+| `/se-debug` | `/se-diagnose` with a focus argument (`security`, `errors`, `tests`) |
+| `/se-milestone` | `/se-roadmap add "<description>"` |
+| `/se-undo` | `git revert <commit>` |
 
-State schema: if you have a v1.x project with a `.sea/` directory, v2.0.0 migrates it automatically on first `/sea-go` or `/sea-init`. The migration is one-way; the `pre-scope-cut` git tag is the floor if you need to roll back the plugin itself.
+State schema: if you have a v1.x project with a `.se/` directory, v2.0.0 migrates it automatically on first `/se-go` or `/se-init`. The migration is one-way; the `pre-scope-cut` git tag is the floor if you need to roll back the plugin itself.
 
 ---
 

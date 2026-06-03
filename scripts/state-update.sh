@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
-# state-update.sh — atomic, schema-preserving update of .sea/state.json.
+# state-update.sh — atomic, schema-preserving update of .se/state.json.
 #
 # Usage:
 #   bash state-update.sh [--project-dir PATH] KEY=VALUE [KEY=VALUE ...]
@@ -43,7 +43,7 @@ if [ "${1:-}" = "--project-dir" ]; then
     shift 2
 fi
 
-STATE_FILE="$PROJECT_DIR/.sea/state.json"
+STATE_FILE="$PROJECT_DIR/.se/state.json"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 if [ ! -f "$STATE_FILE" ]; then

@@ -64,7 +64,7 @@
   **Good:** `grep -rn 'eval\|exec\|innerHTML' src/ → no matches`
 
   **Bad:**  "The migration worked."
-  **Good:** `cat .sea/state.json | jq .schema_version → 2`
+  **Good:** `cat .se/state.json | jq .schema_version → 2`
 
   A claim without the command and its output is an **assertion**; a
   claim with them is **verifiable**. The verifier agent treats

@@ -22,8 +22,8 @@ complex
 risk_gates:
   - task: 2
     kind: "schema-migration"
-    reason: "Runs .sea/state.json migration from v1 to v2"
-    confirmation: "Confirm state migration. Back up .sea/ first? Migration is one-way."
+    reason: "Runs .se/state.json migration from v1 to v2"
+    confirmation: "Confirm state migration. Back up .se/ first? Migration is one-way."
   - task: 3
     kind: "dependency-removal"
     reason: "Removes @legacy/auth; may break any import we haven't caught"
@@ -49,18 +49,18 @@ risk_gates:
 - **Verification:** `bash -n scripts/migrate-v1-to-v2.sh`
 - **Commit:** `feat(scripts): add v1→v2 migration`
 - **Allowed paths:** scripts/migrate-v1-to-v2.sh
-- **Forbidden paths:** .sea/**
+- **Forbidden paths:** .se/**
 
 ### Task 2: run migration on sample state
-- **What:** execute migration against .sea/state.json
+- **What:** execute migration against .se/state.json
 - **Covers:** R1.1
-- **Files:** .sea/state.json (modified)
+- **Files:** .se/state.json (modified)
 - **Steps:**
   1. back up state.json
   2. run migration
-- **Verification:** `jq .schema_version .sea/state.json` → `2`
+- **Verification:** `jq .schema_version .se/state.json` → `2`
 - **Commit:** `chore(state): migrate schema v1→v2`
-- **Allowed paths:** .sea/state.json
+- **Allowed paths:** .se/state.json
 - **Forbidden paths:** src/**
 
 ### Task 3: remove @legacy/auth
@@ -83,7 +83,7 @@ risk_gates:
 - **Verification:** `git ls-remote origin feat-migration`
 - **Commit:** (no commit — push only)
 - **Allowed paths:** **
-- **Forbidden paths:** .sea/**
+- **Forbidden paths:** .se/**
 
 ### Task 5: publish package
 - **What:** publish to internal npm registry
@@ -94,7 +94,7 @@ risk_gates:
 - **Verification:** `npm view @sea/plugin version`
 - **Commit:** (no commit — publish only)
 - **Allowed paths:** **
-- **Forbidden paths:** .sea/**
+- **Forbidden paths:** .se/**
 
 ## Coverage Matrix
 

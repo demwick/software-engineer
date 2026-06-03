@@ -15,7 +15,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 bash "$REPO_ROOT/scripts/state-update.sh" \
     --project-dir "$WORKDIR" last_commit=deadbeef
 
-STATE="$(cat "$WORKDIR/.sea/state.json")"
+STATE="$(cat "$WORKDIR/.se/state.json")"
 
 assert_jq "$STATE" '.schema_version'  '== 2'              "schema_version preserved (v2)"
 assert_jq "$STATE" '.mode'            '== "from-scratch"' "mode preserved"

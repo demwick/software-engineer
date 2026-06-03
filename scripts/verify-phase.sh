@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# software-engineer-agents
+# software-engineer
 # Copyright (C) 2026 demwick
 # Licensed under the GNU Affero General Public License v3.0 or later.
 # See LICENSE in the repository root for the full license text.
 #
 # verify-phase.sh — deterministic spec-based verification after tests pass.
-# Called by hooks/auto-qa on the test-pass path. Reads .sea/specs/phase-N.md,
+# Called by hooks/auto-qa on the test-pass path. Reads .se/specs/phase-N.md,
 # counts acceptance criteria, checks TDD commit patterns, and writes
-# .sea/verification/phase-N.json for the Act feedback loop.
+# .se/verification/phase-N.json for the Act feedback loop.
 #
 # Usage:
 #   bash verify-phase.sh [project-dir]
@@ -20,7 +20,7 @@
 set -euo pipefail
 
 PROJECT_DIR="${1:-.}"
-STATE_FILE="$PROJECT_DIR/.sea/state.json"
+STATE_FILE="$PROJECT_DIR/.se/state.json"
 
 # Bail silently if not an initialized project or jq missing.
 [ -f "$STATE_FILE" ] || exit 1
@@ -28,11 +28,11 @@ command -v jq >/dev/null 2>&1 || exit 1
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
-SPEC_FILE="$PROJECT_DIR/.sea/specs/phase-${CURRENT_PHASE}.md"
+SPEC_FILE="$PROJECT_DIR/.se/specs/phase-${CURRENT_PHASE}.md"
 
 # No spec = pre-v3.1.0 project. Write a minimal pass result.
 if [ ! -f "$SPEC_FILE" ]; then
-    mkdir -p "$PROJECT_DIR/.sea/verification"
+    mkdir -p "$PROJECT_DIR/.se/verification"
     jq -n \
         --argjson phase "$CURRENT_PHASE" \
         --arg ts "$NOW" \
@@ -44,7 +44,7 @@ if [ ! -f "$SPEC_FILE" ]; then
             new_findings: [],
             tdd_compliance: {compliant: true, skips: []},
             verified_at: $ts
-        }' > "$PROJECT_DIR/.sea/verification/phase-${CURRENT_PHASE}.json"
+        }' > "$PROJECT_DIR/.se/verification/phase-${CURRENT_PHASE}.json"
     exit 0
 fi
 
@@ -59,7 +59,7 @@ TOTAL_CRITERIA=${TOTAL_CRITERIA:-0}
 # --- TDD compliance: check commit history for test commits ---
 
 # Get commits in this phase (since last phase's tag or all if phase 1).
-PLAN_FILE="$PROJECT_DIR/.sea/phases/phase-${CURRENT_PHASE}/plan.md"
+PLAN_FILE="$PROJECT_DIR/.se/phases/phase-${CURRENT_PHASE}/plan.md"
 PHASE_COMMITS=""
 if [ -f "$PLAN_FILE" ]; then
     # Count commits since phase started (rough: last N commits where N = task count * 2)
@@ -105,7 +105,7 @@ if [ "$TDD_COMPLIANT" = "false" ]; then
 fi
 
 # --- Write verification JSON ---
-mkdir -p "$PROJECT_DIR/.sea/verification"
+mkdir -p "$PROJECT_DIR/.se/verification"
 jq -n \
     --argjson phase "$CURRENT_PHASE" \
     --arg status "$STATUS" \
@@ -123,6 +123,6 @@ jq -n \
         new_findings: $findings,
         tdd_compliance: {compliant: $tdd_compliant, skips: $tdd_skips},
         verified_at: $ts
-    }' > "$PROJECT_DIR/.sea/verification/phase-${CURRENT_PHASE}.json"
+    }' > "$PROJECT_DIR/.se/verification/phase-${CURRENT_PHASE}.json"
 
 exit 0

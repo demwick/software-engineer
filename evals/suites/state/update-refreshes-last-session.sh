@@ -12,7 +12,7 @@ WORKDIR="$(fixture_repo empty)"
 fixture_state "$WORKDIR" planning
 trap 'rm -rf "$WORKDIR"' EXIT
 
-BEFORE="$(jq -r '.last_session' "$WORKDIR/.sea/state.json")"
+BEFORE="$(jq -r '.last_session' "$WORKDIR/.se/state.json")"
 
 # Sleep 1s so the timestamp will differ.
 sleep 1
@@ -20,7 +20,7 @@ sleep 1
 bash "$REPO_ROOT/scripts/state-update.sh" \
     --project-dir "$WORKDIR" last_commit=deadbeef
 
-AFTER="$(jq -r '.last_session' "$WORKDIR/.sea/state.json")"
+AFTER="$(jq -r '.last_session' "$WORKDIR/.se/state.json")"
 
 if [[ "$BEFORE" == "$AFTER" ]]; then
     printf 'FAIL: last_session was not refreshed (before=%s after=%s)\n' \
