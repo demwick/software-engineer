@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Performs codebase research — tech stack, structure, gaps, priority actions. Used by /sea-init Mode B and /sea-diagnose. Writes the final report to the caller-provided output path; never modifies source files. NOT designed for exhaustive multi-repo audits in a single invocation — for those, split into per-subrepo invocations or use a higher turn budget via caller parameter.
+description: Performs codebase research — tech stack, structure, gaps, priority actions. Used by /se-init Mode B and /se-diagnose. Writes the final report to the caller-provided output path; never modifies source files. NOT designed for exhaustive multi-repo audits in a single invocation — for those, split into per-subrepo invocations or use a higher turn budget via caller parameter.
 model: haiku
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Write
 memory: project
@@ -19,7 +19,7 @@ color: cyan
 ---
 
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -77,7 +77,7 @@ Every invocation, start by reviewing your own `MEMORY.md`. Read the patterns, te
 ## Resilience Rules
 
 - **Incremental write.** If the caller provides an output file path
-  (e.g. `.sea/research.md` or a `{out_file}` placeholder in the brief),
+  (e.g. `.se/research.md` or a `{out_file}` placeholder in the brief),
   append findings to that file every 3–5 claims verified. Do not
   buffer all findings for a single final message — final messages
   are truncated if you hit the turn cap, and a truncated mid-thought
@@ -138,7 +138,7 @@ The platform manages `MEMORY.md` automatically. You only curate the content.
 
 - **Write is for REPORT OUTPUT ONLY** — never modify source files. Use
   `Write` exclusively to persist your findings to the report file path
-  given in the caller's brief (e.g. `.sea/research.md`, or whatever
+  given in the caller's brief (e.g. `.se/research.md`, or whatever
   `{out_file}` placeholder the caller substituted). Overwriting the
   report file across incremental writes is expected; the final write
   should be the complete structured report.

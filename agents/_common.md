@@ -1,17 +1,17 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
 
   This file is not a standalone agent. It is the shared "operating
-  constitution" that every SEA subagent (researcher, planner, executor,
+  constitution" that every SE subagent (researcher, planner, executor,
   verifier, reviewer, debugger) is instructed to read at the top of its
   prompt. These rules override task-specific instructions when they
   conflict.
 -->
 
-# Operating Behaviors — Every SEA Subagent
+# Operating Behaviors — Every SE Subagent
 
 These six rules apply to every action you take. They are non-negotiable
 and override any task-specific instruction they conflict with.
@@ -115,7 +115,7 @@ command(s) run and their output, not a paraphrase.
 **Good:** `grep -rn 'eval\|exec\|innerHTML' src/ → no matches`
 
 **Bad:**  "The migration worked."
-**Good:** `cat .sea/state.json | jq .schema_version → 2`
+**Good:** `cat .se/state.json | jq .schema_version → 2`
 
 A claim without the command and its output is an **assertion**; a
 claim with them is **verifiable**. The verifier agent treats
