@@ -1,5 +1,5 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
@@ -7,17 +7,58 @@
 
 # Changelog
 
-All notable changes to `software-engineer-agents` are documented here.
+All notable changes to `software-engineer` are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/) and
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (v4.0.0 — triage architecture)
+
+- **`triage` skill — the single entry point.** Replaces the three slash
+  entry commands. Classifies every request on two axes (uncertainty ×
+  scope), rounds up under doubt, honors natural-language escape hatches
+  ("just do it" / "let's talk first"), and routes to one of three flow
+  references. Verified headless: 5/5 routing scenarios correct.
+- **`clarify` skill** — Socratic requirements dialogue (scale, auth,
+  NFRs, mandatory non-goals) for fuzzy + broad work.
+- **`spec` skill** — writes a binding single source of truth to
+  `.se/specs/<feature>.md`; contradictions stop the flow and ask.
+- **`adr` skill** — numbered Architecture Decision Records. Location is
+  conditional: charter's `.claude/knowledge/adr/` when present, else
+  `.se/adr/`.
+- **`risk` skill** — forward-looking (plan-phase) risk foresight;
+  explicitly does not score committed diffs (centaur's job).
+- **Detect & Defer.** `SessionStart` hook probes for charter/centaur and
+  records `state.json.integrations`. When charter is present the plugin
+  defers ADR location, destructive-op guardrails, and the verifier
+  verdict format; when centaur is present it defers acceptance-time
+  diff-risk scoring.
+
+### Changed (v4.0.0)
+
+- **`verifier` agent** gained senior code review with severity
+  classification (blocker/major/minor/nit, each with rationale +
+  alternative) and a charter-defer branch that inherits charter's
+  adversarial PASS/FAIL/PARTIAL verdict. Stop-hook JSON contract
+  unchanged.
+- **Memory** is now hybrid: platform `memory: project` plus human-readable
+  `.se/memory/` project context (no new agent).
+- **`se-diagnose` / `se-status` / `se-roadmap`** routing updated to the
+  natural-language triage model; `docs/STATE.md`, `README.md`,
+  `CLAUDE.md`, `TESTING.md` rewritten for v4.
+
+### Removed (v4.0.0)
+
+- The `se-init`, `se-go`, `se-quick` slash skills. Their procedures are
+  preserved verbatim as `skills/triage/references/flow-{full,light,direct}.md`
+  and reached only through `triage`.
+
 ### Fixed
 
 - **`researcher` agent resilience for multi-subrepo audits.** Agent now
-  writes incrementally to a caller-provided output path (`.sea/research.md`
-  for `/sea-init` Mode B, `.sea/research-diagnose.md` for `/sea-diagnose`)
+  writes incrementally to a caller-provided output path (`.se/research.md`
+  for `/se-init` Mode B, `.se/research-diagnose.md` for `/se-diagnose`)
   and survives turn-budget exhaustion with a truncated-but-usable report
   (`## STATUS: TRUNCATED at turn {N}` header). Raised `maxTurns` 15 → 25
   to cover real-world Mode B workloads where mandatory reads alone
@@ -32,19 +73,19 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ### Changed (BREAKING)
 
-- **Renamed `software-engineer-agent` → `software-engineer-agents`.** The
+- **Renamed `software-engineer-agent` → `software-engineer`.** The
   plugin is a multi-subagent system (`researcher`, `planner`, `executor`,
   `verifier` + `_common.md`), and the singular name under-sold that.
-  The `SEA` abbreviation, the `.sea/` state directory, and the `/sea-*`
+  The `SE` abbreviation, the `.se/` state directory, and the `/se-*`
   skill prefix are unchanged.
 - **Plugin manifest.** `.claude-plugin/plugin.json` `name` and
   `repository` fields updated. GitHub repo renamed to
-  `demwick/software-engineer-agents` (old URL redirects via GitHub).
+  `demwick/software-engineer` (old URL redirects via GitHub).
 - **User-facing slash command namespace.** `/software-engineer-agent:*`
-  → `/software-engineer-agents:*` for every skill (`sea-init`, `sea-go`,
-  `sea-quick`, `sea-diagnose`, `sea-status`, `sea-roadmap`).
+  → `/software-engineer:*` for every skill (`se-init`, `se-go`,
+  `se-quick`, `se-diagnose`, `se-status`, `se-roadmap`).
 - **SubagentStart hook filter.** `hooks/subagent-start` case branches
-  now match `software-engineer-agents:{researcher,planner,executor,verifier}`.
+  now match `software-engineer:{researcher,planner,executor,verifier}`.
   Existing v2.2.0 installs will stop auto-injecting `_common.md` after
   upgrade until Claude Code reloads the plugin under the new name.
 - Active docs (`README.md`, `DESIGN.md`, `CLAUDE.md`, `TESTING.md`,
@@ -61,11 +102,11 @@ and re-install under the new name:
 
 ```
 /plugin remove software-engineer-agent
-/plugin add demwick/software-engineer-agents
+/plugin add demwick/software-engineer
 ```
 
-Local project state (`.sea/state.json`, `.sea/roadmap.md`, phase plans)
-is unaffected — nothing in `.sea/` references the plugin name.
+Local project state (`.se/state.json`, `.se/roadmap.md`, phase plans)
+is unaffected — nothing in `.se/` references the plugin name.
 
 ## [2.2.0] — 2026-04-16
 
@@ -73,7 +114,7 @@ is unaffected — nothing in `.sea/` references the plugin name.
 - **Iter 4: auto-injection of `_common.md`.** New `hooks/subagent-start`
   hook wired to the Claude Code `SubagentStart` event. Reads
   `agents/_common.md` from `CLAUDE_PLUGIN_ROOT` and injects it into
-  every SEA subagent's launch context via the `additionalContext`
+  every SE subagent's launch context via the `additionalContext`
   channel. Filters on the stdin `agent_type` field (plugin-qualified,
   e.g. `software-engineer-agent:researcher`) so other plugins'
   subagents are untouched.
@@ -83,7 +124,7 @@ is unaffected — nothing in `.sea/` references the plugin name.
 
 ### Changed
 - Removed the manual `**Read agents/_common.md first.**` imperative
-  from every SEA agent file (`researcher.md`, `planner.md`,
+  from every SE agent file (`researcher.md`, `planner.md`,
   `executor.md`, `verifier.md`). The `SubagentStart` hook supersedes
   it; the file now carries a short HTML comment pointing readers at
   `hooks/subagent-start` instead.
@@ -97,7 +138,7 @@ is unaffected — nothing in `.sea/` references the plugin name.
 
 Prompt-quality patterns release. Installs Demonstrate Comprehension
 (Step 0), Evidence-Bearing Exit Reports (Rule 7), per-task scope
-bounds, and per-plan risk gates across the planner/executor/sea-go
+bounds, and per-plan risk gates across the planner/executor/se-go
 stack. Iteration 3 risk-gate state machine validated end-to-end against
 a real `claude --plugin-dir` session on 2026-04-15 (two gate pause +
 resume cycles, marker round-trip, cancel path).
@@ -121,19 +162,19 @@ resume cycles, marker round-trip, cancel path).
   `dependency-removal`, `schema-migration`, `unsafe-shell`,
   `network-state-mutation`).
 - Gate-pause protocol in `executor.md`: new `STATUS: gate` exit, writes
-  `.sea/phases/phase-N/gate-pending.json`, marks task status `gated` in
+  `.se/phases/phase-N/gate-pending.json`, marks task status `gated` in
   `progress.json`, and resumes via "gate resumed" context on re-launch.
 - Step 4.5 "Risk gate inspection" and "Resume after gate" branch in
-  `skills/sea-go/SKILL.md`: surfaces gates for explicit user confirmation
+  `skills/se-go/SKILL.md`: surfaces gates for explicit user confirmation
   before executor launch and on each `STATUS: gate` return.
-- `docs/STATE.md` documents the new `.sea/phases/phase-N/gate-pending.json`
+- `docs/STATE.md` documents the new `.se/phases/phase-N/gate-pending.json`
   marker (writer, readers, format, invariants).
 - `evals/fixtures/plans/sample-plan-with-gates.md`: fixture plan with one
   task per gate kind.
 - `evals/suites/agents/risk-gate-flow.sh`: structural simulation of the
   gate-pending marker round-trip; does not run a real executor.
 - `evals/suites/agents/prompt-quality.sh` extended with risk-gate
-  assertions (planner, executor, sea-go).
+  assertions (planner, executor, se-go).
 
 ## [2.0.0] — 2026-04-15
 
@@ -146,8 +187,8 @@ schema from 1 to 2 with automatic one-way migration.
 
 ### Removed (BREAKING)
 
-- **Commands:** `/sea-ship`, `/sea-review`, `/sea-debug`, `/sea-milestone`,
-  `/sea-undo`. Command surface narrowed from 11 to 6.
+- **Commands:** `/se-ship`, `/se-review`, `/se-debug`, `/se-milestone`,
+  `/se-undo`. Command surface narrowed from 11 to 6.
 - **Agents:** `reviewer` (Sonnet) and `debugger` (Haiku). Agent surface
   narrowed from 6 to 4 (plus `_common.md`, the shared operating
   constitution). Both had no callers after the commands above were
@@ -160,9 +201,9 @@ schema from 1 to 2 with automatic one-way migration.
   the contract that the project uses the two-file auto-QA marker scheme
   described below. Migration is one-way and idempotent; there is no
   rollback in the script. The `pre-scope-cut` git tag is the floor.
-- **Auto-QA marker split into two files.** The `.sea/.needs-verify`
+- **Auto-QA marker split into two files.** The `.se/.needs-verify`
   marker is now **existence-only** — the hook ignores its content.
-  A new sibling file `.sea/.verify-attempts` holds the retry counter
+  A new sibling file `.se/.verify-attempts` holds the retry counter
   as `{"attempts": N}`, written atomically via `jq` to a `mktemp` file,
   then `mv`-ed into place. `hooks/auto-qa` clears both files on every
   terminal state (pass, loop-protection give-up, hard give-up,
@@ -173,19 +214,19 @@ schema from 1 to 2 with automatic one-way migration.
 
 ### Changed
 
-- **`/sea-roadmap` absorbs `/sea-milestone`.** A new "Adding a milestone
-  to a completed project" section in `skills/sea-roadmap/SKILL.md`
+- **`/se-roadmap` absorbs `/se-milestone`.** A new "Adding a milestone
+  to a completed project" section in `skills/se-roadmap/SKILL.md`
   documents the clarify-questions + planner Mode A + milestone boundary
-  marker + `current_milestone` state field flow. Plain `/sea-roadmap
+  marker + `current_milestone` state field flow. Plain `/se-roadmap
   add "<description>"` still covers single-phase appends; the milestone
   flow triggers when the description spans multiple phases or the user
   explicitly names a new milestone.
-- **`/sea-go` delegates review and debug to composition.** Step 5
+- **`/se-go` delegates review and debug to composition.** Step 5
   (blocked executor) now recommends `obra/superpowers:debugging` or
   `addyosmani/agent-skills:debugging` if installed. Step 6.5 (previously
   the internal reviewer call) now notes the availability of
   `addyosmani/agent-skills:code-review` if installed instead of
-  invoking a SEA-owned reviewer.
+  invoking a SE-owned reviewer.
 - **Auto-QA retry constants.** `hooks/auto-qa` now exports
   `MAX_RETRIES=2` and `TEST_TAIL_LINES=30` as named constants at the
   top of the file with rationale comments. Block-decision messages
@@ -222,7 +263,7 @@ schema from 1 to 2 with automatic one-way migration.
 
 - Documentation drift between `README.md`, `DESIGN.md`, and the
   filesystem (phantom counts, `[NAME]` placeholder, `Draft` status).
-- Overloaded `.sea/.needs-verify` marker that encoded both "verify
+- Overloaded `.se/.needs-verify` marker that encoded both "verify
   needed" and "retries so far" in the same file.
 - Missing rationale for `maxTurns: 30` and the loop-protection
   threshold `2` in `hooks/auto-qa`.
@@ -239,5 +280,5 @@ and how to recover if something goes wrong.
 - `plugin.json` version bumped from `1.0.0` → `2.0.0`.
 - The `pre-scope-cut` git tag marks the pre-v2.0.0 `main` HEAD and is
   the only rollback floor. State schema migrations are one-way:
-  reverting the code does not roll back a migrated `.sea/state.json`
+  reverting the code does not roll back a migrated `.se/state.json`
   in a user project.

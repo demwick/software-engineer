@@ -1,76 +1,86 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
 -->
 
-# Software Engineer Agents
+# Software Engineer
 
-> **Your AI software engineer. Not just a code writer — a full teammate.**
+> **Your AI software engineer. Not a code generator — a teammate that does the engineering around the code.**
 
-`software-engineer-agents` is a Claude Code plugin that takes on the day-to-day responsibilities of a software engineer. It designs, plans, implements, tests, and documents — driven by a single command you run when you want the project to move forward.
+`software-engineer-agent` is a Claude Code plugin that takes on the core responsibilities of a software engineer: clarifying requirements, writing specs, recording architectural decisions, foreseeing risk, planning, implementing, testing, and reviewing. You don't pick a mode or learn a command surface. You describe what you want in plain language, and a **triage** layer decides how deep the work needs to go.
+
+---
+
+## The one thing you need to know
+
+There is a **single entry point**: just say what you want.
+
+```
+fix the glow on the secondary button          → applied directly, one commit
+add rate limiting to the login endpoint        → short plan, then implemented
+I want to build a booking app for clinics       → requirements dialogue → spec → roadmap → phases
+```
+
+Behind the scenes, `triage` classifies every request on two axes — **uncertainty** (is it clear what you want?) and **scope** (one file or a whole subsystem?) — and routes it to the right depth. You never see the machinery. When it's unsure, it rounds *up*: asking one extra question is cheaper than writing the wrong code.
+
+Two natural-language overrides are always available:
+
+- **"just do it"** / "uzatma" → forces the shallow path, no questions.
+- **"let's talk first"** / "dur konuşalım" → forces the full requirements flow.
 
 ---
 
 ## What it does
 
-| Responsibility     | How                                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| **System design**  | Analyzes your project, picks the right approach, splits the MVP into phases           |
-| **Planning**       | Produces atomic, verifiable task plans with explicit dependencies                     |
-| **Implementation** | Writes code phase by phase, one atomic commit per task                                |
-| **Testing & QA**   | Auto-runs your test suite after every change — blocks on failure, auto-fixes, retries |
-| **Debugging**      | Health audit with prioritized, actionable findings                                    |
-| **Documentation**  | Each agent builds and maintains its own memory across sessions                        |
+| Responsibility | How |
+| --- | --- |
+| **Requirements engineering** | `clarify` runs a Socratic dialogue — scale, auth, critical NFRs, and especially **non-goals** — before any code on fuzzy work |
+| **Specification** | `spec` writes a binding single source of truth to `.se/specs/`; contradictions later **stop the flow and ask**, never get worked around |
+| **Architecture decisions** | `adr` records significant, hard-to-reverse choices as numbered, versioned records |
+| **Risk foresight** | `risk` warns what a change could break, expose, or regress **before** it's written, while the plan can still absorb it |
+| **Planning** | atomic, verifiable task plans with explicit dependencies and risk gates |
+| **Implementation** | code phase by phase, one atomic commit per task, TDD-first |
+| **Testing & QA** | auto-runs your test suite after every change — blocks on failure, auto-fixes, retries |
+| **Senior code review** | the verifier reviews like a senior engineer: findings classified blocker / major / minor / nit, each with a rationale and an alternative |
+| **Health audit** | `diagnose` finds gaps (tests, errors, security) and ranks priority actions |
+| **Memory** | each agent keeps its own memory across sessions; human-readable project context persists in `.se/memory/` |
 
 ---
 
-## Three modes
+## Three depths, one door
 
-**From scratch** — _"I want to build a SaaS app"_
-Clarifies the idea, scaffolds the project, splits the MVP into 3–7 phases, drives each through plan → implement → QA.
+Triage routes to one of three flows. You don't choose — it does.
 
-**Finish an existing project** — _"I have a half-done repo"_
-Analyzes the codebase, finds the gaps, builds a completion roadmap, closes them phase by phase.
+**Direct-apply** — clear and narrow (_"fix that button"_). Straight to execute and commit. No planning overhead.
 
-**Single task** — _"Fix that button"_
-Straight to execute and commit. No planning overhead.
+**Light-plan** — a cohesive feature (_"add CSV export"_). A short plan, at most one or two critical questions, then implement with the quality gate.
+
+**Full-flow** — fuzzy or broad (_"build me a SaaS"_, _"finish this project"_). The deepest path: clarify → spec → ADR → roadmap → phase loop. New ideas get scaffolded; existing repos get analyzed and given a completion roadmap.
 
 ---
 
-## How `/sea-go` works
+## How a phase runs
 
-Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by four specialist agents. Inside each task, the executor enforces a **TDD (Test-Driven Development) micro-cycle** — no exceptions.
+Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by specialist agents. Inside each task, the executor enforces a **TDD (Test-Driven Development) micro-cycle** — no exceptions.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                /sea-go  ─  one phase                                     │
+│                                  one phase  (PDCA)                                        │
 │                                                                                          │
 │    PLAN                      DO                    CHECK                    ACT          │
 │                                                                                          │
 │  ┌────────────┐         ┌──────────────┐      ┌──────────────┐      ┌──────────────┐     │
 │  │  planner   │────────▶│   executor   │─────▶│   verifier   │─────▶│   feedback   │     │
 │  │            │         │              │      │   Stop hook  │      │              │     │
-│  │  spec +    │         │  task loop   │      │              │      │   → next     │     │
-│  │  plan.md   │         │              │      │   pass  ✓    │      │     phase    │     │
-│  └────────────┘         └──────┬───────┘      │   fail  → ✗  │      └──────────────┘     │
+│  │  spec +    │         │  task loop   │      │  senior      │      │   → next     │     │
+│  │  plan.md   │         │              │      │  review      │      │     phase    │     │
+│  └────────────┘         └──────┬───────┘      │   pass  ✓    │      └──────────────┘     │
+│                                │              │   fail  → ✗  │                           │
 │                                │              │     retry    │                           │
 │                                │              └──────────────┘                           │
-│                                │                                                         │
-│                                └─ TDD micro-cycle (Test-Driven Development)              │
-│                                   (per task, no exceptions)                              │
-│                                                                                          │
-│                                   ┌────────────────────────────────────────────────┐     │
-│                                   │   🔴 Red       ·  write a failing test first   │     │
-│                                   │        ↓                                       │     │
-│                                   │   🟢 Green     ·  minimal code to pass         │     │
-│                                   │        ↓                                       │     │
-│                                   │   🔵 Refactor  ·  clean up, names, dupes       │     │
-│                                   │        ↓                                       │     │
-│                                   │   📦 Commit    ·  one atomic commit            │     │
-│                                   └────────────────────────────────────────────────┘     │
-│                                                                                          │
+│                                └─ TDD micro-cycle: 🔴 Red → 🟢 Green → 🔵 Refactor → 📦 Commit │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,111 +88,106 @@ The Stop hook is the quality gate: if tests fail after a commit, it blocks the t
 
 ---
 
-## Commands
+## Part of an ecosystem: Detect & Defer
 
-| Command                 | What it does                                             |
-| ----------------------- | -------------------------------------------------------- |
-| `/sea-init [idea]`      | Bootstrap a new or existing project — scaffold + roadmap |
-| `/sea-go [phase]`       | Advance one phase: plan → implement → auto-QA            |
-| `/sea-quick <task>`     | Single task, single atomic commit                        |
-| `/sea-diagnose [focus]` | Health audit: tests, error handling, security            |
-| `/sea-status`           | Show current state and progress                          |
-| `/sea-roadmap [verb]`   | View or edit the phase list                              |
+The plugin is the **engine** of a three-part system. It runs perfectly well alone, but when its siblings are installed it **hands off** the responsibilities they own rather than duplicating them:
 
-Commands with side-effects (`init`, `go`, `quick`) are **user-invoked only** — Claude will never trigger them automatically. Read-only commands (`diagnose`, `status`, `roadmap`) can be called automatically when the context calls for them.
+| Sibling | Role | What the plugin defers when it's present |
+| --- | --- | --- |
+| [`claude-charter`](https://github.com/demwick/claude-charter) | the **constitution** — policy, guardrails, decision format | ADRs are written to charter's `.claude/knowledge/adr/`; destructive-op guardrails are charter's `PreToolUse` job (the plugin ships none); the verifier inherits charter's adversarial PASS/FAIL/PARTIAL verdict |
+| `centaur-layer` | the **human-judgment brake** | acceptance-time diff-risk scoring is centaur's; the plugin's `risk` stays strictly forward-looking (warn before the change, never score the committed diff) |
+
+Detection is automatic — the `SessionStart` hook probes for `.claude/knowledge/charter/` and records the result in `.se/state.json.integrations`. **Zero configuration.** Standalone, the plugin does all of this itself; in the ecosystem, it stays in its lane.
+
+```bash
+# Engine alone
+claude --plugin-dir /path/to/software-engineer-agent
+
+# Engine + constitution
+claude --plugin-dir /path/to/software-engineer-agent \
+       --plugin-dir /path/to/claude-charter
+```
 
 ---
 
-## How it works in practice
+## How it's different from superpowers
+
+[`obra/superpowers`](https://github.com/obra/superpowers) gives Claude excellent *process* skills — brainstorming, TDD, debugging. This plugin composes with it but covers what it doesn't:
+
+- **A front door, not a toolbox.** You describe intent; triage picks the depth. No deciding which skill to invoke.
+- **Project analysis & memory.** It reads an existing codebase, finds gaps, builds a roadmap, and persists project state and decisions across sessions.
+- **The engineering around the code** — requirements, specs, ADRs, forward risk, senior review — as first-class, not afterthoughts.
+
+When superpowers is installed, the plugin happily delegates to its brainstorming and debugging skills instead of reinventing them.
+
+---
+
+## Commands
+
+You rarely type these — the entry is natural language. They exist for direct access and read-only checks.
+
+| Surface | What it does |
+| --- | --- |
+| *(natural language)* | `triage` — the single entry point; describe any engineering work |
+| `/se-diagnose [focus]` | Health audit: tests, error handling, security |
+| `/se-status` | Show current state and progress |
+| `/se-roadmap [verb]` | View or edit the phase list |
+
+`triage`, `clarify`, `spec`, `adr`, and `risk` are auto-invoked by the flow when the context calls for them. The read-only helpers (`diagnose`, `status`, `roadmap`) can be called automatically too. Nothing makes an irreversible change without surfacing it first.
+
+---
+
+## In practice
 
 **Starting from nothing:**
 
 ```
-/sea-init I want to build a recipe sharing app with Next.js and SQLite
-→ clarifying questions, scaffold, 5-phase roadmap
+"I want to build a recipe-sharing app with Next.js and SQLite"
+→ triage sees fuzzy + broad → full-flow
+→ clarify asks scale / auth / non-goals → spec written → 5-phase roadmap
 
-/sea-go
+"continue"
 → Phase 1: data layer — 4 atomic commits, tests pass
 
-/sea-go
-→ Phase 2: list UI — one commit breaks a test,
+"continue"
+→ Phase 2: list UI — a commit breaks a test,
    Stop hook catches it, Claude auto-fixes, re-verifies, continues
 ```
 
 **Finishing an existing repo:**
 
 ```
-/sea-init
-→ analyzes codebase, reports gaps, offers a completion roadmap
+"help me finish this project"
+→ researcher analyzes the codebase, reports gaps, offers a completion roadmap
 
-/sea-diagnose security
+/se-diagnose security
 → flags 3 issues: open API routes, missing validation, .env in git
 
-/sea-roadmap add "close the 3 security gaps"
+/se-roadmap add "close the 3 security gaps"
 → adds a new phase
 
-/sea-go
+"continue"
 → fixes all three, atomic commits, tests pass
 ```
 
 **One-off task:**
 
 ```
-/sea-quick bump typescript to ^5.4
-→ commits the change, test suite runs, done
-```
-
-**Adding a milestone after the MVP ships:**
-
-```
-/sea-roadmap add "V2: add a FastAPI web UI on top of the existing CLI"
-→ detects all phases are done, drafts 3 new phases, inserts a milestone
-  boundary in roadmap.md
-
-/sea-go
-→ starts Phase N+1 of the new milestone
-```
-
----
-
-## Works best with claude-charter
-
-[`claude-charter`](https://github.com/demwick/claude-charter) is a governance layer for Claude Code workspaces — it enforces coding standards, security policies, and decision records across every session.
-
-When both are active, they layer cleanly:
-
-- **claude-charter** sets the rules: what code should look like, what's off-limits, how decisions get recorded.
-- **software-engineer-agents** drives the work: what to build next, in what order, with automatic quality gates.
-
-The executor respects charter policies automatically — no extra configuration. Charter's `CLAUDE.md` and `.claude/knowledge/` files are visible to every subagent in the session.
-
-```bash
-# Load both together
-claude --plugin-dir /path/to/software-engineer-agents \
-       --plugin-dir /path/to/claude-charter
+"bump typescript to ^5.4"
+→ triage sees clear + narrow → direct-apply → commits, test suite runs, done
 ```
 
 ---
 
 ## Install
 
-**From a local directory:**
-
 ```bash
-claude --plugin-dir /path/to/software-engineer-agents
-```
+# From a local directory
+claude --plugin-dir /path/to/software-engineer-agent
 
-**From GitHub:**
-
-```bash
-git clone https://github.com/demwick/software-engineer-agents
-claude --plugin-dir ./software-engineer-agents
-```
-
-**From a marketplace (post-V1):**
-
-```bash
-claude plugin install software-engineer-agents@<marketplace>
+# From GitHub
+git clone https://github.com/demwick/software-engineer
+claude --plugin-dir ./software-engineer
 ```
 
 ---
@@ -204,7 +209,7 @@ Clone, load locally, make changes, run `/reload-plugins` inside Claude Code to p
 
 For architecture internals, directory layout, agent model breakdown, hook design, and how to debug hook scripts — see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
-**Commit style:** `feat(agents): add …`, `fix(hooks): …`, `docs(readme): …`
+**Commit style:** `feat(skills): add …`, `fix(hooks): …`, `docs(readme): …`
 
 ---
 

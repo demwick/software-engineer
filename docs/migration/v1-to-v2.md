@@ -16,7 +16,7 @@ for the design rationale.
 
 ## Who is affected
 
-Anyone running SEA v1.x on any project. v1.0.0 shipped on 2026-04-14
+Anyone running SE v1.x on any project. v1.0.0 shipped on 2026-04-14
 and v2.0.0 follows 1 day later, so the real-world user base is small —
 but the discipline of shipping a proper migration guide for a breaking
 release matters, and this guide is the canonical reference the moment
@@ -24,16 +24,16 @@ someone hits a v1 state file on a v2 plugin.
 
 ## What changed at a glance
 
-1. **Five commands were removed.** If you used `/sea-ship`,
-   `/sea-review`, `/sea-debug`, `/sea-milestone`, or `/sea-undo`, they
+1. **Five commands were removed.** If you used `/se-ship`,
+   `/se-review`, `/se-debug`, `/se-milestone`, or `/se-undo`, they
    no longer exist. Replacements are below.
 2. **Two agents were removed.** `reviewer` and `debugger` are gone.
    They were only called by the deleted commands above.
 3. **State schema bumped from 1 to 2.** Automatic one-way migration
-   happens on first `/sea-go`, `/sea-init`, `/sea-quick`, or any
+   happens on first `/se-go`, `/se-init`, `/se-quick`, or any
    invocation that touches `scripts/state-update.sh`.
-4. **Auto-QA marker is now two files.** `.sea/.needs-verify` is
-   existence-only; retry counting moved to a sibling `.sea/.verify-attempts`.
+4. **Auto-QA marker is now two files.** `.se/.needs-verify` is
+   existence-only; retry counting moved to a sibling `.se/.verify-attempts`.
    This is internal — skills touch only the marker, the hook owns the
    counter.
 
@@ -41,11 +41,11 @@ someone hits a v1 state file on a v2 plugin.
 
 | v1.x command | v2.0.0 replacement |
 |---|---|
-| `/sea-ship` | Install `addyosmani/agent-skills` and use its `shipping` skill. SEA no longer owns a pre-merge quality gate. |
-| `/sea-review` | Install `addyosmani/agent-skills` and use its `code-review` skill. SEA's `/sea-go` notes its availability after each phase when installed. |
-| `/sea-debug` | Install `obra/superpowers` and use its `debugging` skill, or `addyosmani/agent-skills:debugging`. SEA's `/sea-go` recommends whichever is installed when the executor returns `STATUS: blocked`. |
-| `/sea-milestone` | Use `/sea-roadmap add "<description>"`. The new "Adding a milestone to a completed project" section in `skills/sea-roadmap/SKILL.md` covers the full clarify → plan → boundary-marker flow the deleted skill used to own — no functionality dropped. |
-| `/sea-undo` | Run `git revert <commit>` directly. SEA never had any special logic here — v1's `/sea-undo` was a thin wrapper. |
+| `/se-ship` | Install `addyosmani/agent-skills` and use its `shipping` skill. SE no longer owns a pre-merge quality gate. |
+| `/se-review` | Install `addyosmani/agent-skills` and use its `code-review` skill. SE's `/se-go` notes its availability after each phase when installed. |
+| `/se-debug` | Install `obra/superpowers` and use its `debugging` skill, or `addyosmani/agent-skills:debugging`. SE's `/se-go` recommends whichever is installed when the executor returns `STATUS: blocked`. |
+| `/se-milestone` | Use `/se-roadmap add "<description>"`. The new "Adding a milestone to a completed project" section in `skills/se-roadmap/SKILL.md` covers the full clarify → plan → boundary-marker flow the deleted skill used to own — no functionality dropped. |
+| `/se-undo` | Run `git revert <commit>` directly. SE never had any special logic here — v1's `/se-undo` was a thin wrapper. |
 
 ## Installing the recommended composition plugins
 
@@ -58,7 +58,7 @@ someone hits a v1 state file on a v2 plugin.
 /plugin install superpowers@obra
 ```
 
-None of these are hard dependencies. SEA still runs standalone; it
+None of these are hard dependencies. SE still runs standalone; it
 simply stops re-implementing methodology that external plugins do
 better. See [`README.md` → Related plugins](../../README.md#related-plugins-compose-dont-compete)
 for the three-layer picture.
@@ -77,7 +77,7 @@ the same atomic merge the caller requested. The migration:
 - Is **idempotent** — running on an already-v2 file is a no-op.
 - Is **one-way** — there is no downgrade path in the script. The
   `pre-scope-cut` git tag is the floor for the plugin itself; user
-  projects must restore `.sea/` from a backup if a v2 migration needs
+  projects must restore `.se/` from a backup if a v2 migration needs
   to be undone on the project side.
 
 The bump itself is the contract that the project uses the two-file
@@ -92,19 +92,19 @@ first touch. The simplest way to force it without doing other work is
 a no-op status check:
 
 ```bash
-# Inside Claude Code, on a project with a v1 .sea/state.json:
-/sea-status
+# Inside Claude Code, on a project with a v1 .se/state.json:
+/se-status
 ```
 
-`/sea-status` is read-only, so it does not trigger the migration. Run
-`/sea-go` or `/sea-quick` or any roadmap edit to trigger the write.
+`/se-status` is read-only, so it does not trigger the migration. Run
+`/se-go` or `/se-quick` or any roadmap edit to trigger the write.
 
 ### How to verify the migration worked
 
 After the first write:
 
 ```bash
-jq '.schema_version' .sea/state.json
+jq '.schema_version' .se/state.json
 # expected: 2
 ```
 
@@ -114,15 +114,15 @@ last_session, last_edit, last_commit) are preserved — only
 
 ## Dead state files in migrated projects
 
-v1 projects that ran `/sea-review`, `/sea-debug`, or `/sea-ship` may
-have left artifacts under `.sea/`:
+v1 projects that ran `/se-review`, `/se-debug`, or `/se-ship` may
+have left artifacts under `.se/`:
 
-- `.sea/phases/phase-N/review.md`
-- `.sea/reviews/ad-hoc-<timestamp>.md`
-- `.sea/ship-report.json`
-- `.sea/ship/<category>.log`
-- `.sea/debug/session-<N>/*.md`
-- `.sea/phases/phase-N/summary.md.reverted-<timestamp>`
+- `.se/phases/phase-N/review.md`
+- `.se/reviews/ad-hoc-<timestamp>.md`
+- `.se/ship-report.json`
+- `.se/ship/<category>.log`
+- `.se/debug/session-<N>/*.md`
+- `.se/phases/phase-N/summary.md.reverted-<timestamp>`
 
 v2 **never writes and never reads** these paths. They are inert — they
 do not affect anything. You can leave them in place (cheap) or clean
@@ -130,21 +130,21 @@ them up at your convenience:
 
 ```bash
 # Optional manual cleanup
-rm -rf .sea/reviews .sea/ship .sea/ship-report.json .sea/debug
-find .sea/phases -name 'review.md' -delete
-find .sea/phases -name 'summary.md.reverted-*' -delete
+rm -rf .se/reviews .se/ship .se/ship-report.json .se/debug
+find .se/phases -name 'review.md' -delete
+find .se/phases -name 'summary.md.reverted-*' -delete
 ```
 
-Or use `/sea-init --fresh` if you want the full scaffold redone (it
-archives the whole `.sea/` to `.sea-archive-<timestamp>/` first).
+Or use `/se-init --fresh` if you want the full scaffold redone (it
+archives the whole `.se/` to `.se-archive-<timestamp>/` first).
 
 ## Troubleshooting
 
 ### The migration fails on a specific field
 
-Restore `.sea/state.json` from git (if committed) or from a backup, then
+Restore `.se/state.json` from git (if committed) or from a backup, then
 open an issue with the corrupted file attached. Do **not** hand-edit
-`.sea/state.json` — use `scripts/state-update.sh` which preserves the
+`.se/state.json` — use `scripts/state-update.sh` which preserves the
 required-field invariants.
 
 ### I need to roll back to v1
@@ -156,26 +156,26 @@ cd /path/to/software-engineer-agent
 git checkout pre-scope-cut
 ```
 
-For your project's `.sea/` directory: the migration is one-way, so a
+For your project's `.se/` directory: the migration is one-way, so a
 v2-migrated state.json will no longer match v1's schema assumptions.
-Restore `.sea/` from a backup, or re-run `/sea-init` on the v1 plugin.
+Restore `.se/` from a backup, or re-run `/se-init` on the v1 plugin.
 If data loss is unacceptable, open an issue and attach the state file;
 the schema diff is small enough to hand-reverse in most cases.
 
-### `/sea-status` shows a schema warning
+### `/se-status` shows a schema warning
 
-`/sea-status` does not write state, so it cannot trigger the migration.
-Run `/sea-go` or any roadmap edit to let `scripts/state-update.sh`
+`/se-status` does not write state, so it cannot trigger the migration.
+Run `/se-go` or any roadmap edit to let `scripts/state-update.sh`
 auto-migrate on first touch. If the warning persists after a write,
-check `jq '.schema_version' .sea/state.json` manually — anything other
+check `jq '.schema_version' .se/state.json` manually — anything other
 than `2` is a migration-helper bug and worth an issue.
 
-### My custom tooling reads `.sea/.needs-verify`'s integer content
+### My custom tooling reads `.se/.needs-verify`'s integer content
 
-Update it to read `.sea/.verify-attempts` instead:
+Update it to read `.se/.verify-attempts` instead:
 
 ```bash
-jq -r '.attempts // 0' .sea/.verify-attempts 2>/dev/null || echo 0
+jq -r '.attempts // 0' .se/.verify-attempts 2>/dev/null || echo 0
 ```
 
 The v1 marker's integer content is no longer written by v2 skills.

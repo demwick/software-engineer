@@ -17,7 +17,7 @@ This is the permanent record of what was decided at each phase and why.
 - `pre-scope-cut` tag: `9e2a73827134a01513d9f8f105e7854fa2ea2c25`
 - Initial skill count: 11 (`ls -d skills/*/ | wc -l`)
 - Initial agent count: 7 files (6 agents + `_common.md`)
-- Initial `.sea/` file references (repo-wide grep across `agents/`, `skills/`, `hooks/`, `scripts/`, `evals/`, `tests/`, `README.md`, `CLAUDE.md`): 154
+- Initial `.se/` file references (repo-wide grep across `agents/`, `skills/`, `hooks/`, `scripts/`, `evals/`, `tests/`, `README.md`, `CLAUDE.md`): 154
 - Any eval failures on baseline: none
 - Pre-phase housekeeping commits on `main`:
   - `4e54786` docs(claude-md): add intro line and single-suite eval example
@@ -44,15 +44,15 @@ This is the permanent record of what was decided at each phase and why.
 ## Phase 3 — delete cut commands (2026-04-15)
 
 - PR: merged into `main` via `--no-ff` from `refactor/delete-cut-commands` (single-session mode; no GitHub PR yet — push deferred to Phase 8)
-- Skills deleted: `sea-ship`, `sea-review`, `sea-debug`, `sea-milestone`, `sea-undo` (5 skill directories, 5 atomic commits)
-- Eval suites deleted: none. `tests/run-tests.sh` had two routing assertions (`routing mentions sea-debug` and `routing mentions sea-ship`) — updated in place to assert the still-present `/sea-go` and `/sea-roadmap` instead of being deleted.
+- Skills deleted: `se-ship`, `se-review`, `se-debug`, `se-milestone`, `se-undo` (5 skill directories, 5 atomic commits)
+- Eval suites deleted: none. `tests/run-tests.sh` had two routing assertions (`routing mentions se-debug` and `routing mentions se-ship`) — updated in place to assert the still-present `/se-go` and `/se-roadmap` instead of being deleted.
 - README/CLAUDE.md/SKILL.md/hook update sites:
-  - `skills/sea-go/SKILL.md` — Step 5 (debug handoff → composition), Step 6.5 (reviewer call → composition note), When NOT to Use, Related
-  - `skills/sea-init/SKILL.md` — description, Mode 1 detect, When NOT to Use, Related (milestone path → `/sea-roadmap add`)
-  - `skills/sea-quick/SKILL.md` — When NOT to Use, Related (git revert replaces `/sea-undo`)
-  - `skills/sea-status/SKILL.md` — When NOT to Use, Related
-  - `skills/sea-diagnose/SKILL.md` — When NOT to Use, Related
-  - `skills/sea-roadmap/SKILL.md` — When NOT to Use, Related
+  - `skills/se-go/SKILL.md` — Step 5 (debug handoff → composition), Step 6.5 (reviewer call → composition note), When NOT to Use, Related
+  - `skills/se-init/SKILL.md` — description, Mode 1 detect, When NOT to Use, Related (milestone path → `/se-roadmap add`)
+  - `skills/se-quick/SKILL.md` — When NOT to Use, Related (git revert replaces `/se-undo`)
+  - `skills/se-status/SKILL.md` — When NOT to Use, Related
+  - `skills/se-diagnose/SKILL.md` — When NOT to Use, Related
+  - `skills/se-roadmap/SKILL.md` — When NOT to Use, Related
   - `agents/reviewer.md`, `agents/debugger.md` — descriptions (Phase 4 will delete the files themselves)
   - `hooks/session-start` — routing block trimmed to six commands + composition note
   - `scripts/detect-quality.sh` — header comment no longer names the deleted pre-merge-gate command
@@ -60,7 +60,7 @@ This is the permanent record of what was decided at each phase and why.
   - `README.md` — Commands table (11→6 rows), Directory layout skills listing, agent table "Called from" column for reviewer/debugger, Migration from v1.x section, composition workflow narrative, Acknowledgments, differentiator line
   - `CLAUDE.md` — repo layout counts and skill list
 - Regression surprises: none. Both `bash evals/run.sh` and `bash tests/run-tests.sh` stayed green throughout.
-- Atomic commit count: 13 (5 skill deletions + 2 sea-go edits + 1 retained-skills cleanup + 1 agents cleanup + 1 hooks + 1 tests + 1 scripts + 1 docs+journal)
+- Atomic commit count: 13 (5 skill deletions + 2 se-go edits + 1 retained-skills cleanup + 1 agents cleanup + 1 hooks + 1 tests + 1 scripts + 1 docs+journal)
 
 ## Phase 4 — delete cut agents (2026-04-15)
 
@@ -73,8 +73,8 @@ This is the permanent record of what was decided at each phase and why.
 ## Phase 5 — roadmap absorbs milestone (2026-04-15)
 
 - PR: merged into `main` via `--no-ff` from `refactor/roadmap-absorbs-milestone` (single-session mode)
-- Milestone functionality covered (moved from the deleted `/sea-milestone` SKILL.md into a new "Adding a milestone to a completed project" section in sea-roadmap/SKILL.md):
-  - Precondition check (state.json + roadmap.md must exist — already part of sea-roadmap's Step 1)
+- Milestone functionality covered (moved from the deleted `/se-milestone` SKILL.md into a new "Adding a milestone to a completed project" section in se-roadmap/SKILL.md):
+  - Precondition check (state.json + roadmap.md must exist — already part of se-roadmap's Step 1)
   - 2–3 clarifying questions via AskUserQuestion (goal, builds-on, stack additions, scope boundary)
   - planner agent Mode A invocation with existing-roadmap context, instruction to output only new phases starting at LAST+1, 1–5 phases
   - Milestone boundary marker insertion into roadmap.md, including retro-marking of existing phases as Milestone 1 on first use
@@ -82,7 +82,7 @@ This is the permanent record of what was decided at each phase and why.
   - Summary handoff message
   - Milestone rules (never archive, no renumbering, planning-only, one milestone per invocation, scope discipline)
 - Functionality dropped: none. Every step of the deleted skill is documented in the new section.
-- Live test against throwaway project: **skipped** — this is a single-session run of the whole refactor and no throwaway project is available to exercise the full planner flow. The section is a prompt-engineering change only; it will be validated live when the user runs /sea-roadmap add "..." against a real completed project after v2.0.0 ships. Evals and tests stayed green.
+- Live test against throwaway project: **skipped** — this is a single-session run of the whole refactor and no throwaway project is available to exercise the full planner flow. The section is a prompt-engineering change only; it will be validated live when the user runs /se-roadmap add "..." against a real completed project after v2.0.0 ships. Evals and tests stayed green.
 - README update: new "Adding a milestone after the MVP shipped" example in the Typical workflows section.
 - Atomic commit count: 2 (1 feat + 1 docs)
 
@@ -91,10 +91,10 @@ This is the permanent record of what was decided at each phase and why.
 - PR: merged into `main` via `--no-ff` from `refactor/state-consolidation` (single-session mode)
 - User sign-off on consolidation scope: yes (2026-04-15, verbatim re-read + explicit "onaylıyorum")
 - Consolidations applied:
-  - **Opportunity 1** (`.needs-verify` content-as-retry-counter split): `hooks/auto-qa` now reads a separate `.verify-attempts` JSON file (`{"attempts": N}`) written via atomic `jq` + `mv`; treats `.needs-verify` as existence-only. Every terminal branch clears both files. A v1 backward-compatibility fallback reads the marker's legacy integer content when `.verify-attempts` is absent, so migrated v1 projects keep working through the schema rollover. `skills/sea-go/SKILL.md` and `skills/sea-quick/SKILL.md` now arm auto-QA with a bare `: > .sea/.needs-verify` touch. `auto-qa-protocol.md` rewritten for the two-file scheme.
-  - **Opportunity 1 companion** (schema_version bump): `scripts/state-update.sh` auto-migrates `schema_version: 1` → `2` on first touch. Idempotent on v2 files. `sea-init/SKILL.md` now writes `schema_version: 2` on new projects. The four shared eval state fixtures (fresh/executing/blocked/planning) bumped to v2; corrupted.json intentionally left malformed.
+  - **Opportunity 1** (`.needs-verify` content-as-retry-counter split): `hooks/auto-qa` now reads a separate `.verify-attempts` JSON file (`{"attempts": N}`) written via atomic `jq` + `mv`; treats `.needs-verify` as existence-only. Every terminal branch clears both files. A v1 backward-compatibility fallback reads the marker's legacy integer content when `.verify-attempts` is absent, so migrated v1 projects keep working through the schema rollover. `skills/se-go/SKILL.md` and `skills/se-quick/SKILL.md` now arm auto-QA with a bare `: > .se/.needs-verify` touch. `auto-qa-protocol.md` rewritten for the two-file scheme.
+  - **Opportunity 1 companion** (schema_version bump): `scripts/state-update.sh` auto-migrates `schema_version: 1` → `2` on first touch. Idempotent on v2 files. `se-init/SKILL.md` now writes `schema_version: 2` on new projects. The four shared eval state fixtures (fresh/executing/blocked/planning) bumped to v2; corrupted.json intentionally left malformed.
   - **Opportunity 2** (dead-command state paths marked v1-only in docs): `docs/STATE.md` inventory table and per-file details updated so review.md, reviews/ad-hoc-*, ship-report.json, ship/*.log, debug/session-*/*.md, and summary.md.reverted-* are explicitly labeled "v1-only, deprecated in v2.0.0" with pointers to composition replacements.
-- Opportunities deferred: 3 (drop `state.json.total_phases` duplication), 4 (merge `progress.json` into `state.json.active_phase`), 5 (segregate transient artifacts under `.sea/logs/`).
+- Opportunities deferred: 3 (drop `state.json.total_phases` duplication), 4 (merge `progress.json` into `state.json.active_phase`), 5 (segregate transient artifacts under `.se/logs/`).
 - Migration eval fixture: `evals/fixtures/states/v1-legacy.json`
 - New eval suites:
   - `evals/suites/state/v1-to-v2-migration.sh` — asserts bump happens, required fields preserved, caller merge survives, idempotent on second run.
@@ -138,7 +138,7 @@ This is the permanent record of what was decided at each phase and why.
 - `git tag v2.0.0` pushed to origin ✓
 - `gh release create v2.0.0`: published at release URL above ✓
 - v1 → v2 migration tested on a real project: skipped — single-session mode; the `v1-to-v2-migration.sh` eval suite validates the core migration path (bump, field preservation, idempotence). Live project test deferred to first real user invocation post-release.
-- Smoke test (`claude --plugin-dir .`): **PASS** — fresh clone from GitHub, `/software-engineer-agent:sea-status` responded correctly ("No project state found. Run /sea-init to bootstrap."), `/sea-init` launched Mode B (Finish Existing Project) and triggered the `researcher` agent successfully. Plugin loads, skill routing works, agents invoke cleanly.
+- Smoke test (`claude --plugin-dir .`): **PASS** — fresh clone from GitHub, `/software-engineer-agent:se-status` responded correctly ("No project state found. Run /se-init to bootstrap."), `/se-init` launched Mode B (Finish Existing Project) and triggered the `researcher` agent successfully. Plugin loads, skill routing works, agents invoke cleanly.
 - Final verdict: **refactor complete**. All 8 phases executed; all exit criteria met; all success criteria from the spec's global checklist verified (see below).
 - Atomic commit count (all phases combined, excluding merge commits): ~38 commits across 8 branches
 
@@ -150,17 +150,17 @@ This is the permanent record of what was decided at each phase and why.
 - [x] `README.md` directory layout matches filesystem (grep verified during Phase 3).
 - [x] `DESIGN.md` has no `[NAME]` placeholder and no `Draft` status.
 - [x] `DESIGN.md` has a superseding note linking to the refactor spec.
-- [x] `docs/STATE.md` covers every `.sea/` file with writers, readers, and invariants.
+- [x] `docs/STATE.md` covers every `.se/` file with writers, readers, and invariants.
 - [x] `docs/migration/v1-to-v2.md` exists and is complete.
 - [x] `CHANGELOG.md` exists with a v2.0.0 section.
 - [x] Journal has an entry for every phase.
 - [x] `bash evals/run.sh` green (19 passed, 0 failed).
 - [x] `bash tests/run-tests.sh` green (70 passed, 0 failed).
 - [x] Fresh clone + `claude --plugin-dir .` smoke test — **PASS** (2026-04-15).
-- [x] `/sea-go` on a v1 state fixture auto-migrates to v2 on first run — verified by `evals/suites/state/v1-to-v2-migration.sh`.
+- [x] `/se-go` on a v1 state fixture auto-migrates to v2 on first run — verified by `evals/suites/state/v1-to-v2-migration.sh`.
 - [x] `git tag v2.0.0` pushed to origin.
 - [x] GitHub release `v2.0.0` published.
-- [x] `grep -rn 'sea-ship\|sea-review\|sea-debug\|sea-milestone\|sea-undo' agents/ skills/ hooks/ scripts/ tests/ evals/` → 0 results (verified at Phase 3 exit).
+- [x] `grep -rn 'se-ship\|se-review\|se-debug\|se-milestone\|se-undo' agents/ skills/ hooks/ scripts/ tests/ evals/` → 0 results (verified at Phase 3 exit).
 
 ## Post-mortem (2026-04-15 — same-day, single-session refactor)
 
@@ -173,7 +173,7 @@ This is the permanent record of what was decided at each phase and why.
 
 ### What was harder than expected
 
-- **`hooks/session-start` apostrophe bug (Phase 3).** The `$(cat <<EOF …)` command substitution parsed apostrophes inside the heredoc, crashing bash on `SEA's`. Required a mid-phase fix commit. Root cause: bash parses single quotes inside `$()` command substitution even in heredoc bodies. Rule going forward: avoid apostrophes in `$()` heredoc strings; use `SEA` not `SEA's`.
+- **`hooks/session-start` apostrophe bug (Phase 3).** The `$(cat <<EOF …)` command substitution parsed apostrophes inside the heredoc, crashing bash on `SE's`. Required a mid-phase fix commit. Root cause: bash parses single quotes inside `$()` command substitution even in heredoc bodies. Rule going forward: avoid apostrophes in `$()` heredoc strings; use `SE` not `SE's`.
 - **README agent table "Called from" column exit criterion.** Spec used `├──` regex but final tree lines use `└──`; needed `[├└]──` to get the right count. Minor, but surfaced a pattern worth documenting.
 - **Cross-session context via single-session.** Spec was designed for multi-session (one phase = one fresh session). Single-session mode shifted the gate-keeping burden to the user, which worked, but the spec's "one session per phase" rationale around context drift is real — context was noticeable toward Phase 6-7.
 
@@ -185,19 +185,19 @@ This is the permanent record of what was decided at each phase and why.
 
 ### 6 → 3 deferred command cut — worth pursuing?
 
-Defer at least 4 weeks. v2.0.0 narrowed 11 → 6; the 6-command surface needs real-world use before deciding whether `sea-status`, `sea-diagnose`, and `sea-roadmap` should fold into `/sea-go` output. The researcher's live analysis (see below) suggests the current 6 are defensible.
+Defer at least 4 weeks. v2.0.0 narrowed 11 → 6; the 6-command surface needs real-world use before deciding whether `se-status`, `se-diagnose`, and `se-roadmap` should fold into `/se-go` output. The researcher's live analysis (see below) suggests the current 6 are defensible.
 
 ### Follow-up items from v2.0.0 smoke-test researcher analysis
 
-Surfaced by the `researcher` agent running `/sea-init` on the plugin repo immediately after the fresh-clone smoke test (2026-04-15). Logged here for the next iteration.
+Surfaced by the `researcher` agent running `/se-init` on the plugin repo immediately after the fresh-clone smoke test (2026-04-15). Logged here for the next iteration.
 
 **Priority 1 — `.needs-verify` truncate on v1 migration**
-- The v1 → v2 schema migration in `scripts/state-update.sh` bumps `schema_version` but does not truncate legacy integer content from `.sea/.needs-verify`. This leaves a confusing diagnostic state: `schema_version = 2` but `.needs-verify` still contains `"0"`. The hook's v1 fallback silently handles it, but a human reading the file may be misled.
-- Fix: after the schema bump write, if `.needs-verify` exists and contains non-empty content, `echo -n > .sea/.needs-verify` (zero-byte it). Or document the behavior explicitly in the per-file detail of `docs/STATE.md`.
+- The v1 → v2 schema migration in `scripts/state-update.sh` bumps `schema_version` but does not truncate legacy integer content from `.se/.needs-verify`. This leaves a confusing diagnostic state: `schema_version = 2` but `.needs-verify` still contains `"0"`. The hook's v1 fallback silently handles it, but a human reading the file may be misled.
+- Fix: after the schema bump write, if `.needs-verify` exists and contains non-empty content, `echo -n > .se/.needs-verify` (zero-byte it). Or document the behavior explicitly in the per-file detail of `docs/STATE.md`.
 - Complexity: trivial (~5 lines in `state-update.sh` + 1 eval assertion).
 
-**Priority 2 — `sea-go` roadmap writes bypass `state-update.sh`**
-- `/sea-go` writes directly to `.sea/roadmap.md` via `Write`/`Edit` (not through the helper). This is intentional (roadmap is Markdown, not JSON), but the boundary is undocumented. A reader seeing `state-update.sh` referenced everywhere might assume it covers roadmap too.
+**Priority 2 — `se-go` roadmap writes bypass `state-update.sh`**
+- `/se-go` writes directly to `.se/roadmap.md` via `Write`/`Edit` (not through the helper). This is intentional (roadmap is Markdown, not JSON), but the boundary is undocumented. A reader seeing `state-update.sh` referenced everywhere might assume it covers roadmap too.
 - Fix: add a one-line note to `scripts/state-update.sh`'s header and to `CLAUDE.md`'s Gotchas section: "state-update.sh covers state.json only; roadmap.md is written directly by skills and the planner agent."
 - Complexity: docs-only.
 

@@ -21,24 +21,24 @@
 This spec practices the patterns it advocates for. If you are the implementing Claude session, before you touch code:
 
 1. Read this file end-to-end (not just the iteration you plan to start).
-2. State back in 3–4 sentences what each of the four iterations adds to SEA and which files each touches. This is the comprehension check.
+2. State back in 3–4 sentences what each of the four iterations adds to SE and which files each touches. This is the comprehension check.
 3. Do not start any iteration until the user confirms your summary is correct.
 
-This is not ceremony — it is the same **Demonstrate Comprehension** step that Iteration 1 installs into SEA's own agents. Applying the rule to the spec that introduces the rule is the point.
+This is not ceremony — it is the same **Demonstrate Comprehension** step that Iteration 1 installs into SE's own agents. Applying the rule to the spec that introduces the rule is the point.
 
 ---
 
 ## Context
 
-This spec is the **second** of two planned refactors for `software-engineer-agent`. The first (`2026-04-15-scope-and-state-refactor.md`) cuts the command surface from 11 to 6 and consolidates the state model. This spec (v2.1.0) is feature-additive: it hardens the prompt-quality layer that governs how SEA's subagents behave.
+This spec is the **second** of two planned refactors for `software-engineer-agent`. The first (`2026-04-15-scope-and-state-refactor.md`) cuts the command surface from 11 to 6 and consolidates the state model. This spec (v2.1.0) is feature-additive: it hardens the prompt-quality layer that governs how SE's subagents behave.
 
 ### Why this is a separate spec
 
-The v2.0.0 refactor is **subtractive** (deletes commands, consolidates state). This spec is **additive** (adds rules to `_common.md`, adds schema fields to plan output, adds gate inspection to `/sea-go`). Bundling them would triple the review surface and obscure which changes introduced which behavior. Ship v2.0.0 first. Live in it for a few days. Then decide whether v2.1.0 is still the right priority.
+The v2.0.0 refactor is **subtractive** (deletes commands, consolidates state). This spec is **additive** (adds rules to `_common.md`, adds schema fields to plan output, adds gate inspection to `/se-go`). Bundling them would triple the review surface and obscure which changes introduced which behavior. Ship v2.0.0 first. Live in it for a few days. Then decide whether v2.1.0 is still the right priority.
 
 ### Motivation: the gap between taste and mechanism
 
-A structural review of SEA (conducted 2026-04-15) identified that SEA already has most of the prompt-quality patterns a senior engineer would want:
+A structural review of SE (conducted 2026-04-15) identified that SE already has most of the prompt-quality patterns a senior engineer would want:
 
 - **`agents/_common.md`** is a numbered operating constitution — referenceable rules that override task-specific instructions.
 - **`executor.md:73-98`** Prove-It pattern names a specific failure mode (`"obvious bug, skip the repro"`) and mechanically prevents it.
@@ -47,15 +47,15 @@ A structural review of SEA (conducted 2026-04-15) identified that SEA already ha
 
 The same review also identified four specific gaps where the plugin's own outputs **could be held to the same discipline it imposes on users**:
 
-1. **Comprehension is not demonstrated before execution.** When `/sea-go` launches the `executor` agent with a plan, the executor starts editing. There is no step where the executor proves it read the plan correctly before touching any file. Plan misreads are caught a commit later, when the damage is already done.
+1. **Comprehension is not demonstrated before execution.** When `/se-go` launches the `executor` agent with a plan, the executor starts editing. There is no step where the executor proves it read the plan correctly before touching any file. Plan misreads are caught a commit later, when the damage is already done.
 
 2. **Exit reports are claim-format, not evidence-format.** `executor.md:143-149` specifies `STATUS: done / VERIFIED: yes` but does not require the actual command and output. `"tests pass"` is unverifiable. The Prove-It pattern enforces this for bug fixes only; every other task type gets claim-only reports.
 
-3. **Risk is not asymmetric to scope.** `sea-go/SKILL.md:46-54` picks a pipeline based on task complexity (trivial/medium/complex) but does not pick a gate density based on **risk**. A trivial phase that runs `rm -rf build/` gets the same treatment as a trivial phase that appends a line to a README. Destructive operations need extra confirmation even when they are "small".
+3. **Risk is not asymmetric to scope.** `se-go/SKILL.md:46-54` picks a pipeline based on task complexity (trivial/medium/complex) but does not pick a gate density based on **risk**. A trivial phase that runs `rm -rf build/` gets the same treatment as a trivial phase that appends a line to a README. Destructive operations need extra confirmation even when they are "small".
 
 4. **Negative scope bounds are absent from plans.** Plans list what to do; they do not list what **not** to touch. Scope creep is silent because no assertion catches it. An executor that edits a file outside the intended area succeeds as long as its commit passes tests, even though it violated the plan's implicit boundary.
 
-All four gaps have the same root cause: **prompt-quality discipline lives in SEA's advice to users, not in SEA's internal protocols.** This spec closes that asymmetry. After v2.1.0, SEA eats its own dogfood.
+All four gaps have the same root cause: **prompt-quality discipline lives in SE's advice to users, not in SE's internal protocols.** This spec closes that asymmetry. After v2.1.0, SE eats its own dogfood.
 
 ---
 
@@ -65,7 +65,7 @@ All four gaps have the same root cause: **prompt-quality discipline lives in SEA
 
 2. **Evidence-bearing exit reports.** Every agent's `STATUS: done` / `STATUS: blocked` report must include the actual command(s) run and their output, not a paraphrase. Unverifiable claims are rejected by the verifier.
 
-3. **Risk-asymmetric gating.** The planner must tag tasks that trigger destructive operations, schema migrations, or dependency changes as **risk gates**. `/sea-go` inspects gates before execution and surfaces them for user confirmation. Executor pauses at gate tasks and waits for explicit acknowledgment.
+3. **Risk-asymmetric gating.** The planner must tag tasks that trigger destructive operations, schema migrations, or dependency changes as **risk gates**. `/se-go` inspects gates before execution and surfaces them for user confirmation. Executor pauses at gate tasks and waits for explicit acknowledgment.
 
 4. **Negative scope bounds.** Every plan task declares `allowed_paths` and `forbidden_paths`. Executor checks its staged diff against those globs before committing. Scope creep becomes a detectable, rejectable event.
 
@@ -140,7 +140,7 @@ Four iterations, each a standalone PR. Iterations are **ordered by cost/value ra
    **Good:** `grep -rn 'eval\|exec\|innerHTML' src/ → no matches`
 
    **Bad:**  "The migration worked."
-   **Good:** `cat .sea/state.json | jq .schema_version → 2`
+   **Good:** `cat .se/state.json | jq .schema_version → 2`
 
    A claim without the command and its output is an **assertion**; a
    claim with them is **verifiable**. The verifier agent treats
@@ -248,7 +248,7 @@ Four iterations, each a standalone PR. Iterations are **ordered by cost/value ra
 - `grep -c 'Demonstrate Comprehension' agents/{researcher,planner,executor}.md` → `3`
 - `bash evals/run.sh` → all suites pass (new suite included)
 - `bash tests/run-tests.sh` → all pass
-- A dry-run `/sea-quick` against a throwaway repo produces an executor run whose first output contains the `UNDERSTOOD:` block (live validation — skip if you can't easily set up a throwaway repo, but log the skip in the PR description)
+- A dry-run `/se-quick` against a throwaway repo produces an executor run whose first output contains the `UNDERSTOOD:` block (live validation — skip if you can't easily set up a throwaway repo, but log the skip in the PR description)
 
 **PR title:** `feat(agents): comprehension checks and evidence-bearing exits (v2.1.0 Iteration 1)`
 
@@ -339,7 +339,7 @@ Four iterations, each a standalone PR. Iterations are **ordered by cost/value ra
    ```
 
    Do not silently adjust the scope by editing the plan. Scope
-   expansions require user acknowledgment. This is how SEA prevents
+   expansions require user acknowledgment. This is how SE prevents
    the classic "while I'm already in there" failure mode named in
    `_common.md` Rule 4 and in `executor.md` Rules (line 103).
    ```
@@ -404,9 +404,9 @@ Four iterations, each a standalone PR. Iterations are **ordered by cost/value ra
 
 **Branch:** `feat/prompt-quality-risk-gates`
 
-**Goal:** The planner tags tasks that trigger destructive operations, schema migrations, or dependency changes as **risk gates**. `/sea-go` inspects gates before launching the executor and surfaces them for user confirmation. Executor pauses at gate tasks.
+**Goal:** The planner tags tasks that trigger destructive operations, schema migrations, or dependency changes as **risk gates**. `/se-go` inspects gates before launching the executor and surfaces them for user confirmation. Executor pauses at gate tasks.
 
-**This is the most invasive iteration in this spec.** It touches three files across three layers (planner output schema, sea-go orchestration, executor pause protocol) and introduces a new agent exit status (`STATUS: gate`). Before starting:
+**This is the most invasive iteration in this spec.** It touches three files across three layers (planner output schema, se-go orchestration, executor pause protocol) and introduces a new agent exit status (`STATUS: gate`). Before starting:
 
 - **Read this entire iteration.**
 - **Confirm the implementation approach** with the user (the marker-file approach is the default; see "Implementation note" below).
@@ -417,20 +417,20 @@ Four iterations, each a standalone PR. Iterations are **ordered by cost/value ra
 **Files touched:**
 - `agents/planner.md` (plan schema extended with `risk_gates`)
 - `agents/executor.md` (new `STATUS: gate` exit + resume-from-gate logic)
-- `skills/sea-go/SKILL.md` (new Step 4.5 "Risk gate inspection")
+- `skills/se-go/SKILL.md` (new Step 4.5 "Risk gate inspection")
 - `evals/fixtures/plans/sample-plan-with-gates.md` (new fixture)
 - `evals/suites/agents/risk-gate-flow.sh` (new suite)
 - `evals/suites/agents/prompt-quality.sh` (extend)
-- `docs/STATE.md` (add `.sea/phases/phase-N/gate-pending.json` to the state inventory — Phase 2 of v2.0.0 created this file; now it has a new schema addition)
+- `docs/STATE.md` (add `.se/phases/phase-N/gate-pending.json` to the state inventory — Phase 2 of v2.0.0 created this file; now it has a new schema addition)
 - `CHANGELOG.md`
 
 **Implementation note — how executor "pauses"**
 
 Claude Code subagents do not support mid-run user interaction. An executor that needs to pause must exit and be re-launched by the calling skill. Two candidate approaches:
 
-**Approach A: split-phase launch.** `/sea-go` launches executor for tasks before the gate, waits for completion, surfaces the gate, waits for user confirmation, launches a second executor for tasks after the gate.
+**Approach A: split-phase launch.** `/se-go` launches executor for tasks before the gate, waits for completion, surfaces the gate, waits for user confirmation, launches a second executor for tasks after the gate.
 
-**Approach B: gate-pending marker.** Executor runs normally. When it reaches a gate task, it writes `.sea/phases/phase-N/gate-pending.json` with the task ID and the confirmation prompt, then exits with `STATUS: gate`. `/sea-go` reads the marker, surfaces the prompt, waits for user confirmation, and re-launches executor with a "resume from gate" context that the executor reads via the existing `progress.json` logic.
+**Approach B: gate-pending marker.** Executor runs normally. When it reaches a gate task, it writes `.se/phases/phase-N/gate-pending.json` with the task ID and the confirmation prompt, then exits with `STATUS: gate`. `/se-go` reads the marker, surfaces the prompt, waits for user confirmation, and re-launches executor with a "resume from gate" context that the executor reads via the existing `progress.json` logic.
 
 **Default recommendation: Approach B.** It matches the existing resume-from-interruption pattern in `executor.md` (progress.json), so the executor's state machine already knows how to resume from a stopped point. Approach A duplicates state across two executor invocations.
 
@@ -468,8 +468,8 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
        confirmation: "Confirm removal of @legacy/auth. Last used in commit abc123; grep found 3 import sites, all migrated in task 4. Proceed?"
      - task: 7
        kind: "schema-migration"
-       reason: "Runs .sea/state.json migration from v1 to v2"
-       confirmation: "Confirm state migration. Back up .sea/ first? Migration is one-way."
+       reason: "Runs .se/state.json migration from v1 to v2"
+       confirmation: "Confirm state migration. Back up .se/ first? Migration is one-way."
    ```
 
    Empty gates → write `risk_gates: []`. Empty is an **assertion** that
@@ -486,7 +486,7 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
    Before starting any task whose id appears in the plan's `risk_gates`
    section, pause before executing it:
 
-   1. Write `.sea/phases/phase-N/gate-pending.json`:
+   1. Write `.se/phases/phase-N/gate-pending.json`:
       ```json
       {
         "phase": <N>,
@@ -512,13 +512,13 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
    4. Do NOT proceed to the next task. Do NOT emit a commit for the
       gate task.
 
-   When re-launched by `/sea-go` with a "gate resumed" context, delete
+   When re-launched by `/se-go` with a "gate resumed" context, delete
    `gate-pending.json`, read `progress.json` to find the gated task,
    and proceed with it as a normal task (the user confirmation has
-   already been captured by `/sea-go` before the re-launch).
+   already been captured by `/se-go` before the re-launch).
    ```
 
-3. **Extend `sea-go/SKILL.md`** with Step 4.5:
+3. **Extend `se-go/SKILL.md`** with Step 4.5:
 
    ```markdown
    ## Step 4.5: Risk gate inspection
@@ -554,7 +554,7 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
 
    If the executor returns `STATUS: gate`:
 
-   1. Read `.sea/phases/phase-N/gate-pending.json`.
+   1. Read `.se/phases/phase-N/gate-pending.json`.
    2. Surface the `confirmation_prompt` to the user, with the gate
       kind and reason.
    3. Wait for specific confirmation ("confirm" or explicit task
@@ -564,15 +564,15 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
       deletes the marker and proceeds.
    5. On non-confirmation: mark the phase `blocked` in state, leave
       the marker in place, and tell the user: "Phase N paused at
-      task <id>. Delete .sea/phases/phase-N/gate-pending.json to
-      unblock, or run `/sea-quick 'modify task <id>'` to revise."
+      task <id>. Delete .se/phases/phase-N/gate-pending.json to
+      unblock, or run `/se-quick 'modify task <id>'` to revise."
 
    Do not auto-confirm gates. Do not skip the re-launch. The human
    loop is the point.
    ```
 
 4. **Update `docs/STATE.md`** to add `gate-pending.json`:
-   - Path, writer (executor), readers (sea-go, verifier), format,
+   - Path, writer (executor), readers (se-go, verifier), format,
      required fields, invariants (exists iff executor exited with
      `STATUS: gate`; cleared on resume or manual deletion).
 
@@ -587,15 +587,15 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
    - Does not run a full executor — tests the state machine only.
 
 7. **Extend `prompt-quality.sh`** with `risk_gates` presence checks in
-   `planner.md` and `Step 4.5` presence in `sea-go/SKILL.md`.
+   `planner.md` and `Step 4.5` presence in `se-go/SKILL.md`.
 
 8. **Update `CHANGELOG.md`.**
 
 **Commit plan:**
 - `feat(planner): add risk_gates schema with gate-kind taxonomy`
 - `feat(executor): add gate-pause protocol with STATUS: gate and gate-pending marker`
-- `feat(sea-go): add Step 4.5 risk gate inspection and Step 6.5 resume-after-gate`
-- `docs(state): document .sea/phases/phase-N/gate-pending.json`
+- `feat(se-go): add Step 4.5 risk gate inspection and Step 6.5 resume-after-gate`
+- `docs(state): document .se/phases/phase-N/gate-pending.json`
 - `test(evals): add risk-gate-flow suite and sample-plan-with-gates fixture`
 - `test(evals): extend prompt-quality.sh with risk-gate assertions`
 - `docs(changelog): log Iteration 3 additions`
@@ -603,21 +603,21 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
 **Exit criteria (command + output evidence):**
 - `grep -c 'risk_gates' agents/planner.md` → `≥ 3`
 - `grep -c 'STATUS: gate' agents/executor.md` → `≥ 2`
-- `grep -c 'Risk gate inspection' skills/sea-go/SKILL.md` → `1`
+- `grep -c 'Risk gate inspection' skills/se-go/SKILL.md` → `1`
 - `bash evals/suites/agents/risk-gate-flow.sh` → passes
 - `bash evals/run.sh` → all green
 - `bash tests/run-tests.sh` → all green
 - **Live validation (required for Iteration 3):** on a throwaway repo,
-  run `/sea-go` against a plan containing one risk gate. Observe that
-  the executor pauses, sea-go surfaces the prompt, and the resume
+  run `/se-go` against a plan containing one risk gate. Observe that
+  the executor pauses, se-go surfaces the prompt, and the resume
   path works end-to-end. Log the run in the PR description with the
   actual output.
 
 **PR title:** `feat(agents,skills): risk gates with pause-and-confirm protocol (v2.1.0 Iteration 3)`
 
-**Rollback:** `git revert`. Gate-pending markers in user projects become orphaned; add a note to `docs/migration/v1-to-v2.1.md` about manual cleanup if rollback happens. State schema is unchanged — this iteration adds a new file under `.sea/phases/phase-N/` but does not modify existing files.
+**Rollback:** `git revert`. Gate-pending markers in user projects become orphaned; add a note to `docs/migration/v1-to-v2.1.md` about manual cleanup if rollback happens. State schema is unchanged — this iteration adds a new file under `.se/phases/phase-N/` but does not modify existing files.
 
-**Live-test gate:** Iteration 3 may NOT ship without a successful live end-to-end run. Structural evals catch 80% of regressions; the remaining 20% (planner emits correct gates, executor actually pauses, sea-go actually resumes) can only be validated against a real Claude Code session. If live validation fails, do not merge — debug and re-run.
+**Live-test gate:** Iteration 3 may NOT ship without a successful live end-to-end run. Structural evals catch 80% of regressions; the remaining 20% (planner emits correct gates, executor actually pauses, se-go actually resumes) can only be validated against a real Claude Code session. If live validation fails, do not merge — debug and re-run.
 
 ---
 
@@ -691,7 +691,7 @@ Claude Code subagents do not support mid-run user interaction. An executor that 
 
 **Recommendation: wait 7 days after v2.0.0 tags, then decide.**
 
-After v2.0.0 ships, use SEA on 2–3 real tasks with just the v2.0.0 feature set. If the comprehension and evidence gaps visibly hurt (e.g. an executor edits the wrong file silently; an exit report claims "tests pass" without output and the user discovers they didn't), v2.1.0 is high priority. If v2.0.0 alone feels sufficient, v2.1.0 can wait a month or a quarter without cost. Feature debt is only debt if it hurts.
+After v2.0.0 ships, use SE on 2–3 real tasks with just the v2.0.0 feature set. If the comprehension and evidence gaps visibly hurt (e.g. an executor edits the wrong file silently; an exit report claims "tests pass" without output and the user discovers they didn't), v2.1.0 is high priority. If v2.0.0 alone feels sufficient, v2.1.0 can wait a month or a quarter without cost. Feature debt is only debt if it hurts.
 
 ### 2. Which iterations to ship?
 
@@ -722,7 +722,7 @@ Override only if the research in Iteration 3's planning surfaces a specific reas
 **Rule of thumb:** structural evals (bash grep / state machine simulation) catch regression; live tests catch LLM behavior. Both matter. For v2.1.0:
 
 - Iterations 1, 2 can rely primarily on structural evals — the LLM behavior change is "follow one more step in the prompt", which is high-confidence.
-- Iteration 3 requires live validation because the pause-and-resume flow involves three components (planner, sea-go, executor) and multiple invocations.
+- Iteration 3 requires live validation because the pause-and-resume flow involves three components (planner, se-go, executor) and multiple invocations.
 - Iteration 4 validation depends on the chosen mechanism.
 
 ---
@@ -745,7 +745,7 @@ Override only if the research in Iteration 3's planning surfaces a specific reas
 - [ ] `executor.md` workflow includes Pre-commit scope check with scope-violation `STATUS: blocked` format.
 - [ ] `evals/suites/agents/prompt-quality.sh` exists and is green.
 - [ ] `evals/suites/agents/scope-creep-detection.sh` exists and is green.
-- [ ] If Iteration 3 shipped: `planner.md` has `risk_gates` schema; `executor.md` has gate-pause protocol; `sea-go/SKILL.md` has Step 4.5 + Step 6.5; `evals/suites/agents/risk-gate-flow.sh` exists and is green; live end-to-end test logged in the Iteration 3 PR.
+- [ ] If Iteration 3 shipped: `planner.md` has `risk_gates` schema; `executor.md` has gate-pause protocol; `se-go/SKILL.md` has Step 4.5 + Step 6.5; `evals/suites/agents/risk-gate-flow.sh` exists and is green; live end-to-end test logged in the Iteration 3 PR.
 - [ ] If Iteration 4 shipped: `_common.md` is auto-injected at subagent launch; manual `"Read _common.md first"` lines removed.
 - [ ] If Iteration 4 deferred: research note at `docs/specs/2026-04-15-prompt-quality-patterns-research.md` exists.
 - [ ] `.claude-plugin/plugin.json` version bumped to `2.1.0`.
@@ -773,7 +773,7 @@ First message:
 Confirm the summary matches the spec. Specifically check that the implementing session correctly identifies:
 1. Iteration 1 adds Rule 7 + Step 0 (touching `_common.md`, `researcher.md`, `planner.md`, `executor.md`).
 2. Iteration 2 adds scope bounds (touching `planner.md`, `executor.md`, eval fixtures).
-3. Iteration 3 adds risk gates (touching `planner.md`, `executor.md`, `sea-go/SKILL.md`, a new state file, evals).
+3. Iteration 3 adds risk gates (touching `planner.md`, `executor.md`, `se-go/SKILL.md`, a new state file, evals).
 4. Iteration 4 is exploratory and gated on API research.
 
 If the summary is correct, decide on Decision Point 2 (which iterations to ship in v2.1.0) before starting. Then proceed iteration by iteration with the same discipline as the v2.0.0 refactor: one iteration = one PR = one review.
@@ -796,7 +796,7 @@ Append a new section to `docs/specs/2026-04-15-scope-and-state-refactor-journal.
 - Decision Point 3 resolution: <Approach A / Approach B>
 - Iteration 4 API research outcome: <feasible / deferred>
 - v2.1.0 release URL: <link>
-- Live-test observations: <what actually happened when SEA ate its own dogfood>
+- Live-test observations: <what actually happened when SE ate its own dogfood>
 ```
 
 This journal remains the permanent record across both refactors.

@@ -17,13 +17,13 @@
 
 ## Context
 
-This spec plans a disciplined refactor of `software-engineer-agent` (SEA) v1.0.0 driven by a structural review conducted 2026-04-15. The review identified five concrete gaps between the plugin's ambition and its current shipping state:
+This spec plans a disciplined refactor of `software-engineer-agent` (SE) v1.0.0 driven by a structural review conducted 2026-04-15. The review identified five concrete gaps between the plugin's ambition and its current shipping state:
 
 1. **Scope outpaces discipline.** 11 slash commands, 6 agents, 10+ state files, 5 helper scripts, 2 memory systems — shipped on a plugin that is 1 day old. The feature surface is wider than the stop-the-line discipline the plugin otherwise imposes on its users.
 2. **Documentation lags reality.** `README.md` "Directory layout" section (lines 147–180) shows 4 agents and 6 skills; filesystem has 6 agents (`researcher`, `planner`, `executor`, `verifier`, `reviewer`, `debugger` + `_common.md`) and 11 skills. `DESIGN.md` still carries a `[NAME]` placeholder and `Draft — working name software-engineer-agent` status while `.claude-plugin/plugin.json` is at `v1.0.0`.
-3. **Duplicated composition story.** `/sea-review`, `/sea-debug`, `/sea-ship` overlap methodology that `addyosmani/agent-skills` and `obra/superpowers` already cover. `README.md` lines 193–265 recommend composition *and* ship the competing commands. A user cannot tell which to reach for, and this incoherence will not age well.
-4. **State model invariants uncoded.** 10+ files under `.sea/` + 6 per-agent `MEMORY.md` files, no single document defines what must be true across them. One state corruption incident is already documented in `CLAUDE.md:103-104` ("this actually happened during V1 testing"). The reactive fix (`scripts/state-update.sh`) is correct but does not address the underlying model complexity.
-5. **Minor smells.** `maxTurns: 30` is a rationale-free magic number in `agents/executor.md:7`; the `.sea/.needs-verify` marker file content is overloaded as a retry counter in `hooks/auto-qa:30` (file existence means "verify needed", file content means "retries so far"); `evals/run.sh` is a 30-line subshell loop while `README.md` positions it as a "deterministic CI validation" layer.
+3. **Duplicated composition story.** `/se-review`, `/se-debug`, `/se-ship` overlap methodology that `addyosmani/agent-skills` and `obra/superpowers` already cover. `README.md` lines 193–265 recommend composition *and* ship the competing commands. A user cannot tell which to reach for, and this incoherence will not age well.
+4. **State model invariants uncoded.** 10+ files under `.se/` + 6 per-agent `MEMORY.md` files, no single document defines what must be true across them. One state corruption incident is already documented in `CLAUDE.md:103-104` ("this actually happened during V1 testing"). The reactive fix (`scripts/state-update.sh`) is correct but does not address the underlying model complexity.
+5. **Minor smells.** `maxTurns: 30` is a rationale-free magic number in `agents/executor.md:7`; the `.se/.needs-verify` marker file content is overloaded as a retry counter in `hooks/auto-qa:30` (file existence means "verify needed", file content means "retries so far"); `evals/run.sh` is a 30-line subshell loop while `README.md` positions it as a "deterministic CI validation" layer.
 
 The **good news** (also from the review) is that the architectural bones are correct:
 
@@ -43,7 +43,7 @@ The **good news** (also from the review) is that the architectural bones are cor
 
 1. **Scope discipline.** Reduce user-facing command surface from 11 to a core the author can maintain at v2's level of polish. Conservative first cut: 11 → 6. An aggressive follow-up cut (6 → 3) is flagged as deferred future work, not in scope here.
 2. **Documentation truth.** `README.md`, `DESIGN.md`, `CLAUDE.md`, and the filesystem must tell the same story. No phantom counts, no `[NAME]` placeholders, no `Draft` status in a versioned release.
-3. **State model clarity.** Define every `.sea/` file's writer, readers, and cross-file invariants in a single document (`docs/STATE.md` v2). Consolidate redundant state files where the Phase 2 audit shows it is safe.
+3. **State model clarity.** Define every `.se/` file's writer, readers, and cross-file invariants in a single document (`docs/STATE.md` v2). Consolidate redundant state files where the Phase 2 audit shows it is safe.
 4. **Composition over competition.** Delete the five commands that overlap external plugins' methodology. Keep orchestration and discipline. Document the composition expectation in a migration guide so v1 users know what to install in place of the deleted commands.
 5. **Clean breaking-change release.** Ship as `v2.0.0` with a migration guide, explicit breaking-changes list, and no backwards-compatibility shims. Tag the release, push notes, and close the refactor as a single unit.
 
@@ -57,7 +57,7 @@ The **good news** (also from the review) is that the architectural bones are cor
 - **No change to the Prove-It pattern in `executor.md`.** Also load-bearing and correct.
 - **No rewrite of `hooks/auto-qa`.** Working defensive bash. The only touch is the `.needs-verify` marker split in Phase 6, and even that is a surgical edit, not a rewrite.
 - **No change to the `_common.md → task-specific` instruction precedence.** Sacred.
-- **No move to `addyosmani/agent-skills` as a hard dependency.** SEA remains standalone; composition is a recommendation, not a requirement.
+- **No move to `addyosmani/agent-skills` as a hard dependency.** SE remains standalone; composition is a recommendation, not a requirement.
 
 ## Constraints
 
@@ -75,21 +75,21 @@ The **good news** (also from the review) is that the architectural bones are cor
 
 | Current command | Decision | Rationale |
 |---|---|---|
-| `/sea-init` | **KEEP** | Project bootstrap; irreplaceable. |
-| `/sea-go` | **KEEP** | Core orchestration loop; the whole pitch hinges on this. |
-| `/sea-quick` | **KEEP** | Single-task escape hatch; complements `/sea-go`. |
-| `/sea-status` | **KEEP** | Read-only, cheap, auto-invocable. Users will ask "where am I" and deserve a crisp answer. |
-| `/sea-diagnose` | **KEEP** | Read-only health audit. Distinct from `/sea-status` in that it inspects *project code*, not SEA state. Composition does not cover this well because external plugins don't know SEA's phase model. |
-| `/sea-roadmap` | **KEEP** | Roadmap is a first-class SEA concept. CRUD on it needs a command. Milestones get absorbed here in Phase 5. |
-| `/sea-ship` | **DELETE** | Pre-merge quality gate duplicates `addyosmani/agent-skills:shipping`. Delete; `docs/migration/v1-to-v2.md` documents the replacement. |
-| `/sea-review` | **DELETE** | 5-axis code review duplicates `addyosmani/agent-skills:code-review`. The 5-axis framework was a good idea; it was not SEA's idea to keep. |
-| `/sea-debug` | **DELETE** | 5-phase triage duplicates `obra/superpowers:debugging` and `addyosmani/agent-skills:debugging`. When `/sea-go`'s executor returns `STATUS: blocked`, the report should recommend whichever external debug skill is installed, not a SEA-owned command. |
-| `/sea-milestone` | **DELETE** | Folded into `/sea-roadmap add` in Phase 5. Milestones are a category of roadmap entry, not a separate concept. |
-| `/sea-undo` | **DELETE** | A wrapper around `git revert`. Exactly the kind of thin re-export the plugin's "native APIs only" rule forbids. Users who need to undo run `git revert` themselves. |
+| `/se-init` | **KEEP** | Project bootstrap; irreplaceable. |
+| `/se-go` | **KEEP** | Core orchestration loop; the whole pitch hinges on this. |
+| `/se-quick` | **KEEP** | Single-task escape hatch; complements `/se-go`. |
+| `/se-status` | **KEEP** | Read-only, cheap, auto-invocable. Users will ask "where am I" and deserve a crisp answer. |
+| `/se-diagnose` | **KEEP** | Read-only health audit. Distinct from `/se-status` in that it inspects *project code*, not SE state. Composition does not cover this well because external plugins don't know SE's phase model. |
+| `/se-roadmap` | **KEEP** | Roadmap is a first-class SE concept. CRUD on it needs a command. Milestones get absorbed here in Phase 5. |
+| `/se-ship` | **DELETE** | Pre-merge quality gate duplicates `addyosmani/agent-skills:shipping`. Delete; `docs/migration/v1-to-v2.md` documents the replacement. |
+| `/se-review` | **DELETE** | 5-axis code review duplicates `addyosmani/agent-skills:code-review`. The 5-axis framework was a good idea; it was not SE's idea to keep. |
+| `/se-debug` | **DELETE** | 5-phase triage duplicates `obra/superpowers:debugging` and `addyosmani/agent-skills:debugging`. When `/se-go`'s executor returns `STATUS: blocked`, the report should recommend whichever external debug skill is installed, not a SE-owned command. |
+| `/se-milestone` | **DELETE** | Folded into `/se-roadmap add` in Phase 5. Milestones are a category of roadmap entry, not a separate concept. |
+| `/se-undo` | **DELETE** | A wrapper around `git revert`. Exactly the kind of thin re-export the plugin's "native APIs only" rule forbids. Users who need to undo run `git revert` themselves. |
 
 **Net result:** 11 → 6 user-facing commands.
 
-**Deferred (tracked for a follow-up refactor, not in scope here):** further cut from 6 → 3 (`init`, `go`, `quick` only), with `status`/`diagnose`/`roadmap` either auto-triggered on state or folded into `/sea-go` output. Re-evaluate after v2.0.0 has been lived in for 2–4 weeks.
+**Deferred (tracked for a follow-up refactor, not in scope here):** further cut from 6 → 3 (`init`, `go`, `quick` only), with `status`/`diagnose`/`roadmap` either auto-triggered on state or folded into `/se-go` output. Re-evaluate after v2.0.0 has been lived in for 2–4 weeks.
 
 ---
 
@@ -97,12 +97,12 @@ The **good news** (also from the review) is that the architectural bones are cor
 
 | Current agent | Decision | Rationale |
 |---|---|---|
-| `researcher` | KEEP | Invoked by `/sea-go` on complex phases. |
-| `planner` | KEEP | Core to `/sea-go` pipeline. |
+| `researcher` | KEEP | Invoked by `/se-go` on complex phases. |
+| `planner` | KEEP | Core to `/se-go` pipeline. |
 | `executor` | KEEP | Only write-permission agent; irreplaceable. |
 | `verifier` | KEEP | Invoked by the `auto-qa` Stop hook. |
-| `reviewer` | **DELETE** | Used by `/sea-review` and by `/sea-go` Step 6.5. Since `/sea-review` is being deleted and `/sea-go` Step 6.5 will be rewritten to delegate to composition, this agent has no caller. |
-| `debugger` | **DELETE** | Used by `/sea-debug` only. Same reasoning. |
+| `reviewer` | **DELETE** | Used by `/se-review` and by `/se-go` Step 6.5. Since `/se-review` is being deleted and `/se-go` Step 6.5 will be rewritten to delegate to composition, this agent has no caller. |
+| `debugger` | **DELETE** | Used by `/se-debug` only. Same reasoning. |
 | `_common.md` | KEEP | Operating constitution; load-bearing; not an agent itself. |
 
 **Net result:** 6 → 4 agents (plus `_common.md`).
@@ -135,7 +135,7 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
    git tag -a pre-scope-cut -m "Recovery point before v2.0.0 scope cut refactor"
    git push origin pre-scope-cut
    ```
-5. Create a journal file at `docs/specs/2026-04-15-scope-and-state-refactor-journal.md` using the template at the end of this spec. Log the initial inventory (skill count, agent count, `.sea/` file references from a repo-wide grep). This journal is the reviewer's source of truth for "what changed at each phase".
+5. Create a journal file at `docs/specs/2026-04-15-scope-and-state-refactor-journal.md` using the template at the end of this spec. Log the initial inventory (skill count, agent count, `.se/` file references from a repo-wide grep). This journal is the reviewer's source of truth for "what changed at each phase".
 
 **Exit criteria:**
 - Working tree clean.
@@ -210,10 +210,10 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
 
 **Steps:**
 
-1. Inventory every file in `.sea/` across the codebase:
+1. Inventory every file in `.se/` across the codebase:
    ```bash
-   grep -rn '\.sea/' agents/ skills/ hooks/ scripts/ evals/ tests/ README.md CLAUDE.md \
-     | tee /tmp/sea-state-refs.txt
+   grep -rn '\.se/' agents/ skills/ hooks/ scripts/ evals/ tests/ README.md CLAUDE.md \
+     | tee /tmp/se-state-refs.txt
    ```
    Also grep for `.claude/agent-memory/`:
    ```bash
@@ -226,7 +226,7 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
 
    | File | Path | Written by | Read by | Format | Required fields | Optional? | Recreated by |
 
-   One row per file. Include every `.sea/*` file referenced anywhere in the repo, plus the per-agent `MEMORY.md` path.
+   One row per file. Include every `.se/*` file referenced anywhere in the repo, plus the per-agent `MEMORY.md` path.
 
 4. For each file row, answer four questions:
    - **Writer(s):** exact skill, agent, hook, or script that writes it (cite file path).
@@ -253,11 +253,11 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
 8. **Do NOT yet merge, rename, or delete any state file.** This phase only produces the document. The user reviews and signs off before Phase 6 acts.
 
 **Commit plan:**
-- One commit: `docs(state): inventory every .sea/ file with writers, readers, and invariants`
+- One commit: `docs(state): inventory every .se/ file with writers, readers, and invariants`
 - One commit: `docs(state): document simplification opportunities for v2.0.0`
 
 **Exit criteria:**
-- `docs/STATE.md` lists every file under `.sea/` that any code in the repo touches.
+- `docs/STATE.md` lists every file under `.se/` that any code in the repo touches.
 - Every entry has a writer, readers, and at least one invariant.
 - A human reader can answer the question "what happens if `state.json` and `roadmap.md` disagree?" by reading the document.
 - At least 3 simplification opportunities documented with explicit recommendations.
@@ -280,7 +280,7 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
 
 1. **Confirm nothing outside the 5 cut skills references them.** Run this audit and log results in the journal:
    ```bash
-   for cmd in sea-ship sea-review sea-debug sea-milestone sea-undo; do
+   for cmd in se-ship se-review se-debug se-milestone se-undo; do
      echo "=== $cmd ==="
      grep -rn "$cmd" agents/ skills/ hooks/ scripts/ tests/ evals/ \
        README.md CLAUDE.md DESIGN.md docs/ 2>&1 \
@@ -291,31 +291,31 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
    - `README.md` Commands table and "Typical workflows" examples.
    - `CLAUDE.md` Repo layout section.
    - `DESIGN.md` (the historical one — leave it untouched; the superseding note handles it).
-   - `skills/sea-go/SKILL.md` Step 5 (debug handoff) and Step 6.5 (reviewer).
+   - `skills/se-go/SKILL.md` Step 5 (debug handoff) and Step 6.5 (reviewer).
    - Possibly tests or evals that reference the deleted commands.
 
    Document every site that needs follow-up updates.
 
 2. **Delete the 5 skill directories:**
    ```bash
-   git rm -r skills/sea-ship skills/sea-review skills/sea-debug \
-             skills/sea-milestone skills/sea-undo
+   git rm -r skills/se-ship skills/se-review skills/se-debug \
+             skills/se-milestone skills/se-undo
    ```
 
-3. **Update `skills/sea-go/SKILL.md`:**
-   - **Step 5 (executor blocked handling, lines 70–74):** replace the `/sea-debug` recommendation with: *"If `obra/superpowers:debugging` or `addyosmani/agent-skills:debugging` is installed, recommend invoking it. Otherwise surface the executor's blocked report verbatim and stop. SEA does not own debug methodology — compose with specialized plugins."*
+3. **Update `skills/se-go/SKILL.md`:**
+   - **Step 5 (executor blocked handling, lines 70–74):** replace the `/se-debug` recommendation with: *"If `obra/superpowers:debugging` or `addyosmani/agent-skills:debugging` is installed, recommend invoking it. Otherwise surface the executor's blocked report verbatim and stop. SE does not own debug methodology — compose with specialized plugins."*
    - **Step 6.5 (reviewer invocation, lines 87–96):** delete the entire step. Replace with: *"After auto-QA passes, if `addyosmani/agent-skills:code-review` is installed, note its availability in the phase summary report so the user can opt in. Do not invoke a reviewer agent — v2.0.0 removed the internal reviewer in favor of composition."*
-   - **Related section (lines 138–148):** remove the `/sea-review`, `/sea-debug`, `/sea-milestone`, `/sea-undo`, `/sea-ship` references. Keep the external-plugin recommendations.
+   - **Related section (lines 138–148):** remove the `/se-review`, `/se-debug`, `/se-milestone`, `/se-undo`, `/se-ship` references. Keep the external-plugin recommendations.
 
 4. **Update `README.md`:**
    - Remove the 5 deleted commands from the Commands table (lines 62–75).
-   - Verify the "Typical workflows" examples still work with the reduced surface. The "Finishing an existing repo" example uses `/sea-diagnose` (KEPT) and `/sea-roadmap` (KEPT); it is safe.
+   - Verify the "Typical workflows" examples still work with the reduced surface. The "Finishing an existing repo" example uses `/se-diagnose` (KEPT) and `/se-roadmap` (KEPT); it is safe.
    - Add a **"Migration from v1.x"** section with a table mapping each deleted command to its composition replacement:
-     - `/sea-ship` → `addyosmani/agent-skills:shipping`
-     - `/sea-review` → `addyosmani/agent-skills:code-review`
-     - `/sea-debug` → `obra/superpowers:debugging` or `addyosmani/agent-skills:debugging`
-     - `/sea-milestone` → `/sea-roadmap add` (after Phase 5)
-     - `/sea-undo` → native `git revert`
+     - `/se-ship` → `addyosmani/agent-skills:shipping`
+     - `/se-review` → `addyosmani/agent-skills:code-review`
+     - `/se-debug` → `obra/superpowers:debugging` or `addyosmani/agent-skills:debugging`
+     - `/se-milestone` → `/se-roadmap add` (after Phase 5)
+     - `/se-undo` → native `git revert`
    - Update the "Software engineer responsibilities → plugin mapping" table (lines 16–25) to remove references to deleted commands.
 
 5. **Update `CLAUDE.md:22`:**
@@ -331,15 +331,15 @@ Each phase is **one branch, one PR, one review**. Do not chain phases in a singl
 **Commit plan:**
 
 One commit per deleted skill, atomic:
-- `refactor(skills): delete /sea-ship — composition covers shipping via agent-skills`
-- `refactor(skills): delete /sea-review — composition covers code review via agent-skills`
-- `refactor(skills): delete /sea-debug — composition covers debugging via superpowers`
-- `refactor(skills): delete /sea-milestone — folded into /sea-roadmap add in Phase 5`
-- `refactor(skills): delete /sea-undo — rely on native git revert`
+- `refactor(skills): delete /se-ship — composition covers shipping via agent-skills`
+- `refactor(skills): delete /se-review — composition covers code review via agent-skills`
+- `refactor(skills): delete /se-debug — composition covers debugging via superpowers`
+- `refactor(skills): delete /se-milestone — folded into /se-roadmap add in Phase 5`
+- `refactor(skills): delete /se-undo — rely on native git revert`
 
 Then integration:
-- `refactor(sea-go): remove Step 6.5 reviewer call, delegate review to composition`
-- `refactor(sea-go): remove /sea-debug handoff, delegate debugging to composition`
+- `refactor(se-go): remove Step 6.5 reviewer call, delegate review to composition`
+- `refactor(se-go): remove /se-debug handoff, delegate debugging to composition`
 - `docs: update README, CLAUDE.md, migration section for v2.0.0 command surface`
 
 If evals/tests needed deletion:
@@ -347,7 +347,7 @@ If evals/tests needed deletion:
 
 **Exit criteria:**
 - `ls -d skills/*/ | wc -l` returns 6.
-- `grep -rn 'sea-ship\|sea-review\|sea-debug\|sea-milestone\|sea-undo' agents/ skills/ hooks/ scripts/ | grep -v '^docs/specs/'` returns nothing.
+- `grep -rn 'se-ship\|se-review\|se-debug\|se-milestone\|se-undo' agents/ skills/ hooks/ scripts/ | grep -v '^docs/specs/'` returns nothing.
 - `README.md` has a Migration section.
 - `bash evals/run.sh` green.
 - `bash tests/run-tests.sh` green.
@@ -405,45 +405,45 @@ If evals/tests needed deletion:
 
 ---
 
-### Phase 5 — Consolidate `/sea-roadmap` and former `/sea-milestone`
+### Phase 5 — Consolidate `/se-roadmap` and former `/se-milestone`
 
 **Branch:** `refactor/roadmap-absorbs-milestone`
 
-**Goal:** `/sea-milestone` was deleted in Phase 3. This phase ensures `/sea-roadmap add` cleanly covers the milestone use case, with any carry-over logic the deleted skill had.
+**Goal:** `/se-milestone` was deleted in Phase 3. This phase ensures `/se-roadmap add` cleanly covers the milestone use case, with any carry-over logic the deleted skill had.
 
 **Preconditions:** Phase 3 merged.
 
 **Steps:**
 
-1. Read `skills/sea-roadmap/SKILL.md` as-is to understand its current capabilities.
+1. Read `skills/se-roadmap/SKILL.md` as-is to understand its current capabilities.
 
-2. Read the deleted `skills/sea-milestone/SKILL.md` from git history to recover its functionality:
+2. Read the deleted `skills/se-milestone/SKILL.md` from git history to recover its functionality:
    ```bash
-   git show pre-scope-cut:skills/sea-milestone/SKILL.md
+   git show pre-scope-cut:skills/se-milestone/SKILL.md
    ```
 
-3. Identify any logic that is **not already** covered by `/sea-roadmap add`:
+3. Identify any logic that is **not already** covered by `/se-roadmap add`:
    - Carrying state forward from a completed project without re-initializing?
    - Special handling when all existing phases are `done`?
    - Different schema updates to `state.json`?
    - Special roadmap formatting for milestones vs phases?
 
-4. Add a new section to `skills/sea-roadmap/SKILL.md` titled **"Adding a milestone to a completed project"** that covers everything the deleted skill did. If the deleted skill had logic that is not a good fit for `/sea-roadmap`, **stop and surface it to the user** — do not silently drop behavior. The `_common.md:2` "Manage Confusion Actively" rule applies.
+4. Add a new section to `skills/se-roadmap/SKILL.md` titled **"Adding a milestone to a completed project"** that covers everything the deleted skill did. If the deleted skill had logic that is not a good fit for `/se-roadmap`, **stop and surface it to the user** — do not silently drop behavior. The `_common.md:2` "Manage Confusion Actively" rule applies.
 
-5. Update `README.md` "Typical workflows" section: add a milestone example using `/sea-roadmap add` instead of `/sea-milestone`. Verify the example works end-to-end by actually running it against a throwaway project.
+5. Update `README.md` "Typical workflows" section: add a milestone example using `/se-roadmap add` instead of `/se-milestone`. Verify the example works end-to-end by actually running it against a throwaway project.
 
 6. Run evals and tests.
 
 **Commit plan:**
-- `feat(roadmap): absorb /sea-milestone functionality into /sea-roadmap add`
-- `docs(readme): add milestone example using /sea-roadmap add`
+- `feat(roadmap): absorb /se-milestone functionality into /se-roadmap add`
+- `docs(readme): add milestone example using /se-roadmap add`
 
 **Exit criteria:**
-- `sea-roadmap/SKILL.md` documents the milestone flow explicitly.
+- `se-roadmap/SKILL.md` documents the milestone flow explicitly.
 - `README.md` has a milestone example.
 - `bash evals/run.sh` green.
 
-**PR title:** `feat(roadmap): fold /sea-milestone functionality into /sea-roadmap add`
+**PR title:** `feat(roadmap): fold /se-milestone functionality into /se-roadmap add`
 
 ---
 
@@ -451,7 +451,7 @@ If evals/tests needed deletion:
 
 **Branch:** `refactor/state-consolidation`
 
-**Goal:** Apply the consolidation opportunities identified in Phase 2's `docs/STATE.md` v2. This phase **may** change the on-disk `.sea/` layout. If it does, it is a **BREAKING** state-schema change and requires a migration path.
+**Goal:** Apply the consolidation opportunities identified in Phase 2's `docs/STATE.md` v2. This phase **may** change the on-disk `.se/` layout. If it does, it is a **BREAKING** state-schema change and requires a migration path.
 
 **Preconditions:**
 - Phase 2 merged.
@@ -512,7 +512,7 @@ If evals/tests needed deletion:
 
 **PR title:** `refactor(state): schema v2 with .needs-verify split and migration (BREAKING)`
 
-**Rollback plan:** If any regression in production behavior is detected after merge, revert this PR and re-evaluate. The `pre-scope-cut` tag is the ultimate floor. State migration is one-way; rolling back the code does **not** roll back a migrated `.sea/state.json` in any user project. Document this caveat in the PR description.
+**Rollback plan:** If any regression in production behavior is detected after merge, revert this PR and re-evaluate. The `pre-scope-cut` tag is the ultimate floor. State migration is one-way; rolling back the code does **not** roll back a migrated `.se/state.json` in any user project. Document this caveat in the PR description.
 
 ---
 
@@ -586,13 +586,13 @@ If evals/tests needed deletion:
 
 3. **Create `CHANGELOG.md`** at repo root if it does not exist. Populate with a full v2.0.0 section. Follow [Keep a Changelog](https://keepachangelog.com/) format. Minimum sections:
    - **Removed (BREAKING)**
-     - `/sea-ship`, `/sea-review`, `/sea-debug`, `/sea-milestone`, `/sea-undo` commands
+     - `/se-ship`, `/se-review`, `/se-debug`, `/se-milestone`, `/se-undo` commands
      - `reviewer`, `debugger` agents
    - **Changed (BREAKING)**
-     - State `schema_version` bumped from 1 to 2. Automatic migration on first `/sea-go` or `/sea-init` invocation in a v1 project.
-     - `.sea/.needs-verify` marker split into `.needs-verify` (existence) and `.verify-attempts` (integer).
+     - State `schema_version` bumped from 1 to 2. Automatic migration on first `/se-go` or `/se-init` invocation in a v1 project.
+     - `.se/.needs-verify` marker split into `.needs-verify` (existence) and `.verify-attempts` (integer).
    - **Changed**
-     - `/sea-roadmap` now handles milestone use cases via `add` subcommand.
+     - `/se-roadmap` now handles milestone use cases via `add` subcommand.
      - Command surface narrowed to 6 (from 11); agent surface narrowed to 4 (from 6).
    - **Added**
      - `docs/STATE.md` v2 with full invariants documentation.
@@ -606,14 +606,14 @@ If evals/tests needed deletion:
 4. **Create `docs/migration/v1-to-v2.md`:**
    - **Who is affected:** anyone on `v1.x`. (Which is probably a very small number — the project is young — but the discipline of shipping a migration guide for a breaking release is part of the point.)
    - **What to install to replace deleted commands:**
-     - If you used `/sea-ship`, install `addyosmani/agent-skills` and use `/agent-skills:shipping` or the equivalent.
-     - If you used `/sea-review`, install `addyosmani/agent-skills` and use `/agent-skills:code-review`.
-     - If you used `/sea-debug`, install `obra/superpowers` and use `/superpowers:debugging` (or the agent-skills alternative).
-     - If you used `/sea-milestone`, use `/sea-roadmap add` — same functionality, new command name.
-     - If you used `/sea-undo`, run `git revert <commit>` directly.
+     - If you used `/se-ship`, install `addyosmani/agent-skills` and use `/agent-skills:shipping` or the equivalent.
+     - If you used `/se-review`, install `addyosmani/agent-skills` and use `/agent-skills:code-review`.
+     - If you used `/se-debug`, install `obra/superpowers` and use `/superpowers:debugging` (or the agent-skills alternative).
+     - If you used `/se-milestone`, use `/se-roadmap add` — same functionality, new command name.
+     - If you used `/se-undo`, run `git revert <commit>` directly.
    - **How the state schema auto-migration works:** `scripts/state-update.sh` detects `schema_version == 1` on first touch and upgrades in place. The migration is idempotent.
-   - **What to do if the migration fails:** `git checkout pre-scope-cut` to recover v1 shipping state on the plugin side; for the user's own project, restore `.sea/` from a backup or re-run `/sea-init` with `--fresh` if the data is unrecoverable.
-   - **How to verify the migration worked:** run `/sea-status` and check that all phases display correctly with no schema warnings.
+   - **What to do if the migration fails:** `git checkout pre-scope-cut` to recover v1 shipping state on the plugin side; for the user's own project, restore `.se/` from a backup or re-run `/se-init` with `--fresh` if the data is unrecoverable.
+   - **How to verify the migration worked:** run `/se-status` and check that all phases display correctly with no schema warnings.
 
 5. **Commit the release-prep files:**
    ```
@@ -711,17 +711,17 @@ The refactor is "done" when **every** item below is true.
 - [ ] `README.md` directory layout matches the filesystem exactly (manual grep-verified).
 - [ ] `DESIGN.md` has no `[NAME]` placeholder and no `Draft` status.
 - [ ] `DESIGN.md` has a superseding note linking to this spec.
-- [ ] `docs/STATE.md` covers every `.sea/` file with writers, readers, and at least one invariant each.
+- [ ] `docs/STATE.md` covers every `.se/` file with writers, readers, and at least one invariant each.
 - [ ] `docs/migration/v1-to-v2.md` exists and documents the migration.
 - [ ] `CHANGELOG.md` exists with a v2.0.0 section.
 - [ ] `docs/specs/2026-04-15-scope-and-state-refactor-journal.md` has an entry for every phase with PR link and date.
 - [ ] `bash evals/run.sh` green.
 - [ ] `bash tests/run-tests.sh` green.
 - [ ] A fresh clone + `claude --plugin-dir .` loads the plugin without errors.
-- [ ] `/sea-go` on a v1 state fixture auto-migrates to v2 on first run (verified by eval).
+- [ ] `/se-go` on a v1 state fixture auto-migrates to v2 on first run (verified by eval).
 - [ ] `git tag v2.0.0` pushed to `origin`.
 - [ ] GitHub release `v2.0.0` published with CHANGELOG content.
-- [ ] No `grep -rn 'sea-ship\|sea-review\|sea-debug\|sea-milestone\|sea-undo' agents/ skills/ hooks/ scripts/ tests/ evals/` results outside `docs/specs/` and `docs/history/`.
+- [ ] No `grep -rn 'se-ship\|se-review\|se-debug\|se-milestone\|se-undo' agents/ skills/ hooks/ scripts/ tests/ evals/` results outside `docs/specs/` and `docs/history/`.
 
 ---
 
@@ -749,7 +749,7 @@ This is the permanent record of what was decided at each phase and why.
 - `pre-scope-cut` tag: <commit sha>
 - Initial skill count: <N>
 - Initial agent count: <N>
-- Initial `.sea/` file references (from repo-wide grep): <count>
+- Initial `.se/` file references (from repo-wide grep): <count>
 - Any eval failures on baseline: <list, or "none">
 
 ## Phase 1 — docs truth pass (YYYY-MM-DD)

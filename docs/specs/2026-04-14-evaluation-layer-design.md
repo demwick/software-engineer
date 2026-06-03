@@ -136,7 +136,7 @@ Each helper prints `FAIL: $message` with the offending values on mismatch and
 
 **`fixture_repo <name>`** copies the named skeleton to `mktemp -d` and echoes
 the path. **`fixture_state <workdir> <name>`** copies the named state JSON to
-`<workdir>/.sea/state.json`. Fixtures are committed to git and never mutated
+`<workdir>/.se/state.json`. Fixtures are committed to git and never mutated
 in place — tests always operate on the copy.
 
 This keeps the fixture count linear (repos + states) instead of quadratic

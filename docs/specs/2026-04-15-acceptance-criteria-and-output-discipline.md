@@ -31,7 +31,7 @@ This spec addresses both. They ship together because (a) both touch the agent pr
 - New helper script `scripts/check-coverage.sh`
 - New `_common.md` rule #7 (Output Discipline)
 - New `evals/suites/plan/` group (10 deterministic suites)
-- Updates to: `agents/planner.md`, `agents/executor.md`, `agents/verifier.md`, `agents/_common.md`, `skills/sea-go/SKILL.md`, `skills/sea-quick/SKILL.md`, `skills/sea-status/SKILL.md`, `docs/STATE.md`, `examples/state/`, `TESTING.md`
+- Updates to: `agents/planner.md`, `agents/executor.md`, `agents/verifier.md`, `agents/_common.md`, `skills/se-go/SKILL.md`, `skills/se-quick/SKILL.md`, `skills/se-status/SKILL.md`, `docs/STATE.md`, `examples/state/`, `TESTING.md`
 
 **Out of scope (deferred):**
 - Roadmap-level requirements (kits) — phase-level only
@@ -40,7 +40,7 @@ This spec addresses both. They ship together because (a) both touch the agent pr
 - Speculative verifier — inspiration #5
 - Codex-style adversarial review — violates the no-external-deps hard rule
 - `caveman-compress` style input file compression — outside the plugin's scope
-- `/sea-go --replan` flag and `/sea-roadmap --requirements` flag — YAGNI
+- `/se-go --replan` flag and `/se-roadmap --requirements` flag — YAGNI
 - Updates to `state.json` schema — coverage data lives in plan.md and progress.json
 
 ## Design
@@ -113,7 +113,7 @@ Mode B output template adopts the new schema. New rules:
    - Criterion description contains any of: `auth`, `security`, `secret`, `token`, `permission`, `crypto`, `password`, `regression`, `migration`, `data loss`, OR
    - Task type = bug fix (the fix half of a Prove-It split)
 4. **Trivial phase relief.** Trivial complexity is allowed one Requirement with 1–3 criteria. The Coverage Matrix is still emitted but stays small.
-5. **`/sea-quick` shortcut.** Quick mode generates a single R1 with a single R1.1 whose description equals the fix description. No bloat.
+5. **`/se-quick` shortcut.** Quick mode generates a single R1 with a single R1.1 whose description equals the fix description. No bloat.
 6. **Soft cap on criterion count.** Trivial 1–3, medium 3–10, complex 10–25. Above 25 the planner stops and asks the user whether the phase needs decomposition. Memory tracks the right number per project.
 
 Mode A (roadmap planning) is unchanged — roadmap.md does not gain a Requirements section.
@@ -142,7 +142,7 @@ New `progress.json` schema:
 }
 ```
 
-**Backwards compatibility:** old `progress.json` had `completed_tasks` as a string array. The verifier and `/sea-go` accept both shapes. When the entries are strings, `covered` is treated as `[]` and Coverage check skips that task with a warning.
+**Backwards compatibility:** old `progress.json` had `completed_tasks` as a string array. The verifier and `/se-go` accept both shapes. When the entries are strings, `covered` is treated as `[]` and Coverage check skips that task with a warning.
 
 ### 4. Verifier agent changes (`agents/verifier.md`)
 
@@ -158,8 +158,8 @@ Coverage check delegates to a new helper:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage.sh" \
-    .sea/phases/phase-2/plan.md \
-    .sea/phases/phase-2/progress.json
+    .se/phases/phase-2/plan.md \
+    .se/phases/phase-2/progress.json
 ```
 
 The helper:
@@ -231,13 +231,13 @@ This is a soft rule, not a hard gate. It shapes the way the agent reports, not w
 
 ### 7. Skill changes
 
-- **`skills/sea-go/SKILL.md`**: phase completion check now requires `progress.json.completed_tasks[].covered` union to cover every criterion in plan.md. Phase is not done until coverage is complete.
-- **`skills/sea-quick/SKILL.md`**: planner instruction in quick mode is "single R1, single R1.1, criterion = fix description". Diagnose-sourced tasks reuse the diagnose `priority_action` description as the criterion.
-- **`skills/sea-status/SKILL.md`**: per-phase line gains `Tasks: 3/5 | Criteria: 8/12`, derived from plan.md + progress.json.
-- **`skills/sea-init/SKILL.md`**: unchanged.
-- **`skills/sea-diagnose/SKILL.md`**, **`skills/sea-roadmap/SKILL.md`**, **`skills/sea-milestone/SKILL.md`**: unchanged.
+- **`skills/se-go/SKILL.md`**: phase completion check now requires `progress.json.completed_tasks[].covered` union to cover every criterion in plan.md. Phase is not done until coverage is complete.
+- **`skills/se-quick/SKILL.md`**: planner instruction in quick mode is "single R1, single R1.1, criterion = fix description". Diagnose-sourced tasks reuse the diagnose `priority_action` description as the criterion.
+- **`skills/se-status/SKILL.md`**: per-phase line gains `Tasks: 3/5 | Criteria: 8/12`, derived from plan.md + progress.json.
+- **`skills/se-init/SKILL.md`**: unchanged.
+- **`skills/se-diagnose/SKILL.md`**, **`skills/se-roadmap/SKILL.md`**, **`skills/se-milestone/SKILL.md`**: unchanged.
 
-Migration: existing `.sea/` projects with old plan.md files keep working (Coverage check skips silently). On the next `/sea-go` for a new phase, the planner writes the new schema. No `--replan` flag is added.
+Migration: existing `.se/` projects with old plan.md files keep working (Coverage check skips silently). On the next `/se-go` for a new phase, the planner writes the new schema. No `--replan` flag is added.
 
 ### 8. Eval suites
 
@@ -256,7 +256,7 @@ New group `evals/suites/plan/`:
 
 All run under `evals/run.sh` and join the CI suite.
 
-`TESTING.md` gains a "Coverage Matrix" section: a manual `/sea-go` pass that demonstrates an uncovered criterion failing the verifier and a fix making it pass.
+`TESTING.md` gains a "Coverage Matrix" section: a manual `/se-go` pass that demonstrates an uncovered criterion failing the verifier and a fix making it pass.
 
 ## Risks
 
@@ -276,9 +276,9 @@ None — all design questions resolved during brainstorming.
 ## Acceptance Criteria for This Spec
 
 - [ ] `evals/suites/plan/` group ships with all 10 suites and they pass under `bash evals/run.sh`
-- [ ] A new `/sea-go` run on a fresh project produces a plan with `## Requirements` + `## Coverage Matrix`
+- [ ] A new `/se-go` run on a fresh project produces a plan with `## Requirements` + `## Coverage Matrix`
 - [ ] Verifier fails when any criterion is uncovered, succeeds when all are covered
-- [ ] Old projects with legacy plan.md files complete `/sea-go` without coverage errors
+- [ ] Old projects with legacy plan.md files complete `/se-go` without coverage errors
 - [ ] `_common.md` contains rule #7 and at least one agent demonstrably produces shorter prose reports in a side-by-side run against `main`
 - [ ] `docs/STATE.md` reflects the new plan.md and progress.json invariants
 - [ ] `TESTING.md` Coverage Matrix section walks through the manual verification flow

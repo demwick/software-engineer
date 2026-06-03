@@ -1,14 +1,14 @@
 <!--
-  software-engineer-agents
+  software-engineer
   Copyright (C) 2026 demwick
   Licensed under the GNU Affero General Public License v3.0 or later.
   See LICENSE in the repository root for the full license text.
 -->
 
-# software-engineer-agents Plugin — Design Document
+# software-engineer Plugin — Design Document
 
-**Status:** Accepted — superseded by `docs/specs/2026-04-15-scope-and-state-refactor.md` for v2.0.0
-**Last updated:** 2026-04-14
+**Status:** Accepted — superseded by `docs/specs/2026-04-15-scope-and-state-refactor.md` for v2.0.0, and by the v4.0.0 triage architecture (below)
+**Last updated:** 2026-04-14 (v1 body); 2026-06-03 (v4 note)
 
 ---
 
@@ -23,6 +23,35 @@ The v1.0.0 content below is preserved as a historical record of the
 original intent — it is still accurate for what shipped in v1.0.0 and
 useful as context for "what the original plan was before the refactor".
 It is intentionally left unedited.
+
+### v4.0.0 — triage architecture (supersedes the "three modes / three commands" model)
+
+The single most load-bearing v1 decision — that the user picks a mode by
+running one of three slash commands (`/se-init`, `/se-go`, `/se-quick`)
+— is **reversed** in v4.0.0. The new model:
+
+- **One entry point.** An auto-invocable `triage` skill reads the user's
+  natural-language request, classifies it on two axes (uncertainty ×
+  scope), and routes — invisibly — to one of three flows. The user never
+  names a mode. The old three commands survive verbatim as
+  `skills/triage/references/flow-{direct,light,full}.md`.
+- **Bias up under doubt.** Triage rounds toward the deeper flow when
+  uncertain — the costliest error is treating big/fuzzy work as small.
+  Two natural-language escape hatches override the classifier.
+- **The engineering around the code becomes first-class.** New skills:
+  `clarify` (requirements), `spec` (binding single source of truth),
+  `adr` (decision records), `risk` (forward-looking foresight). The
+  verifier gains senior-review severity classification.
+- **Detect & Defer.** The plugin is the engine of a three-part ecosystem
+  (engine + claude-charter constitution + centaur-layer human brake).
+  When a sibling is present the plugin hands off the responsibility it
+  owns — ADR location, guardrails, and verdict format to charter;
+  acceptance-time diff-risk scoring to centaur — instead of duplicating
+  it. Detection is automatic (`SessionStart` → `state.json.integrations`),
+  zero-config.
+
+Where this note and the v1 body below disagree, this note wins. The v1
+"Three modes / Commands" sections are historical.
 
 ---
 
@@ -59,17 +88,17 @@ Subagent frontmatter uses `memory: project`. The platform automatically manages 
 
 ### 3. Auto-QA Loop — `Stop` hook with `type: "agent"`
 
-No manual retry loop inside `/sea-go`. `hooks/hooks.json` has a `Stop` hook using `type: "agent"` that runs the `verifier` agent. If it returns `{ok: false, reason}`, Claude automatically continues. Native mechanism.
+No manual retry loop inside `/se-go`. `hooks/hooks.json` has a `Stop` hook using `type: "agent"` that runs the `verifier` agent. If it returns `{ok: false, reason}`, Claude automatically continues. Native mechanism.
 
 ### 4. SessionStart Context Injection
 
-A `SessionStart` hook with `matcher: "startup|resume"` reads `.sea/state.json` and `roadmap.md` and injects them via `hookSpecificOutput.additionalContext`. The user sees project state at session start without asking.
+A `SessionStart` hook with `matcher: "startup|resume"` reads `.se/state.json` and `roadmap.md` and injects them via `hookSpecificOutput.additionalContext`. The user sees project state at session start without asking.
 
 ### 5. State Location — Hybrid
 
 | What | Where | Why |
 |------|-------|-----|
-| Project state (roadmap, phase, plan-data) | `<project-root>/.sea/` | Visible, portable, gitignored |
+| Project state (roadmap, phase, plan-data) | `<project-root>/.se/` | Visible, portable, gitignored |
 | Agent learning (cross-session) | `.claude/agent-memory/<agent>/MEMORY.md` | Platform built-in via `memory: project` |
 | Global preferences | `~/.claude/[name]/prefs.json` | Shared across all projects |
 
@@ -82,7 +111,7 @@ A `SessionStart` hook with `matcher: "startup|resume"` reads `.sea/state.json` a
 ## Directory Layout
 
 ```
-software-engineer-agents/
+software-engineer/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── DESIGN.md                   # this file
@@ -114,7 +143,7 @@ software-engineer-agents/
 ## State File Layout (inside each project)
 
 ```
-.sea/           # added to .gitignore
+.se/           # added to .gitignore
 ├── state.json          # current_phase, last_session, last_edit, last_verification
 ├── roadmap.md          # phase list (markdown, human-readable)
 ├── specs/              # phase specs with testable acceptance criteria (v3.1.0+)
@@ -141,7 +170,7 @@ Executor finishes work (Stop event fires)
 Stop hook: type="agent", prompt="run verifier, check tests & plan"
   ↓
 Verifier: run tests + check spec criteria + TDD compliance
-  → writes .sea/verification/phase-N.json
+  → writes .se/verification/phase-N.json
   → {ok: bool, reason: ...}
   ↓
 ok=false → Claude auto-continues (retry)
@@ -159,7 +188,7 @@ ok=true  → Act decision:
 
 ## Open Questions
 
-- Plugin name: resolved — shipped as `software-engineer-agents` in v1.0.0 (v2.0.0 keeps the name)
+- Plugin name: resolved — shipped as `software-engineer` in v1.0.0 (v2.0.0 keeps the name)
 - Marketplace distribution: post-V1
 - MCP server: not in V1, optional later
 
@@ -180,15 +209,15 @@ Adopt a two-layer cycle:
 
 - **Inner loop (TDD):** every executor task follows Red → Green → Refactor. Failing test first, minimum implementation, cleanup while green. Bug fixes always produce two commits (test, then fix). Skip-path exists for docs/config via `[[ NO-TEST ]]` marker.
 - **Outer loop (PDCA):** each phase is a Plan-Do-Check-Act iteration.
-  - **Plan:** planner writes `.sea/specs/phase-N.md` (testable acceptance criteria) + `plan.md`
+  - **Plan:** planner writes `.se/specs/phase-N.md` (testable acceptance criteria) + `plan.md`
   - **Do:** executor runs TDD cycles per task
-  - **Check:** verifier produces `.sea/verification/phase-N.json` with pass/partial/fail status, unmet criteria, TDD compliance, new findings
-  - **Act:** `sea-go` reads verification result — pass advances, partial surfaces unmet criteria for roadmap feedback, fail blocks advancement. `state-tracker` hook persists verification metadata to `state.json`.
+  - **Check:** verifier produces `.se/verification/phase-N.json` with pass/partial/fail status, unmet criteria, TDD compliance, new findings
+  - **Act:** `se-go` reads verification result — pass advances, partial surfaces unmet criteria for roadmap feedback, fail blocks advancement. `state-tracker` hook persists verification metadata to `state.json`.
 
 ### Consequences
 
 - Executor prompt is longer (~35 lines added). Token cost increase is negligible — executor runs on Sonnet with long contexts.
 - Verifier now writes a JSON file (previously read-only except Bash). `tools:` allowlist unchanged — it uses `jq` via Bash.
-- New state artifacts: `.sea/specs/`, `.sea/verification/`. Both documented in `docs/STATE.md`.
+- New state artifacts: `.se/specs/`, `.se/verification/`. Both documented in `docs/STATE.md`.
 - `scripts/spec-validate.sh` and `scripts/validate-commit-msg.sh` added for deterministic validation.
 - Backward compatible: pre-v3.1.0 phases without specs or verification files degrade gracefully with warnings.
