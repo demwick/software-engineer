@@ -1,16 +1,21 @@
 {
-  "name": "software-engineer-agents",
-  "description": "AI Software Engineer — automates core SE responsibilities: architecture, planning, implementation, testing, code review, debugging, and documentation as a Claude Code plugin.",
-  "version": "3.0.0",
+  "name": "software-engineer",
+  "description": "AI Software Engineer — one natural-language entry point that triages every request and runs the right depth of engineering: clarify, spec, ADR, risk, architecture, planning, implementation, testing, and senior code review. Defers to claude-charter and centaur-layer when present.",
+  "version": "4.0.0",
   "author": {
     "name": "demwick"
   },
-  "repository": "https://github.com/demwick/software-engineer-agents",
+  "repository": "https://github.com/demwick/software-engineer",
   "license": "AGPL-3.0-or-later",
   "keywords": [
     "software-engineer",
     "ai-agent",
+    "triage",
     "architecture",
+    "requirements",
+    "spec",
+    "adr",
+    "risk",
     "planning",
     "code-review",
     "auto-qa",

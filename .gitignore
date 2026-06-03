@@ -1,9 +1,9 @@
-.sea/
+.se/
 .worktrees/
 .DS_Store
 **/.DS_Store
 
-# claude-charter local layer (not part of SEA plugin)
+# claude-charter local layer (not part of SE plugin)
 .claude/
 scripts/detect-plugin.sh
 scripts/guardrails.sh
