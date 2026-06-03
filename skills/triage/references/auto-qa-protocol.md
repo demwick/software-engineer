@@ -8,8 +8,9 @@
 # Auto-QA Protocol (Detailed)
 
 This is the extended reference for the auto-QA verification loop that
-runs after `/sea-go` (and `/sea-quick`) executor finishes. SKILL.md
-describes the basic flow; read this when you need the full semantics,
+runs after the executor finishes in any triage flow (direct-apply or
+light-plan). The flow reference describes the basic arming step; read
+this when you need the full semantics,
 retry counter rules, host-compat integration, or failure recovery
 protocol.
 
@@ -128,7 +129,7 @@ Claude then:
 ## Do Not Invoke Verifier Manually
 
 The `verifier` subagent exists as a documented interface, but in the
-current architecture `/sea-go` never calls it directly. The `Stop`
+current architecture no flow calls it directly. The `Stop`
 hook handles auto-QA without subagent invocation — it's just bash +
 `detect-test.sh`. Calling verifier manually would create a
 double-verification loop and confuse the retry counter.
