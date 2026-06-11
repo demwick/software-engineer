@@ -127,8 +127,8 @@ echo "$out" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); asser
 assert_contains "valid JSON output" "$out" '"hookEventName":"SessionStart"'
 assert_contains "mode in context" "$out" "from-scratch"
 assert_contains "Phase 2 of 5" "$out" "Phase 2 of 5"
-assert_contains "command routing block injected" "$out" "Command routing"
-assert_contains "routing mentions se-go" "$out" "/se-go"
+assert_contains "routing block injected" "$out" "Routing"
+assert_contains "routing mentions se-status" "$out" "/se-status"
 assert_contains "routing mentions se-roadmap" "$out" "/se-roadmap"
 
 cd "$REPO_ROOT"
