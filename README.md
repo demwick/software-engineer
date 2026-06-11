@@ -9,7 +9,7 @@
 
 > **Your AI software engineer. Not a code generator — a teammate that does the engineering around the code.**
 
-`software-engineer-agent` is a Claude Code plugin that takes on the core responsibilities of a software engineer: clarifying requirements, writing specs, recording architectural decisions, foreseeing risk, planning, implementing, testing, and reviewing. You don't pick a mode or learn a command surface. You describe what you want in plain language, and a **triage** layer decides how deep the work needs to go.
+`software-engineer` is a Claude Code plugin that takes on the core responsibilities of a software engineer: clarifying requirements, writing specs, recording architectural decisions, foreseeing risk, planning, implementing, testing, and reviewing. You don't pick a mode or learn a command surface. You describe what you want in plain language, and a **triage** layer decides how deep the work needs to go.
 
 ---
 
@@ -29,6 +29,19 @@ Two natural-language overrides are always available:
 
 - **"just do it"** / "uzatma" → forces the shallow path, no questions.
 - **"let's talk first"** / "dur konuşalım" → forces the full requirements flow.
+
+---
+
+## Install
+
+```bash
+# From a local directory
+claude --plugin-dir /path/to/software-engineer
+
+# From GitHub
+git clone https://github.com/demwick/software-engineer
+claude --plugin-dir ./software-engineer
+```
 
 ---
 
@@ -101,10 +114,10 @@ Detection is automatic — the `SessionStart` hook probes for `.claude/knowledge
 
 ```bash
 # Engine alone
-claude --plugin-dir /path/to/software-engineer-agent
+claude --plugin-dir /path/to/software-engineer
 
 # Engine + constitution
-claude --plugin-dir /path/to/software-engineer-agent \
+claude --plugin-dir /path/to/software-engineer \
        --plugin-dir /path/to/claude-charter
 ```
 
@@ -175,19 +188,6 @@ You rarely type these — the entry is natural language. They exist for direct a
 ```
 "bump typescript to ^5.4"
 → triage sees clear + narrow → direct-apply → commits, test suite runs, done
-```
-
----
-
-## Install
-
-```bash
-# From a local directory
-claude --plugin-dir /path/to/software-engineer-agent
-
-# From GitHub
-git clone https://github.com/demwick/software-engineer
-claude --plugin-dir ./software-engineer
 ```
 
 ---
