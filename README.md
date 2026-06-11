@@ -32,6 +32,19 @@ Two natural-language overrides are always available:
 
 ---
 
+## Install
+
+```bash
+# From a local directory
+claude --plugin-dir /path/to/software-engineer
+
+# From GitHub
+git clone https://github.com/demwick/software-engineer
+claude --plugin-dir ./software-engineer
+```
+
+---
+
 ## What it does
 
 | Responsibility | How |
@@ -175,19 +188,6 @@ You rarely type these — the entry is natural language. They exist for direct a
 ```
 "bump typescript to ^5.4"
 → triage sees clear + narrow → direct-apply → commits, test suite runs, done
-```
-
----
-
-## Install
-
-```bash
-# From a local directory
-claude --plugin-dir /path/to/software-engineer
-
-# From GitHub
-git clone https://github.com/demwick/software-engineer
-claude --plugin-dir ./software-engineer
 ```
 
 ---
