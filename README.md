@@ -112,6 +112,8 @@ The plugin is the **engine** of a three-part system. It runs perfectly well alon
 
 Detection is automatic — the `SessionStart` hook probes for `.claude/knowledge/charter/` and records the result in `.se/state.json.integrations`. **Zero configuration.** Standalone, the plugin does all of this itself; in the ecosystem, it stays in its lane.
 
+> Boundaries and version compatibility are defined canonically in [`ecosystem-contract.md`](https://github.com/demwick/claude-engineering-suite/blob/main/ecosystem-contract.md). This table summarizes; the contract governs. To install all three together, see the [claude-engineering-suite](https://github.com/demwick/claude-engineering-suite) marketplace.
+
 ```bash
 # Engine alone
 claude --plugin-dir /path/to/software-engineer

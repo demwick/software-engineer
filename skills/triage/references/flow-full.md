@@ -27,6 +27,8 @@ Launch the `researcher` agent:
 
 > Analyze this codebase. Produce the standard report: tech stack, structure, findings, priority actions. Focus on test coverage, error handling, security basics, doc coverage. **Output file: `.se/research.md`** — write incrementally as you verify. Keep mandatory reading tight: CLAUDE.md + at most 3 context files. If multiple subrepos exist, audit the one most central to the goal and list the others as "not audited in this pass".
 
+Tell the researcher the **must-have facts** to confirm concretely in its report (stack identified with the file that proves it, test command actually run, each priority action tied to a `file:line`) — vague summaries are not evidence, see `_common.md` Rule 7.
+
 Read `.se/research.md` (fall back to the agent's final message). Summarize the top 3 findings and top 3 priority actions in your own words. If the report header is `## STATUS: TRUNCATED`, tell the user the audit was partial and offer a scoped re-run before building the roadmap.
 
 ## Step 1: Clarify requirements
@@ -118,3 +120,4 @@ On the final phase, set `current_step="all phases complete"` alongside `complete
 - **One phase per turn**; respect blockers and gates; never rewrite the executor's commits.
 - **Forward-looking risk only.** Acceptance-time diff-risk scoring is centaur-layer's job if present.
 - **Don't overwrite existing `.se/`** — extend, archive, or stop.
+- **Gates are named.** Checkpoints map to the four types in `gates-taxonomy.md`: the Step 0 `.se/` check and spec-validate are *pre-flight*; spec contradictions and risk gates are *escalation*; the per-phase auto-QA hook is *revision*; a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.

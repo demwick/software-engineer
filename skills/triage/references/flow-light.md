@@ -51,7 +51,7 @@ Check `.se/phases/phase-<slug>/progress.json`:
 
 Narrate the handoff first: `→ executor: <feature>` (add `· resuming task <n>` when resuming).
 
-Launch the `executor` agent with the plan path, the plan's context, and resume context if any. It returns `STATUS: done`, `blocked`, or `gate`.
+Launch the `executor` agent with the plan path, the plan's context, and resume context if any. Include the **must-have facts** it must confirm concretely in its exit report (tests fail-then-pass with output, each acceptance criterion met) — a vague "done" is not evidence, see `_common.md` Rule 7. It returns `STATUS: done`, `blocked`, or `gate`.
 
 - **blocked** → surface verbatim, stop. Recommend an external debugging skill if installed.
 - **gate** → surface the `gate-pending.json` confirmation prompt, wait for explicit confirmation, then re-launch with *"Resume from gate at task \<id\>. User confirmed."* Never auto-confirm.
@@ -95,3 +95,4 @@ Write a short `summary.md` for the slice. Then:
 - **Respect blockers and gates** — surface, don't unstick.
 - **At most two clarifying questions here.** More unknowns → escalate to full-flow.
 - **Forward-looking risk only** — diff scoring at acceptance is centaur's, not yours.
+- **Gates are named.** This flow's checkpoints map to the four types in `gates-taxonomy.md`: spec-validate is *pre-flight*, risk gates are *escalation*, the auto-QA hook is *revision*, and a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.
