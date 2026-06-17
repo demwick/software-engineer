@@ -162,8 +162,8 @@ The inventory table above is the index. The per-file sections below answer four 
 ### `.last-verify.log`
 
 - **Writer(s):** `hooks/auto-qa:57,60,69` (redirects test command stdout/stderr, appends host-compat trailer).
-- **Reader(s):** `skills/se-status/SKILL.md:43` (surfaces mtime + tail), `skills/se-debug/SKILL.md:28,47` (error bait for triage), `tests/run-tests.sh:191` (regression assertion on host-compat warning content).
-- **Missing:** expected before the first Stop-hook run. `/se-status` omits the last-run line; `/se-debug` skips the "last auto-QA run failed X minutes ago" nudge.
+- **Reader(s):** `skills/se-status/SKILL.md:43` (surfaces mtime + tail), `/se-diagnose` (error bait for triage), `evals/suites/host-compat/check-host-compat.sh` (regression assertion on host-compat warning content).
+- **Missing:** expected before the first Stop-hook run. `/se-status` omits the last-run line; `/se-diagnose` skips the "last auto-QA run failed X minutes ago" nudge.
 - **Corrupted:** not possible in the usual sense — the file is a raw dump of another process's output. Consumers only read it as opaque text (mtime, last ~30 lines, substring match).
 
 ### `verification/phase-N.json` (new in v3.1.0)

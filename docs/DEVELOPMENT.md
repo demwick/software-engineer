@@ -87,8 +87,7 @@ software-engineer/
 │   ├── STATE.md                   # .se/ reference
 │   ├── DEVELOPMENT.md             # this file
 │   └── specs/                     # refactor specs and companion journals
-├── evals/                         # deterministic CI eval suites (run via evals/run.sh)
-├── tests/run-tests.sh             # unit test entry point for scripts and hooks
+├── evals/                         # deterministic CI eval suites — the single test entry point (run via evals/run.sh)
 └── examples/state/                # populated sample state for reference
 ```
 
