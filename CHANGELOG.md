@@ -13,6 +13,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-06-17
+
+### Changed
+
+- **`planner` now runs on Opus** (was Sonnet). Planning is the
+  highest-leverage step — a flawed plan cascades into downstream work the
+  verifier can't catch — so it gets the strongest model. `executor` stays
+  Sonnet; `researcher` and `verifier` stay Haiku.
+
 ### Added (v4.0.0 — triage architecture)
 
 - **`triage` skill — the single entry point.** Replaces the three slash
