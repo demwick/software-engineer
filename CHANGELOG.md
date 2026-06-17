@@ -13,6 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.3.0] — 2026-06-18
+
 ### Added
 
 - **Named gate taxonomy for the flows.** New
