@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also callable by /se-go. Read-only plus Bash for running tests.
+description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
 model: haiku
 tools: Read, Glob, Grep, Bash
 memory: project

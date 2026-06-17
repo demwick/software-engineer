@@ -1,6 +1,6 @@
 ---
 name: executor
-description: Implements the tasks in a plan file. Writes code, runs tests, commits atomically after each task. Called by /se-go to advance a phase and by /se-quick for trivial work. Stops on blockers and reports back instead of guessing.
+description: Implements the tasks in a plan file. Writes code, runs tests, commits atomically after each task. Invoked by the triage flows to advance a phase (light-plan / full-flow) and to apply trivial direct work (direct-apply). Stops on blockers and reports back instead of guessing.
 model: sonnet
 tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch
 memory: project
@@ -192,10 +192,10 @@ Before starting any task whose id appears in the plan's `risk_gates` section,
 4. Do NOT proceed to the next task. Do NOT emit a commit for the gate
    task.
 
-When re-launched by `/se-go` with a "gate resumed" context, delete
+When re-launched by the flow with a "gate resumed" context, delete
 `gate-pending.json`, read `progress.json` to find the gated task, and
 proceed with it as a normal task (the user confirmation has already
-been captured by `/se-go` before the re-launch).
+been captured by the flow before the re-launch).
 
 **Backwards compatibility:** if the plan has no `risk_gates` section
 (pre-v2.1.0 plan), emit a one-line warning and skip gate checks:

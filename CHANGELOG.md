@@ -29,6 +29,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   re-deriving where the flow stopped. Optional and backward-compatible —
   absent on pre-v4.2.0 state.
 
+### Fixed
+
+- **Stale v3 command names in live metadata.** The four agent descriptions
+  (loaded into the `/agents` registry and used for delegation) still
+  claimed to be "called by `/se-go`" / `/se-init` / `/se-quick` — commands
+  v4.0.0 removed. Updated them and the `planner` Mode A/B headers, the
+  `executor` gate-resume prose, the `DEVELOPMENT.md` agent table and skill
+  tree (which listed phantom `se-init`/`se-go`/`se-quick` SKILL.md files),
+  and two current-state lines in `DESIGN.md` to the triage-flow vocabulary.
+  Dated specs/plans/migration docs were left intact as historical record.
+
 ## [4.1.0] — 2026-06-17
 
 ### Changed
