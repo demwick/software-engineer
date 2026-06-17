@@ -15,6 +15,8 @@ You are *mostly* clear. If 1–2 answers would change the implementation materia
 
 ## Step 2: Plan the feature
 
+Narrate the handoff first: `→ planner: <feature> plan`.
+
 Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc slice. Pass the user's request plus any answers from Step 1. The planner writes:
 
 - `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
@@ -46,6 +48,8 @@ Check `.se/phases/phase-<slug>/progress.json`:
 
 - **exists** → resume: *"Resuming from task \<current_task\>; tasks \<completed\> done."*
 - **absent** → fresh start.
+
+Narrate the handoff first: `→ executor: <feature>` (add `· resuming task <n>` when resuming).
 
 Launch the `executor` agent with the plan path, the plan's context, and resume context if any. It returns `STATUS: done`, `blocked`, or `gate`.
 
@@ -85,6 +89,7 @@ Write a short `summary.md` for the slice. Then:
 
 ## Rules
 
+- **Narrate every handoff.** Print a `→ <agent>: …` line before each dispatch (planner, executor) so the user can always see who is working and on what.
 - **Don't skip the planner** even if it "looks obvious" — the plan is the executor's contract.
 - **Don't run the verifier yourself** — the Stop hook owns it.
 - **Respect blockers and gates** — surface, don't unstick.

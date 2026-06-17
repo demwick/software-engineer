@@ -34,7 +34,7 @@ Then stop.
 
 ## Step 2: Read State
 
-Parse `.se/state.json`. Extract: `mode`, `current_phase`, `total_phases`, `last_session`, `last_commit`.
+Parse `.se/state.json`. Extract: `mode`, `current_phase`, `total_phases`, `last_session`, `last_commit`, and `current_step` (the persisted "you are here" line — may be absent on pre-v4.2.0 state).
 
 Parse `.se/roadmap.md`. Count phases by status: `done`, `in-progress`, `pending`.
 
@@ -70,6 +70,7 @@ Progress:     <done>/<total> phases complete  [<bar>]
   Phase <N>: <name>
   Status: <pending | in-progress>
   Plan: <✓ exists | — not yet planned>
+  Step: <current_step, e.g. "phase 2: executing"> | omit the line if absent
 
 📋 Roadmap
   ✅ Phase 1: <name>
@@ -98,6 +99,10 @@ Progress:     <done>/<total> phases complete  [<bar>]
 
 Next: say "continue" to advance the phase
 ```
+
+The `Step:` line echoes the persisted `current_step` so a resumed session shows what was in flight (planning / executing / verifying) without re-deriving it. Omit the line when `current_step` is absent.
+
+Tailor the final `Next:` line to `current_step`: mid-phase ("…: executing") → *"say 'continue' to resume the phase"*; `all phases complete` → *"all phases done — describe new work or run /se-diagnose"*; otherwise the default advance line.
 
 The progress bar is 10 chars: `██████░░░░` style. Round down.
 
