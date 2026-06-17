@@ -13,6 +13,19 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Changed
+
+- **Test harness consolidated to `evals/`.** Removed the parallel
+  `tests/run-tests.sh` harness that overlapped heavily with `evals/` and
+  had to be maintained in lockstep (the CI break this cycle came from the
+  two drifting apart). Ported its unique coverage to discoverable eval
+  suites — `detect-quality`, `host-compat/check-host-compat`,
+  `state/archive-state`, and `state/update-invocation-and-types` — and
+  added a shared `assert_contains` helper. `evals/run.sh` is now the single
+  test entry point; the `validate` workflow keeps the structural checks
+  (shellcheck, frontmatter, 500-line limit, hook smoke-test). Internal
+  only — no change to the distributed plugin.
+
 ## [4.2.0] — 2026-06-17
 
 ### Added

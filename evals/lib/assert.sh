@@ -38,6 +38,15 @@ assert_jq() {
     fi
 }
 
+assert_contains() {
+    local haystack="$1" needle="$2" message="${3:-string did not contain: $2}"
+    case "$haystack" in
+        *"$needle"*) : ;;
+        *) printf 'FAIL: %s\n  needle: %q\n  in:     %q\n' \
+               "$message" "$needle" "$haystack" >&2; exit 1 ;;
+    esac
+}
+
 assert_exit_code() {
     local expected="$1"; shift
     local actual=0

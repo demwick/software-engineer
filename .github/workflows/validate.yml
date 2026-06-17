@@ -22,7 +22,7 @@ jobs:
 
       - name: Bash syntax check
         run: |
-          for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/run-hook.cmd scripts/detect-test.sh scripts/detect-quality.sh scripts/state-update.sh scripts/check-host-compat.sh scripts/archive-state.sh tests/run-tests.sh; do
+          for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/run-hook.cmd scripts/detect-test.sh scripts/detect-quality.sh scripts/state-update.sh scripts/check-host-compat.sh scripts/archive-state.sh; do
             bash -n "$f"
             echo "ok $f"
           done
@@ -104,6 +104,3 @@ jobs:
       - name: Smoke-test session-start hook
         run: |
           CLAUDE_PLUGIN_ROOT="$(pwd)" bash hooks/session-start | python3 -c "import sys, json; json.loads(sys.stdin.read())"
-
-      - name: Run shell tests
-        run: bash tests/run-tests.sh
