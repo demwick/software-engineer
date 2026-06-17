@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: Performs codebase research — tech stack, structure, gaps, priority actions. Used by /se-init Mode B and /se-diagnose. Writes the final report to the caller-provided output path; never modifies source files. NOT designed for exhaustive multi-repo audits in a single invocation — for those, split into per-subrepo invocations or use a higher turn budget via caller parameter.
+description: Performs codebase research — tech stack, structure, gaps, priority actions. Used by the triage full-flow (finish-existing research) and /se-diagnose. Writes the final report to the caller-provided output path; never modifies source files. NOT designed for exhaustive multi-repo audits in a single invocation — for those, split into per-subrepo invocations or use a higher turn budget via caller parameter.
 model: haiku
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Write
 memory: project

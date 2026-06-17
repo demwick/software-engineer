@@ -32,6 +32,7 @@ CURRENT=$(jq -r '.current_phase // 1' "${STATE_DIR}/state.json" 2>/dev/null || e
 TOTAL=$(jq -r '.total_phases // 0' "${STATE_DIR}/state.json" 2>/dev/null || echo "0")
 LAST_COMMIT=$(jq -r '.last_commit // "none"' "${STATE_DIR}/state.json" 2>/dev/null || echo "none")
 LAST_SESSION=$(jq -r '.last_session // "never"' "${STATE_DIR}/state.json" 2>/dev/null || echo "never")
+CURRENT_STEP=$(jq -r '.current_step // ""' "${STATE_DIR}/state.json" 2>/dev/null || echo "")
 
 # Detect & Defer: probe the surrounding ecosystem so downstream agents know
 # whether to hand off ADR location, destructive-op guardrails, and verdict
@@ -49,6 +50,11 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
         integrations="{\"charter\":${CHARTER},\"centaur\":${CENTAUR}}" >/dev/null 2>&1 || true
 fi
 
+# Optional "you are here" line — only injected when current_step is set.
+STEP_LINE=""
+[ -n "${CURRENT_STEP}" ] && STEP_LINE="
+- Current step: ${CURRENT_STEP}"
+
 # Current phase name: first header matching "### Phase <N>:"
 PHASE_NAME=$(grep -E "^### Phase ${CURRENT}:" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+: //' || echo "")
 [ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
@@ -63,7 +69,7 @@ Current state:
 - Progress: Phase ${CURRENT} of ${TOTAL}
 - Active phase: ${PHASE_NAME}
 - Last session: ${LAST_SESSION}
-- Last commit: ${LAST_COMMIT}
+- Last commit: ${LAST_COMMIT}${STEP_LINE}
 - Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}
 
 How to work here — there is ONE entry point:

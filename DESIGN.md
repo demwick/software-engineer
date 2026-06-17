@@ -88,7 +88,7 @@ Subagent frontmatter uses `memory: project`. The platform automatically manages 
 
 ### 3. Auto-QA Loop — `Stop` hook with `type: "agent"`
 
-No manual retry loop inside `/se-go`. `hooks/hooks.json` has a `Stop` hook using `type: "agent"` that runs the `verifier` agent. If it returns `{ok: false, reason}`, Claude automatically continues. Native mechanism.
+No manual retry loop inside the flow. `hooks/hooks.json` has a `Stop` hook using `type: "agent"` that runs the `verifier` agent. If it returns `{ok: false, reason}`, Claude automatically continues. Native mechanism.
 
 ### 4. SessionStart Context Injection
 
@@ -212,7 +212,7 @@ Adopt a two-layer cycle:
   - **Plan:** planner writes `.se/specs/phase-N.md` (testable acceptance criteria) + `plan.md`
   - **Do:** executor runs TDD cycles per task
   - **Check:** verifier produces `.se/verification/phase-N.json` with pass/partial/fail status, unmet criteria, TDD compliance, new findings
-  - **Act:** `se-go` reads verification result — pass advances, partial surfaces unmet criteria for roadmap feedback, fail blocks advancement. `state-tracker` hook persists verification metadata to `state.json`.
+  - **Act:** the flow reads the verification result — pass advances, partial surfaces unmet criteria for roadmap feedback, fail blocks advancement. `state-tracker` hook persists verification metadata to `state.json`.
 
 ### Consequences
 

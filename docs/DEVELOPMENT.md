@@ -21,10 +21,10 @@ The plugin is a thin layer over Claude Code's native primitives. No external run
 
 | Agent | Model | Tools | Memory | Called from |
 |-------|-------|-------|--------|-------------|
-| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | `/se-init`, `/se-diagnose` |
-| `planner` | Opus | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/se-init`, `/se-go` |
-| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | `/se-go`, `/se-quick` |
-| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), `/se-go` |
+| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | triage full-flow (finish-existing), `/se-diagnose` |
+| `planner` | Opus | Read, Glob, Grep, Bash, WebFetch (no Write) | project | triage full-flow + light-plan |
+| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | triage light-plan, full-flow, direct-apply |
+| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), triage flows |
 
 All four agents share `agents/_common.md` — an operating constitution (surface assumptions, manage confusion, push back with evidence, enforce simplicity, stop-the-line, commit discipline) that overrides any task-specific instruction it conflicts with.
 
@@ -33,7 +33,7 @@ Each agent has `memory: project` in its frontmatter. Claude Code manages a per-a
 **Hooks** (`hooks/hooks.json`):
 
 - **`SessionStart`** — reads `.se/state.json` and `.se/roadmap.md`, injects a short state summary into Claude's context via `additionalContext`. Every session starts with project awareness.
-- **`Stop` (auto-QA)** — when `.se/.needs-verify` is present (set by `/se-go` or `/se-quick` after the executor finishes), auto-detects the test runner, runs it, and either lets Claude stop (pass) or returns a `block` decision with failure details. Claude auto-retries up to 2 times before giving up.
+- **`Stop` (auto-QA)** — when `.se/.needs-verify` is present (armed by the triage flow after the executor finishes), auto-detects the test runner, runs it, and either lets Claude stop (pass) or returns a `block` decision with failure details. Claude auto-retries up to 2 times before giving up.
 - **`PostToolUse` (state-tracker)** — refreshes `last_edit` in `state.json` every time Claude modifies a file in an initialized project.
 
 **State** lives in two layers:
@@ -62,9 +62,12 @@ software-engineer/
 │   ├── executor.md                # Sonnet, full tools, memory: project
 │   └── verifier.md                # Haiku, read-only + Bash, memory: project
 ├── skills/
-│   ├── se-init/SKILL.md          # disable-model-invocation
-│   ├── se-go/SKILL.md            # disable-model-invocation
-│   ├── se-quick/SKILL.md         # disable-model-invocation
+│   ├── triage/SKILL.md           # auto-invocable — the single entry point
+│   │   └── references/           # flow-direct, flow-light, flow-full, auto-qa-protocol
+│   ├── clarify/SKILL.md          # requirements dialogue (invoked by full-flow)
+│   ├── spec/SKILL.md             # binding spec (invoked by the flows)
+│   ├── adr/SKILL.md              # architecture decision records
+│   ├── risk/SKILL.md             # forward-looking risk foresight
 │   ├── se-diagnose/SKILL.md      # auto-invocable
 │   ├── se-status/SKILL.md        # auto-invocable
 │   └── se-roadmap/SKILL.md       # auto-invocable
@@ -163,7 +166,7 @@ v2.0.0 removed five commands. The table below maps each to its replacement:
 | `/se-milestone` | `/se-roadmap add "<description>"` |
 | `/se-undo` | `git revert <commit>` |
 
-State schema: if you have a v1.x project with a `.se/` directory, v2.0.0 migrates it automatically on first `/se-go` or `/se-init`. The migration is one-way; the `pre-scope-cut` git tag is the floor if you need to roll back the plugin itself.
+State schema: if you have a v1.x project with a `.se/` directory, the schema migrates automatically on the first `scripts/state-update.sh` call (any flow that touches state). The migration is one-way; the `pre-scope-cut` git tag is the floor if you need to roll back the plugin itself.
 
 ---
 

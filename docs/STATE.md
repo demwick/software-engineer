@@ -453,6 +453,7 @@ Canonical runtime state. Every command that mutates state updates this file. Sch
 | `last_session` | `/se-go` end, `SessionStart` | Last time a command ran |
 | `last_edit` | `PostToolUse` hook (`state-tracker`) | Last time any file was edited in this project by Claude |
 | `last_commit` | `/se-go` end, `/se-quick` end | Short SHA of the most recent software-engineer commit |
+| `current_step` | full-flow phase loop (`scripts/state-update.sh`) | Optional. Short human-readable "you are here" line (e.g. `phase 2: executing`) surfaced by `/se-status` and the `SessionStart` injection so an interrupted session resumes without re-deriving where the flow stopped. Absent on pre-v4.2.0 state. |
 
 ## `roadmap.md`
 

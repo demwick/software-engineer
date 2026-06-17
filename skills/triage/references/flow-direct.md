@@ -25,6 +25,10 @@ Escalating is cheap; a wrong shallow guess is not. If it's genuinely small, cont
 
 ## Step 2: Execute
 
+Before launching, narrate the handoff in one line so the user can follow who is working:
+
+> `→ executor: <short task>`
+
 Launch the `executor` agent. Pass it:
 
 - The resolved task (the user's request)
@@ -55,6 +59,7 @@ If the task came from a recent `.se/diagnose.json` priority action, add: *"Re-ru
 
 ## Rules
 
+- **Narrate the handoff.** Print the `→ executor: …` line before dispatch — the user should always know which agent is running and on what.
 - **One commit only.** If it splits into multiple commits, it wasn't direct — stop and escalate to light-plan.
 - **No scope creep.** Executor stays strictly within the request; notes anything else wrong in the report, doesn't fix it.
 - **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch is the only `.se/` write.
