@@ -13,6 +13,22 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.2.0] — 2026-06-17
+
+### Added
+
+- **Live progress visibility during a flow.** Every flow now narrates each
+  subagent handoff to the user (`→ planner: …`, `→ executor: …`,
+  `→ researcher: …`) before dispatch, so it is always clear which agent is
+  running and on what.
+- **Persisted `current_step` in `state.json`.** Full-flow updates a short
+  "you are here" line at each phase transition (planning / executing /
+  verifying) via `scripts/state-update.sh`. `/se-status` shows it as a
+  `Step:` line and tailors its `Next:` hint to it; the `SessionStart`
+  injection surfaces it so an interrupted session resumes without
+  re-deriving where the flow stopped. Optional and backward-compatible —
+  absent on pre-v4.2.0 state.
+
 ## [4.1.0] — 2026-06-17
 
 ### Changed
