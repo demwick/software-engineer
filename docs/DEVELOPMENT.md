@@ -22,7 +22,7 @@ The plugin is a thin layer over Claude Code's native primitives. No external run
 | Agent | Model | Tools | Memory | Called from |
 |-------|-------|-------|--------|-------------|
 | `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | `/se-init`, `/se-diagnose` |
-| `planner` | Sonnet | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/se-init`, `/se-go` |
+| `planner` | Opus | Read, Glob, Grep, Bash, WebFetch (no Write) | project | `/se-init`, `/se-go` |
 | `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | `/se-go`, `/se-quick` |
 | `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), `/se-go` |
 
@@ -58,7 +58,7 @@ software-engineer/
 ├── agents/
 │   ├── _common.md                 # operating constitution shared by all agents
 │   ├── researcher.md              # Haiku, read-only, memory: project
-│   ├── planner.md                 # Sonnet, read-only, memory: project
+│   ├── planner.md                 # Opus, read-only, memory: project
 │   ├── executor.md                # Sonnet, full tools, memory: project
 │   └── verifier.md                # Haiku, read-only + Bash, memory: project
 ├── skills/

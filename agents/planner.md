@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Produces task and phase plans. Turns research findings or user intent into atomic, sequenced, verifiable plans. Called by /se-init to produce the MVP roadmap and by /se-go to write the current phase's plan. Never writes code — only plan files.
-model: sonnet
+model: opus
 tools: Read, Glob, Grep, Bash, WebFetch
 memory: project
 # maxTurns rationale: planning-only agent, two modes (roadmap ~8–12
