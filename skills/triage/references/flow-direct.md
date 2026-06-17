@@ -33,6 +33,7 @@ Launch the `executor` agent. Pass it:
 
 - The resolved task (the user's request)
 - Instruction: *"This is a direct task, not a planned phase. Do the work TDD-first where a test is meaningful, verify locally if possible, and commit atomically. There is no plan file."*
+- The **must-have facts** the executor must confirm concretely in its exit report (e.g. "confirm the test fails before the fix and passes after, with the command output"). A vague "done" is not evidence — see `_common.md` Rule 7.
 
 Executor returns `done` or `blocked`.
 
@@ -64,3 +65,4 @@ If the task came from a recent `.se/diagnose.json` priority action, add: *"Re-ru
 - **No scope creep.** Executor stays strictly within the request; notes anything else wrong in the report, doesn't fix it.
 - **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch is the only `.se/` write.
 - **Honor the ecosystem.** Guardrails for destructive ops are charter's job when charter is present; don't add your own.
+- **Gates are named.** This flow's checkpoints map to the four types in `gates-taxonomy.md`: the Step 1 size check is *pre-flight*, the auto-QA hook is *revision*, and a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.

@@ -13,6 +13,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Added
+
+- **Named gate taxonomy for the flows.** New
+  `skills/triage/references/gates-taxonomy.md` defines four checkpoint types
+  (pre-flight / revision / escalation / abort), each answering trigger /
+  on-fail / who-resumes. The three flow references now name their existing
+  checkpoints by type, closing "what happens when this fails?" gaps. Pure
+  framing — no runtime change. (Four-type vocabulary adapted from GSD, MIT.)
+- **Caller-provided must-haves on delegation.** The flows now hand each
+  subagent the concrete must-have facts it must re-assert in its exit
+  report, and `_common.md` Rule 7 requires re-asserting each with evidence
+  rather than collapsing to a vague "done" — the orchestrator can't verify
+  semantic correctness from a summary.
+
 ### Changed
 
 - **Test harness consolidated to `evals/`.** Removed the parallel

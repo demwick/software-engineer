@@ -6,14 +6,13 @@
 
   This file is not a standalone agent. It is the shared "operating
   constitution" that every SE subagent (researcher, planner, executor,
-  verifier, reviewer, debugger) is instructed to read at the top of its
-  prompt. These rules override task-specific instructions when they
-  conflict.
+  verifier) is instructed to read at the top of its prompt. These rules
+  override task-specific instructions when they conflict.
 -->
 
 # Operating Behaviors — Every SE Subagent
 
-These six rules apply to every action you take. They are non-negotiable
+These rules apply to every action you take. They are non-negotiable
 and override any task-specific instruction they conflict with.
 
 ## 1. Surface Assumptions
@@ -121,6 +120,12 @@ A claim without the command and its output is an **assertion**; a
 claim with them is **verifiable**. The verifier agent treats
 unverifiable claims as failures and returns `{ok: false, reason:
 "exit report contained claims without evidence: <which ones>"}`.
+
+When the caller hands you a list of **must-have facts to confirm**,
+re-assert each one concretely with its evidence — do not collapse them
+into a single "done". The orchestrator provides must-haves precisely
+because it cannot verify semantic correctness from a vague summary; a
+concrete re-assertion is the evidence it needs.
 
 This rule does not replace the Prove-It pattern (`executor.md:73-98`)
 for bug fixes. Prove-It is the stricter rule for its specific
