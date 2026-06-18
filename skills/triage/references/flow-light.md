@@ -72,15 +72,21 @@ printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used fo
 
 `.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
-## Step 6: Act decision (verification feedback)
+## Step 6: Act decision (two-tier verification feedback)
 
-After auto-QA passes, read `.se/verification/phase-<slug>.json` if present:
+**Tier 1 (deterministic, already done by the Stop hook).** After auto-QA passes, read `.se/verification/phase-<slug>.json` if present. If its `status` is **fail** → do not mark complete; surface `reason`; stop. Otherwise continue to Tier 2.
 
-- **pass** → finish (Step 7).
-- **partial** → surface `unmet_criteria[]`; offer to add follow-ups to the roadmap (`/se-roadmap`) or handle now. Then finish.
-- **fail** → do not mark complete; surface `reason`; stop. User fixes and re-runs.
+**Tier 2 (adversarial senior review — once, here, for planned phases).** This is where the senior review actually runs. Narrate `→ verifier: review phase <slug>` and launch the `verifier` agent, passing the phase id `<slug>`. It writes `.se/verification/review-<slug>.json` (severity-classified findings; **not** the phase file). If the agent errors or writes nothing usable, note "senior review skipped (tooling)" and fall back to its final message — do not block phase completion on a tooling failure.
 
-No verification file (pre-v3.1.0 or no spec) → skip to Step 7.
+Combine both tiers into the final decision (worst wins):
+
+- both **pass** (Tier 1 pass, Tier 2 no blocker/major) → finish (Step 7).
+- **partial** (Tier 1 `partial`, or Tier 2 surfaced a **major** / unmet criteria) → surface `unmet_criteria[]` + Tier-2 findings; offer to fix now or add follow-ups to the roadmap (`/se-roadmap`). Then finish.
+- **fail** (Tier 1 `fail`, or Tier 2 surfaced a **blocker**) → do not mark complete; surface the finding (`severity — file:line — problem — fix`); stop. User fixes and re-runs the phase. Do **not** auto-loop the reviewer.
+
+`minor`/`nit` Tier-2 findings are noted only and never block.
+
+No phase verification file (pre-v3.1.0 or no spec) → skip to Step 7.
 
 ## Step 7: Update state and report
 

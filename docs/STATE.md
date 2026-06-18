@@ -166,9 +166,9 @@ The inventory table above is the index. The per-file sections below answer four 
 - **Missing:** expected before the first Stop-hook run. `/se-status` omits the last-run line; `/se-diagnose` skips the "last auto-QA run failed X minutes ago" nudge.
 - **Corrupted:** not possible in the usual sense — the file is a raw dump of another process's output. Consumers only read it as opaque text (mtime, last ~30 lines, substring match).
 
-### `verification/phase-N.json` (new in v3.1.0)
+### `verification/phase-<id>.json` (Tier 1, new in v3.1.0)
 
-- **Writer(s):** `scripts/verify-phase.sh` writes the structured verification result after tests pass. Called by `hooks/auto-qa` on the test-pass path. The verifier agent can also write this file for richer LLM-based criteria checking.
+- **Writer(s):** `scripts/verify-phase.sh` writes the structured Tier-1 result after tests pass — tests, acceptance-criteria count, TDD/red-proof. Called by `hooks/auto-qa` on the test-pass path. `<id>` is the active phase id: a number for roadmap phases, a kebab-case slug for ad-hoc light-plan features (resolved from the `.se/.verify-phase` marker). The `verifier` agent does **not** write this file — it owns the separate `review-<id>.json` (below).
 - **Reader(s):**
   - `hooks/state-tracker` (verification-feedback action) reads the file to update `state.json.last_verification`.
   - `skills/se-status/SKILL.md` surfaces the latest verification status.
@@ -191,6 +191,13 @@ The inventory table above is the index. The per-file sections below answer four 
 - **Required fields:** `phase`, `status`, `reason`, `unmet_criteria`, `new_findings`, `tdd_compliance`, `verified_at`.
 - **Missing:** expected for phases that have not been verified. No caller crashes on absence.
 - **Corrupted:** `hooks/state-tracker` uses `jq` with defaults — corrupted JSON results in a no-op (exit 0, state.json unchanged).
+
+### `verification/review-<id>.json` (Tier 2 — adversarial senior review)
+
+- **Writer(s):** the `verifier` agent, invoked by the flow's Act step (`flow-light.md` Step 6) **once per planned phase**, after Tier 1 passes. Deliberately a separate file from `phase-<id>.json` so the LLM review never clobbers the deterministic record; single-writer, no merge.
+- **Reader(s):** the flow's Act step reads it alongside `phase-<id>.json` and takes the worst verdict to decide whether the phase is marked done.
+- **Format:** same shape as the Tier-1 file (`phase`, `status`, `reason`, `unmet_criteria`, `new_findings`, `tdd_compliance`, `verified_at`), where `new_findings[]` carries severity-classified review items (`severity — file:line — problem — why — fix`) and `status` reflects the worst severity (blocker → fail, major → fail/partial, minor/nit → pass-with-notes). In charter mode the verdict vocabulary follows charter (PASS/FAIL/PARTIAL).
+- **Missing:** expected for direct-apply tasks (Tier-1 only) and any phase whose review was skipped on a tooling failure. No caller crashes on absence.
 
 ### `phases/phase-N/plan.md`
 

@@ -126,10 +126,30 @@ Claude then:
 4. The Stop hook fires again on the next response end
 5. Loop repeats until PASS or give-up
 
-## Do Not Invoke Verifier Manually
+## Two-Tier Verification: When the Verifier Agent Runs
 
-The `verifier` subagent exists as a documented interface, but in the
-current architecture no flow calls it directly. The `Stop`
-hook handles auto-QA without subagent invocation — it's just bash +
-`detect-test.sh`. Calling verifier manually would create a
-double-verification loop and confuse the retry counter.
+Verification has two tiers, and they run in different places on purpose.
+
+**Tier 1 — deterministic gate (this Stop hook, every turn).** Bash +
+`detect-test.sh` + `verify-phase.sh`: tests, acceptance-criteria count,
+TDD/red-proof. It owns the retry counter and the auto-fix loop. It must
+**never** spawn the verifier agent — an LLM call inside this per-turn loop
+would multiply cost and confuse the retry counter. This is the constraint the
+old "do not invoke verifier" rule was protecting; it still holds.
+
+**Tier 2 — adversarial senior review (the flow's Act step, once per phase).**
+The deterministic gate cannot judge correctness traps, missing edge cases, or
+regressions hiding behind green tests. That judgment is the `verifier` agent's
+job, and the flow invokes it **once**, at the Act step (`flow-light.md`
+Step 6), **after** Tier 1 passes, and **only for planned phases** (light-plan
+and full-flow). Direct-apply stays Tier-1-only — narrow, one commit, no heavy
+review by design.
+
+The two tiers write **separate files** so neither clobbers the other:
+`phase-<id>.json` (Tier 1) and `review-<id>.json` (Tier 2). The Act step reads
+both and takes the worst verdict. The Tier-2 review runs once and surfaces — it
+never auto-loops back through the executor (that would reopen the cost/loop
+problem this split exists to avoid).
+
+So: do not invoke the verifier from the Stop hook or per turn. Do invoke it
+exactly once, from the flow's Act step, on a planned phase.

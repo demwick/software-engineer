@@ -1,20 +1,21 @@
 ---
 name: verifier
 description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
-model: haiku
+model: sonnet
 tools: Read, Glob, Grep, Bash
 memory: project
-# DORMANT AGENT — no flow currently invokes this agent. Runtime
-# verification on the test-pass path is the deterministic bash
-# `scripts/verify-phase.sh` (criteria count + TDD/red-proof), driven by
-# the `hooks/auto-qa` Stop hook; the flows explicitly say "Do Not Invoke
-# Verifier Manually" (see skills/triage/references/auto-qa-protocol.md).
-# This file is the documented interface for the adversarial senior-review
-# capability that the deterministic script cannot do (correctness traps,
-# missing edge cases behind green tests). Until a flow actually wires it
-# in, the model choice has no runtime cost and no runtime effect, so it
-# stays on haiku. If a flow ever invokes it for real review, revisit:
-# adversarial review is judgment-heavy and would justify sonnet then.
+# This is TIER 2 of a two-tier verification scheme. Tier 1 is the
+# deterministic bash `scripts/verify-phase.sh` (tests + criteria count +
+# TDD/red-proof) run by the `hooks/auto-qa` Stop hook on EVERY turn — it
+# owns the retry loop and does NOT spawn this agent. Tier 2 is THIS agent:
+# the adversarial senior review (correctness traps, missing edge cases,
+# regressions behind green tests) that no deterministic script can do.
+# It is invoked by the flow's Act step ONCE per planned phase (light-plan /
+# full-flow), only after Tier 1 passes — never per turn, never inside the
+# Stop loop, never for direct-apply. That frequency is why sonnet is the
+# right call: judgment-heavy, low volume, high stakes; a weak reviewer
+# rubber-stamps. See skills/triage/references/auto-qa-protocol.md for the
+# two-tier contract.
 # maxTurns rationale: one detect-test invocation, one test run, one
 # structured verdict report. ~6–8 turns typical; 12 gives headroom for
 # multi-suite projects without letting a broken prompt loop.
@@ -132,18 +133,22 @@ Before the JSON, include a short human-readable summary:
 
 ## Verification Result File (Act Feedback)
 
-After producing the human-readable report, write a structured verification
-result to `.se/verification/phase-<N>.json` so the Act feedback loop can
-update state and roadmap. Use `jq` via Bash (you have Bash access):
+After producing the human-readable report, write your structured review to
+`.se/verification/review-<id>.json`. **Use `review-`, not `phase-`**: the
+deterministic Tier-1 result already owns `.se/verification/phase-<id>.json`,
+and clobbering it would erase the test/criteria/red-proof record. The two
+files are read together by the flow's Act step. `<id>` is the phase id the
+flow handed you (a slug for ad-hoc light-plan work, a number for a roadmap
+phase) — use it verbatim. Use `jq` via Bash:
 
 ```bash
 mkdir -p .se/verification
 jq -n \
-  --argjson phase "$PHASE" \
+  --arg phase "$PHASE_ID" \
   --arg status "<pass|partial|fail>" \
   --arg reason "<one-sentence summary>" \
   --argjson unmet '["criterion 1", "criterion 2"]' \
-  --argjson findings '["new finding 1"]' \
+  --argjson findings '["severity — file:line — problem — why — fix"]' \
   --argjson tdd '{"compliant": true, "skips": []}' \
   --arg ts "$(date -u +%FT%TZ)" \
   '{
@@ -154,7 +159,7 @@ jq -n \
     new_findings: $findings,
     tdd_compliance: $tdd,
     verified_at: $ts
-  }' > .se/verification/phase-${PHASE}.json
+  }' > ".se/verification/review-${PHASE_ID}.json"
 ```
 
 ### Status values
