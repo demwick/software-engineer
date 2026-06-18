@@ -38,6 +38,10 @@ TEST_TAIL_LINES=30
 STATE_DIR=".se"
 MARKER="${STATE_DIR}/.needs-verify"
 ATTEMPTS_FILE="${STATE_DIR}/.verify-attempts"
+# Active phase id (slug or number) the flow is verifying. Kept separate from
+# .needs-verify because that marker's content is reserved for the v1 retry-count
+# fallback — a numeric phase id there would be misread as a retry count.
+PHASE_MARKER="${STATE_DIR}/.verify-phase"
 
 # Read hook input (stdin JSON). Used to check stop_hook_active for loop protection.
 INPUT=$(cat 2>/dev/null || echo "{}")
@@ -47,9 +51,12 @@ INPUT=$(cat 2>/dev/null || echo "{}")
 
 # Require jq for safe JSON output. If missing, drop markers and exit cleanly.
 if ! command -v jq >/dev/null 2>&1; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
     exit 0
 fi
+
+# Capture the active phase id before any cleanup removes the marker.
+PHASE_ID=$(cat "$PHASE_MARKER" 2>/dev/null || echo "")
 
 STOP_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo "false")
 
@@ -69,7 +76,7 @@ ATTEMPTS=${ATTEMPTS:-0}
 # Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
 # already retried twice, give up and report the situation to the user.
 if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
     LAST_LOG="${STATE_DIR}/.last-verify.log"
     jq -cn --arg log "$LAST_LOG" --arg max "$MAX_RETRIES" \
         '{decision: "block", reason: ("Auto-QA loop-protection tripped after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
@@ -85,7 +92,7 @@ fi
 
 # No detectable test runner → auto-pass, clear marker + counter.
 if [ -z "$TEST_CMD" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
     exit 0
 fi
 
@@ -104,7 +111,7 @@ if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
             # Append to log so /se-status and humans can see it later.
             printf '\n\n=== host-compat warning ===\n%s\n' "$COMPAT_OUT" >> "$TEST_LOG"
             # Return a block so Claude fixes it now rather than shipping broken packaging.
-            rm -f "$MARKER" "$ATTEMPTS_FILE"
+            rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
             jq -cn --arg msg "$COMPAT_OUT" \
                 '{decision: "block", reason: ("Tests passed but host-compat check failed: " + $msg + " Fix the packaging metadata and re-run tests. Do not skip — this blocks pip install on the user host.")}'
             exit 0
@@ -114,16 +121,16 @@ if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
     # This produces .se/verification/phase-N.json for the Act feedback loop.
     VERIFY_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/verify-phase.sh"
     if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$VERIFY_SCRIPT" ]; then
-        bash "$VERIFY_SCRIPT" . 2>/dev/null || true
+        bash "$VERIFY_SCRIPT" . "$PHASE_ID" 2>/dev/null || true
         # Trigger state-tracker to persist verification metadata.
         TRACKER="${CLAUDE_PLUGIN_ROOT}/hooks/state-tracker"
         if [ -f "$TRACKER" ]; then
-            bash "$TRACKER" verification-feedback 2>/dev/null || true
+            bash "$TRACKER" verification-feedback "$PHASE_ID" 2>/dev/null || true
         fi
     fi
 
     # Pass → clear marker + counter, let Claude stop.
-    rm -f "$MARKER" "$ATTEMPTS_FILE"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
     exit 0
 fi
 
@@ -131,7 +138,7 @@ fi
 NEXT=$((ATTEMPTS + 1))
 
 if [ "$NEXT" -gt "$MAX_RETRIES" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER"
     jq -cn \
         --arg log "$TEST_LOG" --arg max "$MAX_RETRIES" \
         '{decision: "block", reason: ("Auto-QA gave up after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'

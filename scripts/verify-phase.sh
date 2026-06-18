@@ -6,18 +6,25 @@
 # See LICENSE in the repository root for the full license text.
 #
 # verify-phase.sh — deterministic spec-based verification after tests pass.
-# Called by hooks/auto-qa on the test-pass path. Reads .se/specs/phase-N.md,
-# counts acceptance criteria, checks TDD commit patterns, and writes
-# .se/verification/phase-N.json for the Act feedback loop.
+# Called by hooks/auto-qa on the test-pass path. Reads the active phase's
+# spec, counts acceptance criteria, checks TDD commit patterns (including a
+# real red-phase proof for bug-fix Prove-It pairs), and writes the
+# verification result for the Act feedback loop.
+#
+# The active phase is identified by an id that may be a number (numbered
+# roadmap) OR a kebab-case slug (ad-hoc light-plan feature). The flows write
+# everything under phase-<id>; this script must use the SAME id or it silently
+# checks the wrong files. Resolution order: $2 arg, then .se/.verify-phase
+# marker, then state.json current_phase (number).
 #
 # Usage:
-#   bash verify-phase.sh [project-dir]
+#   bash verify-phase.sh [project-dir] [phase-id]
 #
 # Exit codes:
 #   0 — verification result written (regardless of pass/partial/fail)
 #   1 — no state.json or jq missing (silently skip)
 
-set -euo pipefail
+set -uo pipefail
 
 PROJECT_DIR="${1:-.}"
 STATE_FILE="$PROJECT_DIR/.se/state.json"
@@ -26,15 +33,27 @@ STATE_FILE="$PROJECT_DIR/.se/state.json"
 [ -f "$STATE_FILE" ] || exit 1
 command -v jq >/dev/null 2>&1 || exit 1
 
-NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
-SPEC_FILE="$PROJECT_DIR/.se/specs/phase-${CURRENT_PHASE}.md"
+# --- Resolve the active phase id (slug or number) ---
+PHASE_ID="${2:-}"
+[ -n "$PHASE_ID" ] || PHASE_ID=$(cat "$PROJECT_DIR/.se/.verify-phase" 2>/dev/null || echo "")
+[ -n "$PHASE_ID" ] || PHASE_ID=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
 
-# No spec = pre-v3.1.0 project. Write a minimal pass result.
+# jq's `phase` field stays a number for numbered phases, a string for slugs.
+if printf '%s' "$PHASE_ID" | grep -Eq '^[0-9]+$'; then
+    PHASE_ARG=(--argjson phase "$PHASE_ID")
+else
+    PHASE_ARG=(--arg phase "$PHASE_ID")
+fi
+
+NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+SPEC_FILE="$PROJECT_DIR/.se/specs/phase-${PHASE_ID}.md"
+OUT_FILE="$PROJECT_DIR/.se/verification/phase-${PHASE_ID}.json"
+mkdir -p "$PROJECT_DIR/.se/verification"
+
+# No spec = pre-v3.1.0 project or a phase without a written spec. Minimal pass.
 if [ ! -f "$SPEC_FILE" ]; then
-    mkdir -p "$PROJECT_DIR/.se/verification"
     jq -n \
-        --argjson phase "$CURRENT_PHASE" \
+        "${PHASE_ARG[@]}" \
         --arg ts "$NOW" \
         '{
             phase: $phase,
@@ -44,7 +63,7 @@ if [ ! -f "$SPEC_FILE" ]; then
             new_findings: [],
             tdd_compliance: {compliant: true, skips: []},
             verified_at: $ts
-        }' > "$PROJECT_DIR/.se/verification/phase-${CURRENT_PHASE}.json"
+        }' > "$OUT_FILE"
     exit 0
 fi
 
@@ -58,16 +77,15 @@ TOTAL_CRITERIA=${TOTAL_CRITERIA:-0}
 
 # --- TDD compliance: check commit history for test commits ---
 
-# Get commits in this phase (since last phase's tag or all if phase 1).
-PLAN_FILE="$PROJECT_DIR/.se/phases/phase-${CURRENT_PHASE}/plan.md"
+PLAN_FILE="$PROJECT_DIR/.se/phases/phase-${PHASE_ID}/plan.md"
 PHASE_COMMITS=""
+COMMIT_WINDOW=12
 if [ -f "$PLAN_FILE" ]; then
-    # Count commits since phase started (rough: last N commits where N = task count * 2)
     TASK_COUNT=$(grep -c '^### Task' "$PLAN_FILE" 2>/dev/null || echo "4")
     TASK_COUNT=$(printf '%s' "$TASK_COUNT" | tr -d '[:space:]')
     COMMIT_WINDOW=$((TASK_COUNT * 3))
-    PHASE_COMMITS=$(git -C "$PROJECT_DIR" log --oneline -"$COMMIT_WINDOW" 2>/dev/null || echo "")
 fi
+PHASE_COMMITS=$(git -C "$PROJECT_DIR" log --oneline -"$COMMIT_WINDOW" 2>/dev/null || echo "")
 
 # Count test-prefixed commits (TDD Red phase evidence).
 TEST_COMMITS=0
@@ -81,37 +99,50 @@ fi
 TEST_COMMITS=${TEST_COMMITS:-0}
 IMPL_COMMITS=${IMPL_COMMITS:-0}
 
-# TDD compliant if at least one test commit exists per implementation commit,
-# or if there are no implementation commits (docs/chore only phase).
 TDD_COMPLIANT="true"
 TDD_SKIPS="[]"
+FINDINGS="[]"
+
 if [ "$IMPL_COMMITS" -gt 0 ] && [ "$TEST_COMMITS" -eq 0 ]; then
     TDD_COMPLIANT="false"
     TDD_SKIPS=$(jq -cn '[{"task": "unknown", "reason": "no test() commits found in phase"}]')
 fi
 
-# --- Determine status ---
-# Shell-based verification is conservative: tests passed = criteria likely met.
-# We mark "pass" if tests pass and TDD is compliant, "partial" otherwise.
-# Full criteria-level checking requires LLM judgment (verifier agent).
+# --- Red-phase proof for bug-fix Prove-It pairs ---
+# Commit order (test before fix) is gameable: a reproduction test that passes
+# trivially still satisfies the count above. For each `test(...): reproduce ...`
+# commit, replay it in isolation and require it to FAIL. A pass means the
+# reproduction never reproduced anything — TDD theater.
+REDPROOF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/verify-red-proof.sh"
+if [ -f "$REDPROOF" ] && [ -n "$PHASE_COMMITS" ]; then
+    REPRO_SHAS=$(printf '%s\n' "$PHASE_COMMITS" | grep -E '^[a-f0-9]+ test\(.*reproduce' | awk '{print $1}')
+    for sha in $REPRO_SHAS; do
+        bash "$REDPROOF" "$sha" "$PROJECT_DIR" >/dev/null 2>&1 && RC=0 || RC=$?
+        if [ "$RC" -eq 2 ]; then
+            TDD_COMPLIANT="false"
+            FINDINGS=$(printf '%s' "$FINDINGS" | jq -c --arg s "$sha" \
+                '. + ["TDD theater: reproduction test at commit \($s) passes at its own commit — the bug was never reproduced, so the fix is unproven"]')
+        fi
+    done
+fi
 
+# --- Determine status ---
 STATUS="pass"
 REASON="tests passed, $TOTAL_CRITERIA acceptance criteria in spec"
 UNMET="[]"
 
 if [ "$TDD_COMPLIANT" = "false" ]; then
     STATUS="partial"
-    REASON="tests passed but no TDD test commits found — executor may have skipped Red phase"
+    REASON="tests passed but TDD red phase is unproven — see new_findings / no test() commits"
 fi
 
 # --- Write verification JSON ---
-mkdir -p "$PROJECT_DIR/.se/verification"
 jq -n \
-    --argjson phase "$CURRENT_PHASE" \
+    "${PHASE_ARG[@]}" \
     --arg status "$STATUS" \
     --arg reason "$REASON" \
     --argjson unmet "$UNMET" \
-    --argjson findings "[]" \
+    --argjson findings "$FINDINGS" \
     --argjson tdd_compliant "$TDD_COMPLIANT" \
     --argjson tdd_skips "$TDD_SKIPS" \
     --arg ts "$NOW" \
@@ -123,6 +154,6 @@ jq -n \
         new_findings: $findings,
         tdd_compliance: {compliant: $tdd_compliant, skips: $tdd_skips},
         verified_at: $ts
-    }' > "$PROJECT_DIR/.se/verification/phase-${CURRENT_PHASE}.json"
+    }' > "$OUT_FILE"
 
 exit 0

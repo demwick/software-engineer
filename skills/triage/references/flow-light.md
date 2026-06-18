@@ -61,9 +61,10 @@ Launch the `executor` agent with the plan path, the plan's context, and resume c
 
 ```bash
 mkdir -p .se && : > .se/.needs-verify
+printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used for the spec/plan/progress paths above
 ```
 
-Existence-only marker. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
 ## Step 6: Act decision (verification feedback)
 
