@@ -1,14 +1,24 @@
 ---
 name: verifier
 description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
-model: haiku
+model: sonnet
 tools: Read, Glob, Grep, Bash
 memory: project
-# maxTurns rationale: fast-turn verifier on Haiku — one detect-test
-# invocation, one test run, one structured verdict report. ~6–8
-# turns is typical; 12 gives headroom for multi-suite projects (unit
-# + integration + lint) without letting a broken verifier prompt loop.
-# Loop protection in hooks/auto-qa pairs with this cap.
+# This is TIER 2 of a two-tier verification scheme. Tier 1 is the
+# deterministic bash `scripts/verify-phase.sh` (tests + criteria count +
+# TDD/red-proof) run by the `hooks/auto-qa` Stop hook on EVERY turn — it
+# owns the retry loop and does NOT spawn this agent. Tier 2 is THIS agent:
+# the adversarial senior review (correctness traps, missing edge cases,
+# regressions behind green tests) that no deterministic script can do.
+# It is invoked by the flow's Act step ONCE per planned phase (light-plan /
+# full-flow), only after Tier 1 passes — never per turn, never inside the
+# Stop loop, never for direct-apply. That frequency is why sonnet is the
+# right call: judgment-heavy, low volume, high stakes; a weak reviewer
+# rubber-stamps. See skills/triage/references/auto-qa-protocol.md for the
+# two-tier contract.
+# maxTurns rationale: one detect-test invocation, one test run, one
+# structured verdict report. ~6–8 turns typical; 12 gives headroom for
+# multi-suite projects without letting a broken prompt loop.
 maxTurns: 12
 color: yellow
 ---
@@ -123,18 +133,22 @@ Before the JSON, include a short human-readable summary:
 
 ## Verification Result File (Act Feedback)
 
-After producing the human-readable report, write a structured verification
-result to `.se/verification/phase-<N>.json` so the Act feedback loop can
-update state and roadmap. Use `jq` via Bash (you have Bash access):
+After producing the human-readable report, write your structured review to
+`.se/verification/review-<id>.json`. **Use `review-`, not `phase-`**: the
+deterministic Tier-1 result already owns `.se/verification/phase-<id>.json`,
+and clobbering it would erase the test/criteria/red-proof record. The two
+files are read together by the flow's Act step. `<id>` is the phase id the
+flow handed you (a slug for ad-hoc light-plan work, a number for a roadmap
+phase) — use it verbatim. Use `jq` via Bash:
 
 ```bash
 mkdir -p .se/verification
 jq -n \
-  --argjson phase "$PHASE" \
+  --arg phase "$PHASE_ID" \
   --arg status "<pass|partial|fail>" \
   --arg reason "<one-sentence summary>" \
   --argjson unmet '["criterion 1", "criterion 2"]' \
-  --argjson findings '["new finding 1"]' \
+  --argjson findings '["severity — file:line — problem — why — fix"]' \
   --argjson tdd '{"compliant": true, "skips": []}' \
   --arg ts "$(date -u +%FT%TZ)" \
   '{
@@ -145,7 +159,7 @@ jq -n \
     new_findings: $findings,
     tdd_compliance: $tdd,
     verified_at: $ts
-  }' > .se/verification/phase-${PHASE}.json
+  }' > ".se/verification/review-${PHASE_ID}.json"
 ```
 
 ### Status values
@@ -163,6 +177,24 @@ When checking executor output, verify TDD discipline was followed:
 - Tasks with `TDD-SKIP: <reason>` are noted in `tdd_compliance.skips[]`
 - If a task lacks both a test and a `TDD-SKIP` marker, flag it as non-compliant
 
+**Commit order is necessary but not sufficient.** A test that the executor
+ordered first but which passes trivially is TDD theater — it satisfies the
+commit-sequence check while proving nothing. For any **bug-fix / Prove-It**
+task (a `test(...): reproduce …` commit paired with a later `fix(...)`),
+verify the *red phase was real*: run the reproduction commit in isolation and
+confirm the suite actually failed there.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-red-proof.sh" <test-commit-sha>
+```
+
+Exit `0` = genuine red (the test failed at that commit, as a reproduction
+must). Exit `2` = **theater**: the test passed at its own commit, so it never
+reproduced the bug — flag this as a TDD-compliance failure and put it in
+`new_findings[]`, because the "fix" is unproven. Exit `3` = inconclusive (no
+test command, not a git repo) — note it, do not fail on it. The script uses a
+detached worktree and never touches the working tree.
+
 ### `new_findings[]`
 
 Observations that should feed back into the roadmap — things the executor
@@ -177,8 +209,8 @@ These get picked up by the state-tracker hook and surfaced in `/se-status`.
 
 - **Never call Write or Edit** — you are read-only plus Bash
 - **Never modify git state** — no commits, no resets, no branch changes
-- **Time-box yourself** — Haiku, 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
-- **Don't over-interpret** — if tests pass but the code is ugly, that's not a verifier concern; that's for a code reviewer
+- **Time-box yourself** — 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
+- **You are the reviewer** — v2 merged the standalone reviewer into this agent. "Tests pass but the code is ugly" with no correctness impact is a `nit`/`minor`, not a blocker — but spotting correctness traps, missing edge cases, and regressions behind green tests is squarely your job, not someone else's
 - **Trust the plan** — if the plan says "no tests yet", you don't fail it for missing tests
 - **One JSON object only** — multiple JSON lines confuse the hook parser
 

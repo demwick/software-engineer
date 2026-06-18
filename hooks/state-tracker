@@ -33,9 +33,14 @@ case "$ACTION" in
         ;;
     verification-feedback)
         # Act feedback loop: read the latest verification result and update state.json.
-        # Called after verifier writes .se/verification/phase-<N>.json.
-        CURRENT_PHASE=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
-        VERIFY_FILE="${STATE_DIR}/verification/phase-${CURRENT_PHASE}.json"
+        # Called after verify-phase.sh writes .se/verification/phase-<id>.json.
+        # The phase id (slug or number) must match what verify-phase.sh used, or
+        # we read the wrong file. Resolution order: $2 arg, .se/.verify-phase
+        # marker, then state.json current_phase (number) as a last resort.
+        PHASE_ID="${2:-}"
+        [ -n "$PHASE_ID" ] || PHASE_ID=$(cat "${STATE_DIR}/.verify-phase" 2>/dev/null || echo "")
+        [ -n "$PHASE_ID" ] || PHASE_ID=$(jq -r '.current_phase // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+        VERIFY_FILE="${STATE_DIR}/verification/phase-${PHASE_ID}.json"
         [ -f "$VERIFY_FILE" ] || exit 0
 
         VSTATUS=$(jq -r '.status // "unknown"' "$VERIFY_FILE" 2>/dev/null || echo "unknown")

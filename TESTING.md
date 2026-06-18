@@ -46,6 +46,18 @@ claude --plugin-dir "$PLUGIN" -p 'Apply ONLY the triage classification logic, do
 | "just quickly bump lodash, don't overthink it" | direct-apply (escape) | ✅ direct-apply |
 | "fix the login button — but wait, let's talk first" | full-flow (escape) | ✅ full-flow |
 
+This routing probe is automated as a **gated behavioral eval**. It runs against a
+golden fixture (`evals/fixtures/behavioral/triage-routing.jsonl`) but is excluded
+from CI on purpose — it needs the `claude` CLI and costs tokens, so it is opt-in:
+
+```bash
+SE_BEHAVIORAL_EVALS=1 bash evals/suites/behavioral/triage-routing.sh
+```
+
+Without `SE_BEHAVIORAL_EVALS=1` (or without `claude` on PATH) it prints a `skip:`
+line and exits 0, so `bash evals/run.sh` stays green in CI. See
+`evals/suites/behavioral/README.md` for cost and details.
+
 ## 1. Triage → direct-apply (clear + narrow)
 
 ```bash

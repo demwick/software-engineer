@@ -15,6 +15,12 @@ You are *mostly* clear. If 1–2 answers would change the implementation materia
 
 ## Step 2: Plan the feature
 
+This is a planned flow, not direct-apply — clear any leftover direct-apply scope markers so the `pre-guard` tripwire never fires on a phase's executor:
+
+```bash
+rm -f .se/.direct-apply .se/.direct-files
+```
+
 Narrate the handoff first: `→ planner: <feature> plan`.
 
 Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc slice. Pass the user's request plus any answers from Step 1. The planner writes:
@@ -22,13 +28,19 @@ Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc sl
 - `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
 - `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, `risk_gates`, complexity
 
-Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec:
+Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec **and the plan** deterministically — don't eyeball the markdown for `[[ ASK ]]` markers or a missing `risk_gates:` block, run the linters:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".se/specs/phase-<slug>.md"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/plan-validate.sh" ".se/phases/phase-<slug>/plan.md"
 ```
 
-If validation fails, surface the error and stop. Read the plan; if it contains `[[ ASK: ... ]]` markers, surface them and stop — do not guess.
+Act on `plan-validate`'s exit code — do not proceed past a non-zero:
+- **3** → unresolved `[[ ASK: ... ]]` markers (it prints the line numbers). Surface them to the user and stop; do not guess.
+- **2** → missing `risk_gates:` section. Send it back to the planner to add the block (use `risk_gates: []` if genuinely none) — the risk gate can't fire on a section that isn't there.
+- **0** → proceed (a scope warning on stderr is informational, not a stop).
+
+If `spec-validate` fails, surface the error and stop.
 
 ## Step 3: Forward-looking risk check
 
@@ -61,19 +73,26 @@ Launch the `executor` agent with the plan path, the plan's context, and resume c
 
 ```bash
 mkdir -p .se && : > .se/.needs-verify
+printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used for the spec/plan/progress paths above
 ```
 
-Existence-only marker. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
-## Step 6: Act decision (verification feedback)
+## Step 6: Act decision (two-tier verification feedback)
 
-After auto-QA passes, read `.se/verification/phase-<slug>.json` if present:
+**Tier 1 (deterministic, already done by the Stop hook).** After auto-QA passes, read `.se/verification/phase-<slug>.json` if present. If its `status` is **fail** → do not mark complete; surface `reason`; stop. Otherwise continue to Tier 2.
 
-- **pass** → finish (Step 7).
-- **partial** → surface `unmet_criteria[]`; offer to add follow-ups to the roadmap (`/se-roadmap`) or handle now. Then finish.
-- **fail** → do not mark complete; surface `reason`; stop. User fixes and re-runs.
+**Tier 2 (adversarial senior review — once, here, for planned phases).** This is where the senior review actually runs. Narrate `→ verifier: review phase <slug>` and launch the `verifier` agent, passing the phase id `<slug>`. It writes `.se/verification/review-<slug>.json` (severity-classified findings; **not** the phase file). If the agent errors or writes nothing usable, note "senior review skipped (tooling)" and fall back to its final message — do not block phase completion on a tooling failure.
 
-No verification file (pre-v3.1.0 or no spec) → skip to Step 7.
+Combine both tiers into the final decision (worst wins):
+
+- both **pass** (Tier 1 pass, Tier 2 no blocker/major) → finish (Step 7).
+- **partial** (Tier 1 `partial`, or Tier 2 surfaced a **major** / unmet criteria) → surface `unmet_criteria[]` + Tier-2 findings; offer to fix now or add follow-ups to the roadmap (`/se-roadmap`). Then finish.
+- **fail** (Tier 1 `fail`, or Tier 2 surfaced a **blocker**) → do not mark complete; surface the finding (`severity — file:line — problem — fix`); stop. User fixes and re-runs the phase. Do **not** auto-loop the reviewer.
+
+`minor`/`nit` Tier-2 findings are noted only and never block.
+
+No phase verification file (pre-v3.1.0 or no spec) → skip to Step 7.
 
 ## Step 7: Update state and report
 

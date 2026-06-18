@@ -104,8 +104,18 @@ A `SessionStart` hook with `matcher: "startup|resume"` reads `.se/state.json` an
 
 ### 6. Token Efficiency
 
-- `researcher`, `verifier` → **Haiku** (read-only, fast)
-- `planner`, `executor` → **Sonnet** (complex judgment)
+- `researcher` → **Haiku** (read-only, fast — a structured codebase scan)
+- `executor` → **Sonnet** (complex judgment during implementation)
+- `planner` → **Opus** (highest leverage — a flawed plan cascades into work
+  nothing downstream catches)
+- `verifier` → **Sonnet** (Tier 2 of two-tier verification). Tier 1 is the
+  deterministic `scripts/verify-phase.sh` (tests + criteria + TDD/red-proof) on
+  the `hooks/auto-qa` Stop path — every turn, no agent. Tier 2 is this agent's
+  adversarial senior review (correctness traps, edge cases, regressions behind
+  green tests), invoked by the flow's Act step **once per planned phase**, only
+  after Tier 1 passes, never in the Stop loop, never for direct-apply. Low
+  volume + high stakes justifies Sonnet. The tiers write separate files
+  (`phase-<id>.json`, `review-<id>.json`); the Act step takes the worst verdict.
 - Read-only agents never get Write/Edit (`disallowedTools` or explicit `tools` allowlist)
 
 ## Directory Layout

@@ -1,0 +1,12 @@
+{"prompt": "fix the typo in the README title — it says 'Reqdme'", "expected_route": "direct-apply", "why": "clear intent, single file, no abstraction or schema change"}
+{"prompt": "rename the variable `usr` to `user` in src/session.ts", "expected_route": "direct-apply", "why": "clear, mechanical, one file, zero design questions"}
+{"prompt": "bump the lodash dependency to the latest patch and run the tests", "expected_route": "direct-apply", "why": "clear and narrow; a routine maintenance edit"}
+{"prompt": "add a CSV export endpoint to the existing user API", "expected_route": "light-plan", "why": "clear-ish but a cohesive feature touching a few files; worth a short plan"}
+{"prompt": "add rate limiting to the login endpoint", "expected_route": "light-plan", "why": "one feature, security-adjacent, a couple of files and a config decision — too big to fire blind, too small for a roadmap"}
+{"prompt": "implement soft-delete for the comments model", "expected_route": "light-plan", "why": "a data-model decision (one or two open questions) over a cohesive slice; plan with 1-2 critical questions"}
+{"prompt": "build me a multi-tenant SaaS billing system", "expected_route": "full-flow", "why": "fuzzy and broad — a whole product with unstated requirements, auth, and data-model implications"}
+{"prompt": "I have an idea for a clinic appointment booking app, help me build it", "expected_route": "full-flow", "why": "fuzzy intent, broad scope, success criteria unstated — needs clarify -> spec -> roadmap"}
+{"prompt": "finish this project — get it production ready", "expected_route": "full-flow", "why": "broad and fuzzy; 'finish the project' means research existing code then a phased roadmap"}
+{"prompt": "make the dashboard better", "expected_route": "full-flow", "why": "boundary case: goal and success criteria are unstated (fuzzy); the bias rule rounds up rather than guessing"}
+{"prompt": "add dark mode to the settings page, just do it — don't overthink it", "expected_route": "direct-apply", "why": "boundary case: a force-shallow escape hatch ('just do it', 'don't overthink') overrides scope and forces direct-apply"}
+{"prompt": "fix the broken avatar upload — but wait, let's talk through the approach first", "expected_route": "full-flow", "why": "boundary case: a force-deep escape hatch ('let's talk first') overrides the otherwise-narrow fix"}

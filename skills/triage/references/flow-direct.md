@@ -25,6 +25,14 @@ Escalating is cheap; a wrong shallow guess is not. If it's genuinely small, cont
 
 ## Step 2: Execute
 
+If the project is SE-initialized (`.se/` exists), arm the direct-apply scope tripwire so the `pre-guard` PreToolUse barrier enforces the 3-file limit computationally instead of trusting the model to notice:
+
+```bash
+[ -d .se ] && { : > .se/.direct-apply; : > .se/.direct-files; }
+```
+
+If `pre-guard` blocks the executor's 4th distinct file, that is the signal triage misrouted: stop and escalate to light-plan (`flow-light.md`). The marker is cleared automatically by the Stop hook (and on entry to any planned flow).
+
 Before launching, narrate the handoff in one line so the user can follow who is working:
 
 > `→ executor: <short task>`
@@ -50,7 +58,7 @@ Only if `.se/` **already exists**, touch the existence-only marker so the Stop h
 
 Do not write a number into the marker; the hook owns the retry counter in `.se/.verify-attempts`. If the project is not SE-initialized, skip this — direct tasks never create `.se/` themselves.
 
-On arm, the Stop hook runs the detected test runner. Pass → clears the marker. Fail → returns a `block` so Claude auto-retries the fix (up to 2 retries). You do **not** invoke the verifier agent manually. For the full protocol see `auto-qa-protocol.md`.
+On arm, the Stop hook runs the detected test runner. Pass → clears the marker. Fail → returns a `block` so Claude auto-retries the fix (up to 2 retries). This is **Tier-1 only** — direct-apply does not get the Tier-2 senior-review pass (that is reserved for planned light-plan / full-flow phases; a narrow one-commit task does not warrant it). You do **not** invoke the verifier agent here. For the two-tier contract see `auto-qa-protocol.md`.
 
 ## Step 4: Report
 
