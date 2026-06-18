@@ -13,6 +13,59 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.4.0] — 2026-06-18
+
+Closes a self-audit of the verification and safety layers: capabilities that
+were documented but never ran, gates that were prose-only, and a silent
+phase-id mismatch.
+
+### Added
+
+- **Two-tier verification — the senior review now actually runs.** Tier 1 stays
+  the deterministic Stop-hook check (`verify-phase.sh`: tests + criteria +
+  TDD/red-proof, every turn). Tier 2 is the `verifier` agent's adversarial
+  senior review (correctness traps, edge cases, regressions behind green
+  tests), invoked by the flow's Act step **once per planned phase**, never in
+  the Stop loop, never for direct-apply. The tiers write separate files
+  (`phase-<id>.json`, `review-<id>.json`); the Act step takes the worst verdict.
+  The agent was previously documented but invoked by nothing.
+- **`pre-guard` PreToolUse hook — computational safety backstops.** Hard-blocks
+  irreversible git/db operations (force-push, `reset --hard`, `clean -f`,
+  branch `-D`, `DROP`/`TRUNCATE`, risky `rm -rf`) in standalone SE projects,
+  deferring to claude-charter when present. Also enforces the direct-apply
+  3-file scope limit, so a triage misroute trips a real barrier instead of a
+  prose warning.
+- **`scripts/plan-validate.sh` — deterministic plan pre-flight.** Enforces the
+  load-bearing plan invariants the flow used to eyeball: unresolved
+  `[[ ASK ]]` markers (exit 3) and a missing `risk_gates:` section (exit 2)
+  now hard-stop execution.
+- **`scripts/verify-red-proof.sh` — proves the TDD red phase.** Replays a
+  bug-fix's reproduction commit in an isolated worktree and requires it to
+  fail; a pass is flagged as TDD theater. Wired into `verify-phase.sh`.
+- **Gated behavioral eval scaffold** (`evals/suites/behavioral/`) for triage
+  routing — opt-in via `SE_BEHAVIORAL_EVALS=1`, skipped in CI. First live run
+  passed 12/12 golden fixtures including the boundary/escape-hatch cases.
+
+### Fixed
+
+- **Silent acceptance-criteria skip on ad-hoc phases.** `verify-phase.sh` and
+  `state-tracker` read the numeric `current_phase` while the flows write every
+  artifact under `phase-<slug>`, so verification silently looked at the wrong
+  file on the common light-plan path. The active phase id (slug or number) now
+  travels in a `.se/.verify-phase` marker; both fall back to `current_phase`
+  when it is absent.
+- **A hanging test could lock the Stop hook forever.** The auto-QA test run is
+  now bounded by a portable timeout (`timeout`/`gtimeout`, or a bash watchdog
+  on hosts like stock macOS that ship neither). Default 300s, override with
+  `SE_TEST_TIMEOUT`.
+
+### Changed
+
+- `verifier` agent model → **sonnet** (justified now that it runs as the
+  judgment-heavy Tier-2 review).
+- Hook/script/state inventory in `CLAUDE.md` and `docs/STATE.md` reconciled
+  with the above (five hooks, new scripts, new runtime markers).
+
 ## [4.3.0] — 2026-06-18
 
 ### Added
