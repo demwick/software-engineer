@@ -1,14 +1,23 @@
 ---
 name: verifier
 description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
-model: haiku
+model: sonnet
 tools: Read, Glob, Grep, Bash
 memory: project
-# maxTurns rationale: fast-turn verifier on Haiku — one detect-test
-# invocation, one test run, one structured verdict report. ~6–8
-# turns is typical; 12 gives headroom for multi-suite projects (unit
-# + integration + lint) without letting a broken verifier prompt loop.
-# Loop protection in hooks/auto-qa pairs with this cap.
+# model rationale: verification is adversarial — find the failure the
+# executor missed and classify it like a senior reviewer. That is the
+# hardest cognitive task in the pipeline, not the cheapest; read-only
+# does not mean easy. A weak verifier rubber-stamps bad work, and the
+# planner-cascade argument (a flawed upstream step poisons everything
+# downstream) applies to the last line of defense too. The per-turn
+# Stop-hook check is the cheap bash `hooks/auto-qa` loop — it does NOT
+# spawn this agent — so the verifier runs only on explicit flow-driven
+# phase verification: low frequency, high stakes. Sonnet earns its cost.
+# maxTurns rationale: one detect-test invocation, one test run, one
+# structured verdict report. ~6–8 turns is typical; 12 gives headroom
+# for multi-suite projects (unit + integration + lint) without letting
+# a broken verifier prompt loop. Loop protection in hooks/auto-qa pairs
+# with this cap.
 maxTurns: 12
 color: yellow
 ---
@@ -195,8 +204,8 @@ These get picked up by the state-tracker hook and surfaced in `/se-status`.
 
 - **Never call Write or Edit** — you are read-only plus Bash
 - **Never modify git state** — no commits, no resets, no branch changes
-- **Time-box yourself** — Haiku, 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
-- **Don't over-interpret** — if tests pass but the code is ugly, that's not a verifier concern; that's for a code reviewer
+- **Time-box yourself** — Sonnet, 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
+- **You are the reviewer** — v2 merged the standalone reviewer into this agent. "Tests pass but the code is ugly" with no correctness impact is a `nit`/`minor`, not a blocker — but spotting correctness traps, missing edge cases, and regressions behind green tests is squarely your job, not someone else's
 - **Trust the plan** — if the plan says "no tests yet", you don't fail it for missing tests
 - **One JSON object only** — multiple JSON lines confuse the hook parser
 
