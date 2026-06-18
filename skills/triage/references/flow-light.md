@@ -28,13 +28,19 @@ Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc sl
 - `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
 - `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, `risk_gates`, complexity
 
-Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec:
+Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec **and the plan** deterministically — don't eyeball the markdown for `[[ ASK ]]` markers or a missing `risk_gates:` block, run the linters:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".se/specs/phase-<slug>.md"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/plan-validate.sh" ".se/phases/phase-<slug>/plan.md"
 ```
 
-If validation fails, surface the error and stop. Read the plan; if it contains `[[ ASK: ... ]]` markers, surface them and stop — do not guess.
+Act on `plan-validate`'s exit code — do not proceed past a non-zero:
+- **3** → unresolved `[[ ASK: ... ]]` markers (it prints the line numbers). Surface them to the user and stop; do not guess.
+- **2** → missing `risk_gates:` section. Send it back to the planner to add the block (use `risk_gates: []` if genuinely none) — the risk gate can't fire on a section that isn't there.
+- **0** → proceed (a scope warning on stderr is informational, not a stop).
+
+If `spec-validate` fails, surface the error and stop.
 
 ## Step 3: Forward-looking risk check
 
