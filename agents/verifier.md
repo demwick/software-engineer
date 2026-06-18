@@ -163,6 +163,24 @@ When checking executor output, verify TDD discipline was followed:
 - Tasks with `TDD-SKIP: <reason>` are noted in `tdd_compliance.skips[]`
 - If a task lacks both a test and a `TDD-SKIP` marker, flag it as non-compliant
 
+**Commit order is necessary but not sufficient.** A test that the executor
+ordered first but which passes trivially is TDD theater — it satisfies the
+commit-sequence check while proving nothing. For any **bug-fix / Prove-It**
+task (a `test(...): reproduce …` commit paired with a later `fix(...)`),
+verify the *red phase was real*: run the reproduction commit in isolation and
+confirm the suite actually failed there.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-red-proof.sh" <test-commit-sha>
+```
+
+Exit `0` = genuine red (the test failed at that commit, as a reproduction
+must). Exit `2` = **theater**: the test passed at its own commit, so it never
+reproduced the bug — flag this as a TDD-compliance failure and put it in
+`new_findings[]`, because the "fix" is unproven. Exit `3` = inconclusive (no
+test command, not a git repo) — note it, do not fail on it. The script uses a
+detached worktree and never touches the working tree.
+
 ### `new_findings[]`
 
 Observations that should feed back into the roadmap — things the executor
