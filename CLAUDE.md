@@ -20,8 +20,8 @@ A Claude Code native plugin that automates core software engineering responsibil
 - `.claude-plugin/plugin.json` — manifest (name, version, license, author, repo)
 - `agents/*.md` — four subagents with YAML frontmatter: `researcher`, `planner`, `executor`, `verifier` (plus `_common.md`, the shared operating constitution). The verifier now carries the senior-review logic (severity-classified findings) and defers to charter's adversarial verdict when charter is present. v2.0.0 removed `reviewer` and `debugger` — systematic debugging is delegated to composition with `addyosmani/agent-skills` and `obra/superpowers`.
 - `skills/*/SKILL.md` — v4.0.0 replaced the three slash entry points (`se-init`/`se-go`/`se-quick`) with a single auto-invocable **`triage`** skill. The flows live as `skills/triage/references/{flow-direct,flow-light,flow-full}.md`. Other skills: `clarify`, `spec`, `adr`, `risk` (auto-invoked by the flows) and the read-only helpers `se-diagnose`, `se-status`, `se-roadmap`.
-- `hooks/hooks.json` + `hooks/run-hook.cmd` + `hooks/{session-start,subagent-start,auto-qa,state-tracker}` — four hooks, one polyglot wrapper. `session-start` also runs the Detect & Defer ecosystem probe (charter/centaur → `state.json.integrations`).
-- `scripts/detect-test.sh` — auto-detects the project's test runner across 8 ecosystems
+- `hooks/hooks.json` + `hooks/run-hook.cmd` + `hooks/{session-start,subagent-start,auto-qa,state-tracker,pre-guard}` — five hooks, one polyglot wrapper. `session-start` also runs the Detect & Defer ecosystem probe (charter/centaur → `state.json.integrations`). `pre-guard` is the PreToolUse barrier: it hard-blocks irreversible git/db ops (standalone only — defers to charter) and enforces the direct-apply 3-file scope limit.
+- `scripts/detect-test.sh` — auto-detects the project's test runner across 8 ecosystems. Other deterministic scripts: `verify-phase.sh` (Tier-1 verification + red-proof), `verify-red-proof.sh` (replays a bug-fix's reproduction commit to prove the red phase), `plan-validate.sh` (pre-flight lint of a plan's `[[ ASK ]]` markers + `risk_gates:` section), `spec-validate.sh`, `state-update.sh`, `validate-commit-msg.sh`.
 - `docs/STATE.md` — reference for the runtime `.se/` directory layout
 - `examples/state/` — populated sample state files for documentation
 - `TESTING.md` — live-testing checklist against a real Claude Code session
@@ -46,7 +46,7 @@ python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"
 python3 -c "import json; json.load(open('hooks/hooks.json'))"
 
 # Bash syntax for every hook script
-for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/run-hook.cmd scripts/detect-test.sh; do
+for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/pre-guard hooks/run-hook.cmd scripts/detect-test.sh scripts/verify-phase.sh scripts/verify-red-proof.sh scripts/plan-validate.sh; do
     bash -n "$f" && echo "✓ $f"
 done
 
