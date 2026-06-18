@@ -35,6 +35,14 @@ MAX_RETRIES=2
 # raise this in 10-line steps.
 TEST_TAIL_LINES=30
 
+# TEST_TIMEOUT rationale: a backstop against a test command that never
+# returns (watch mode, a prompt waiting on stdin, a blocking network call) —
+# without it the Stop hook hangs forever and the only recovery is kill -9.
+# 300s is a ceiling, not a performance SLA: high enough not to kill a slow but
+# legitimate integration suite, low enough to recover a true hang in bounded
+# time. Override with SE_TEST_TIMEOUT for unusually long suites.
+TEST_TIMEOUT="${SE_TEST_TIMEOUT:-300}"
+
 STATE_DIR=".se"
 MARKER="${STATE_DIR}/.needs-verify"
 ATTEMPTS_FILE="${STATE_DIR}/.verify-attempts"
@@ -100,11 +108,53 @@ if [ -z "$TEST_CMD" ]; then
     exit 0
 fi
 
+# Run a shell command with output to a log, bounded by TEST_TIMEOUT. Returns
+# the command's exit code, or 124 (GNU `timeout` convention) if it timed out.
+# Prefers timeout/gtimeout; falls back to a portable bash watchdog because
+# stock macOS ships no timeout binary.
+run_guarded() {
+    local cmd="$1" log="$2" rc=0
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$TEST_TIMEOUT" sh -c "$cmd" > "$log" 2>&1 || rc=$?
+        return "$rc"
+    fi
+    if command -v gtimeout >/dev/null 2>&1; then
+        gtimeout "$TEST_TIMEOUT" sh -c "$cmd" > "$log" 2>&1 || rc=$?
+        return "$rc"
+    fi
+    sh -c "$cmd" > "$log" 2>&1 &
+    local cmd_pid=$!
+    ( sleep "$TEST_TIMEOUT"; kill -KILL "$cmd_pid" 2>/dev/null ) >/dev/null 2>&1 &
+    local watch_pid=$!
+    local rc=0
+    wait "$cmd_pid" 2>/dev/null || rc=$?
+    if kill -0 "$watch_pid" 2>/dev/null; then
+        # Command finished first → cancel the watchdog, return the real code.
+        kill "$watch_pid" 2>/dev/null
+        wait "$watch_pid" 2>/dev/null || true
+        return "$rc"
+    fi
+    # Watchdog fired → the command was killed → timeout.
+    return 124
+}
+
 # Run the tests, capturing output.
 TEST_LOG="${STATE_DIR}/.last-verify.log"
 mkdir -p "$STATE_DIR"
 
-if sh -c "$TEST_CMD" > "$TEST_LOG" 2>&1; then
+TEST_RC=0
+run_guarded "$TEST_CMD" "$TEST_LOG" || TEST_RC=$?
+
+# Timed out → retrying the identical command won't help. Give up and report.
+if [ "$TEST_RC" -eq 124 ]; then
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    TIMEOUT_TAIL=$(tail -"$TEST_TAIL_LINES" "$TEST_LOG" 2>/dev/null || echo "")
+    jq -cn --arg secs "$TEST_TIMEOUT" --arg cmd "$TEST_CMD" --arg tail "$TIMEOUT_TAIL" \
+        '{decision: "block", reason: ("Auto-QA: test command timed out after " + $secs + "s and was killed — it likely hangs (watch mode, a prompt on stdin, or a blocking network call). Command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nDo not just re-run it: make it non-interactive and bounded (CI=1, --watch=false, --run, a test timeout) or tell the user. Re-arm and the Stop hook will re-verify.")}'
+    exit 0
+fi
+
+if [ "$TEST_RC" -eq 0 ]; then
     # Tests passed. Run host-compat sanity check before letting Claude stop —
     # pyproject.toml requires-python can mismatch host Python silently while
     # pytest runs fine in a managed venv. Same for other packaging traps.
