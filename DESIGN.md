@@ -105,14 +105,15 @@ A `SessionStart` hook with `matcher: "startup|resume"` reads `.se/state.json` an
 ### 6. Token Efficiency
 
 - `researcher` → **Haiku** (read-only, fast — a structured codebase scan)
-- `executor`, `verifier` → **Sonnet** (complex judgment). The verifier is
-  read-only but its job — adversarial senior review behind green tests — is the
-  hardest task in the pipeline, not the cheapest. Model matches cognitive load,
-  not write access. It is off the per-turn hot path (the bash `hooks/auto-qa`
-  Stop loop does the cheap per-turn check and never spawns the agent), so the
-  cost lands only on flow-driven phase verification.
-- `planner` → **Opus** (highest leverage — a flawed plan cascades into work even
-  a strong verifier can't fully catch)
+- `executor` → **Sonnet** (complex judgment during implementation)
+- `planner` → **Opus** (highest leverage — a flawed plan cascades into work
+  nothing downstream catches)
+- `verifier` → **Haiku**, but **dormant**: no flow invokes it. Runtime
+  verification is the deterministic `scripts/verify-phase.sh` (criteria count +
+  TDD/red-proof) on the `hooks/auto-qa` Stop path; the flows say "Do Not Invoke
+  Verifier Manually". The agent's adversarial senior-review capability is
+  documented but unwired — a known gap (see "Current known gaps"). Model is
+  inert until a flow uses it; bump to Sonnet then.
 - Read-only agents never get Write/Edit (`disallowedTools` or explicit `tools` allowlist)
 
 ## Directory Layout

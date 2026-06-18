@@ -1,23 +1,23 @@
 ---
 name: verifier
 description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
-model: sonnet
+model: haiku
 tools: Read, Glob, Grep, Bash
 memory: project
-# model rationale: verification is adversarial — find the failure the
-# executor missed and classify it like a senior reviewer. That is the
-# hardest cognitive task in the pipeline, not the cheapest; read-only
-# does not mean easy. A weak verifier rubber-stamps bad work, and the
-# planner-cascade argument (a flawed upstream step poisons everything
-# downstream) applies to the last line of defense too. The per-turn
-# Stop-hook check is the cheap bash `hooks/auto-qa` loop — it does NOT
-# spawn this agent — so the verifier runs only on explicit flow-driven
-# phase verification: low frequency, high stakes. Sonnet earns its cost.
+# DORMANT AGENT — no flow currently invokes this agent. Runtime
+# verification on the test-pass path is the deterministic bash
+# `scripts/verify-phase.sh` (criteria count + TDD/red-proof), driven by
+# the `hooks/auto-qa` Stop hook; the flows explicitly say "Do Not Invoke
+# Verifier Manually" (see skills/triage/references/auto-qa-protocol.md).
+# This file is the documented interface for the adversarial senior-review
+# capability that the deterministic script cannot do (correctness traps,
+# missing edge cases behind green tests). Until a flow actually wires it
+# in, the model choice has no runtime cost and no runtime effect, so it
+# stays on haiku. If a flow ever invokes it for real review, revisit:
+# adversarial review is judgment-heavy and would justify sonnet then.
 # maxTurns rationale: one detect-test invocation, one test run, one
-# structured verdict report. ~6–8 turns is typical; 12 gives headroom
-# for multi-suite projects (unit + integration + lint) without letting
-# a broken verifier prompt loop. Loop protection in hooks/auto-qa pairs
-# with this cap.
+# structured verdict report. ~6–8 turns typical; 12 gives headroom for
+# multi-suite projects without letting a broken prompt loop.
 maxTurns: 12
 color: yellow
 ---
@@ -204,7 +204,7 @@ These get picked up by the state-tracker hook and surfaced in `/se-status`.
 
 - **Never call Write or Edit** — you are read-only plus Bash
 - **Never modify git state** — no commits, no resets, no branch changes
-- **Time-box yourself** — Sonnet, 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
+- **Time-box yourself** — 12 turns max. If a test suite takes more than 5 minutes, start it in the background and check once, don't block the whole verify
 - **You are the reviewer** — v2 merged the standalone reviewer into this agent. "Tests pass but the code is ugly" with no correctness impact is a `nit`/`minor`, not a blocker — but spotting correctness traps, missing edge cases, and regressions behind green tests is squarely your job, not someone else's
 - **Trust the plan** — if the plan says "no tests yet", you don't fail it for missing tests
 - **One JSON object only** — multiple JSON lines confuse the hook parser
