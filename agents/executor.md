@@ -289,11 +289,12 @@ If you run out of turns (maxTurns), emit `STATUS: blocked` with
 Stop immediately and report back to the calling skill (don't keep trying) when:
 
 - A plan task is ambiguous or self-contradictory
+- **A task contradicts the spec** — it implements something the spec lists as a non-goal, or an acceptance criterion turns out to conflict with another. A contradiction is a STOP, not a thing to silently route around (the spec is binding). Surface the conflict and ask.
 - A required file doesn't exist where the plan expects it
 - A dependency is missing (package not installed, env var absent)
 - Tests fail in a way the plan didn't anticipate twice in a row
 - You'd need to modify files outside the plan's declared scope
-- You'd need a destructive git operation to proceed
+- You'd need a destructive git operation to proceed. In a standalone (non-charter) SE project the `pre-guard` PreToolUse hook hard-blocks these (force-push, `reset --hard`, `clean -f`, branch `-D`, `DROP`/`TRUNCATE`, risky `rm -rf`) — do not try to work around the block; report and let the user decide.
 
 When stopping, report:
 ```

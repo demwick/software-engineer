@@ -25,6 +25,14 @@ Escalating is cheap; a wrong shallow guess is not. If it's genuinely small, cont
 
 ## Step 2: Execute
 
+If the project is SE-initialized (`.se/` exists), arm the direct-apply scope tripwire so the `pre-guard` PreToolUse barrier enforces the 3-file limit computationally instead of trusting the model to notice:
+
+```bash
+[ -d .se ] && { : > .se/.direct-apply; : > .se/.direct-files; }
+```
+
+If `pre-guard` blocks the executor's 4th distinct file, that is the signal triage misrouted: stop and escalate to light-plan (`flow-light.md`). The marker is cleared automatically by the Stop hook (and on entry to any planned flow).
+
 Before launching, narrate the handoff in one line so the user can follow who is working:
 
 > `→ executor: <short task>`

@@ -24,6 +24,11 @@ if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; the
     emit_empty
 fi
 
+# Clear transient direct-apply scope markers left over from a prior session
+# (e.g. a blocked direct task that never reached the Stop-hook cleanup). The
+# scope budget must never leak across sessions or into a planned flow.
+rm -f "${STATE_DIR}/.direct-apply" "${STATE_DIR}/.direct-files" 2>/dev/null || true
+
 # Require jq. If missing, pass silently rather than injecting broken JSON.
 command -v jq >/dev/null 2>&1 || emit_empty
 

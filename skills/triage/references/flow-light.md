@@ -15,6 +15,12 @@ You are *mostly* clear. If 1–2 answers would change the implementation materia
 
 ## Step 2: Plan the feature
 
+This is a planned flow, not direct-apply — clear any leftover direct-apply scope markers so the `pre-guard` tripwire never fires on a phase's executor:
+
+```bash
+rm -f .se/.direct-apply .se/.direct-files
+```
+
 Narrate the handoff first: `→ planner: <feature> plan`.
 
 Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc slice. Pass the user's request plus any answers from Step 1. The planner writes:

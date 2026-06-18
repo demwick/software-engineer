@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# software-engineer
+# Copyright (C) 2026 demwick
+# Licensed under the GNU Affero General Public License v3.0 or later.
+# See LICENSE in the repository root for the full license text.
+#
+# PreToolUse hook for software-engineer. Two computational safety gates that
+# replace prose-only "the model should stop" instructions with a real barrier:
+#
+#   C) Destructive-op guard (Bash) — blocks irreversible git/db operations
+#      (force-push, reset --hard, clean -fd, branch -D, DROP TABLE/DATABASE,
+#      guarded rm -rf). Detect & Defer: silent when claude-charter is present
+#      (charter owns destructive guardrails via its own PreToolUse hook) and
+#      only active in SE-managed projects (.se/state.json exists), matching
+#      the state-tracker scoping — the plugin guards projects it drives, not
+#      every repo the user opens.
+#
+#   D) Direct-apply scope tripwire (Edit|Write) — when a direct-apply task is
+#      active (.se/.direct-apply marker), counts distinct files touched and
+#      blocks the 4th. >3 files means triage misrouted a larger task as
+#      direct-apply; the block forces an escalation to light-plan.
+#
+# Blocking contract: exit 2 with a reason on stderr tells Claude Code to deny
+# the tool call and feed the reason back to the model. Any other failure path
+# exits 0 (fail-open) — a guard bug must never break a working session.
+
+set -uo pipefail
+
+DIRECT_MAX_FILES=3
+STATE_DIR=".se"
+STATE_FILE="${STATE_DIR}/state.json"
+
+INPUT=$(cat 2>/dev/null || echo "{}")
+
+# Fail open if we can't reason about the input, or this isn't an SE project.
+command -v jq >/dev/null 2>&1 || exit 0
+[ -f "$STATE_FILE" ] || exit 0
+
+TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+
+case "$TOOL" in
+    Bash)
+        # Detect & Defer: charter owns destructive guardrails when present.
+        if [ -d ".claude/knowledge/charter" ]; then exit 0; fi
+        if [ "$(jq -r '.integrations.charter // false' "$STATE_FILE" 2>/dev/null || echo false)" = "true" ]; then
+            exit 0
+        fi
+
+        CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+        [ -n "$CMD" ] || exit 0
+
+        REASON=""
+        if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+(--force-with-lease|--force|-f)\b'; then
+            REASON="force-push rewrites published history"
+        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+--delete\b'; then
+            REASON="git push --delete removes a remote ref"
+        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+reset[[:space:]]+--hard'; then
+            REASON="git reset --hard discards uncommitted work"
+        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+clean[[:space:]]+-[a-z]*f'; then
+            REASON="git clean -f deletes untracked files irreversibly"
+        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+branch[[:space:]]+(-D|--delete[[:space:]]+--force|-[a-zA-Z]*D)'; then
+            REASON="git branch -D force-deletes a branch"
+        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+tag[[:space:]]+-d'; then
+            REASON="git tag -d deletes a tag"
+        elif printf '%s' "$CMD" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
+            REASON="a destructive SQL statement (DROP/TRUNCATE) is irreversible"
+        elif printf '%s' "$CMD" | grep -Eq 'rm[[:space:]]+-[a-z]*r[a-z]*f|rm[[:space:]]+-[a-z]*f[a-z]*r'; then
+            # rm -rf: block dangerous targets, allow common build/cache dirs.
+            if printf '%s' "$CMD" | grep -Evq 'node_modules|/dist|/build|/target|\.venv|__pycache__|\.pytest_cache|/coverage|\.next|\.turbo'; then
+                REASON="rm -rf on a non-cache path can destroy work"
+            fi
+        fi
+
+        if [ -n "$REASON" ]; then
+            printf 'software-engineer guard: blocked an irreversible command (%s).\nCommand: %s\nThis is a standalone safety gate (no claude-charter installed). If this is intended, ask the user to run it themselves with the `!` prefix, or confirm explicitly before proceeding.\n' \
+                "$REASON" "$CMD" >&2
+            exit 2
+        fi
+        exit 0
+        ;;
+
+    Write|Edit)
+        MARKER="${STATE_DIR}/.direct-apply"
+        [ -f "$MARKER" ] || exit 0
+
+        FP=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+        [ -n "$FP" ] || exit 0
+
+        FILES="${STATE_DIR}/.direct-files"
+        touch "$FILES" 2>/dev/null || exit 0
+
+        # Already counted this file → within an existing budget slot, allow.
+        if grep -Fxq "$FP" "$FILES" 2>/dev/null; then exit 0; fi
+
+        COUNT=$(grep -c . "$FILES" 2>/dev/null) || COUNT=0
+        PROSPECTIVE=$(( COUNT + 1 ))
+        if [ "$PROSPECTIVE" -gt "$DIRECT_MAX_FILES" ]; then
+            printf 'software-engineer guard: direct-apply scope exceeded (%s distinct files, limit %s).\nThis task touches more files than a direct task should — triage likely misrouted it. Stop, escalate to light-plan: write a spec + plan (read skills/triage/references/flow-light.md), then resume.\n' \
+                "$PROSPECTIVE" "$DIRECT_MAX_FILES" >&2
+            exit 2
+        fi
+
+        printf '%s\n' "$FP" >> "$FILES"
+        exit 0
+        ;;
+
+    *)
+        exit 0
+        ;;
+esac

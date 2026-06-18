@@ -47,8 +47,18 @@ Recovery: the user chooses; the flow resumes on the selected path.
 
 In this plugin: **risk gates** (HIGH findings → explicit "confirm" required),
 the executor's `gate` status (`gate-pending.json` confirmation), spec
-contradictions (`_common.md` Rule 2 "Manage Confusion Actively"), and the
-auto-QA hook giving up after 2 retries and reporting to the user.
+contradictions (`_common.md` Rule 2 + the executor's explicit "task contradicts
+the spec" STOP condition), and the auto-QA hook giving up after 2 retries and
+reporting to the user.
+
+Most of these escalation gates are still **model-compliance** gates — the model
+must choose to honor them. Two now have a **computational backstop** in the
+`pre-guard` PreToolUse hook so they hold even if the model doesn't: irreversible
+git/db operations are hard-blocked (exit 2) in standalone SE projects (deferred
+to charter when present), and the direct-apply 3-file scope limit is enforced on
+the executor's edits so a triage misroute trips a real barrier instead of a
+prose warning. The rest (risk_gate confirmation, spec contradiction) are not yet
+computationally enforced — a known limit, not a solved one.
 
 ### 4. Abort — stop to prevent damage or waste
 
