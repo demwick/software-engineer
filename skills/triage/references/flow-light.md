@@ -74,9 +74,10 @@ Launch the `executor` agent with the plan path, the plan's context, and resume c
 ```bash
 mkdir -p .se && : > .se/.needs-verify
 printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used for the spec/plan/progress paths above
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-verify-strategy.sh" .se/phases/phase-<slug>/plan.md > .se/.verify-strategy
 ```
 
-`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. `.verify-strategy` carries the **phase-level** verification strategy that `resolve-verify-strategy.sh` infers from the plan (`test` for a code phase, `spec-check` for a docs/markdown phase, `eval` when the project has an eval harness, `none` for pure config); absent or unreadable resolves to `test`, the unchanged behavior. The Stop hook honors it: `test` runs the test runner + red-proof, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`; the other strategies verify accordingly. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
 ## Step 6: Act decision (two-tier verification feedback)
 

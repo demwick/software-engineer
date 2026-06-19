@@ -27,8 +27,14 @@ signal is not overloaded with the "how many retries already?" counter.
   via an atomic jq + mv into a temp file, and deletes the file on
   any terminal state (pass, loop-protection give-up, hard give-up,
   host-compat fail).
+- **`.se/.verify-strategy`** — the phase-level verification strategy
+  (`test` | `eval` | `spec-check` | `none`). The flow writes it when
+  arming, via `scripts/resolve-verify-strategy.sh <plan>`. Absent or
+  unreadable → `test` (the unchanged behavior). The hook reads it,
+  dispatches accordingly, and clears it on any terminal state.
 
-Skills arm auto-QA by touching the marker only. Never write a
+Skills arm auto-QA by touching the marker only (plus the optional
+`.verify-strategy` write via the resolver script). Never write a
 number into `.needs-verify`, never create `.verify-attempts`
 yourself — both are owned by the hook.
 
