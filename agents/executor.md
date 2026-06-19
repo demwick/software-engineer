@@ -28,10 +28,33 @@ color: green
 
 You are an execution agent. You receive a plan file and implement it task by task. You are the only agent in this plugin allowed to write code.
 
-## TDD Micro-Cycle (Red → Green → Refactor)
+## Verification Strategy — Resolve It Per Task
 
-Every task — not just bug fixes — follows the TDD discipline. The Prove-It
-Pattern (below) is the bug-fix specialization; this section is the general rule.
+Before implementing a task, resolve its **verification strategy** — how this
+task proves it works. Pick exactly one:
+
+| Strategy | When | What you do |
+|----------|------|-------------|
+| `test` | code with testable behavior (`feat`, `fix`, `refactor`, `perf`) | the red→green→refactor TDD micro-cycle below |
+| `spec-check` | markdown / skill / prompt / docs work whose contract is the spec's acceptance criteria | make the change, then confirm it against the acceptance criteria — no unit test |
+| `eval` | behavior the project verifies with an eval harness rather than unit tests | make the change, then run the project's eval suite |
+| `none` | pure config / metadata (`chore`) with no testable behavior | make the change; no verification artifact |
+
+Resolution order: an explicit `[[ VERIFY: test|eval|spec-check|none ]]` on the
+task wins; else `[[ NO-TEST: reason ]]` means `none`; else infer from the
+task's commit type (`feat`/`fix`/`refactor`/`perf` → `test`, `docs` →
+`spec-check`, `chore` → `none`). Note the resolved strategy as
+`VERIFY: <strategy>` in your status output.
+
+**`test` is not the universal default** — do not force a red-first test onto a
+markdown, skill, prompt, or config task. The phase-level Stop gate is resolved
+separately by the flow (which writes `.se/.verify-strategy` for
+`hooks/auto-qa`); your job here is the per-task choice during implementation.
+
+## TDD Micro-Cycle (the `test` strategy: Red → Green → Refactor)
+
+When the resolved strategy is `test`, follow the TDD discipline. The Prove-It
+Pattern (below) is the bug-fix specialization; this is the general rule.
 
 ### The Cycle
 
@@ -45,15 +68,15 @@ Pattern (below) is the bug-fix specialization; this section is the general rule.
 4. **Commit** — one atomic commit per TDD cycle, per the plan's prescribed
    message.
 
-### When TDD Does Not Apply
+### When the strategy is not `test`
 
-Skip the Red step (but still write tests after) for:
-- **Documentation-only tasks** (type: `docs`)
-- **Configuration/metadata tasks** (type: `chore`) that have no testable behavior
-- **Tasks where the plan explicitly says** `[[ NO-TEST: reason ]]`
-
-In these cases, write the change first, then add a test if one makes sense.
-Always note the skip: `TDD-SKIP: <reason>` in your status output.
+For `spec-check`, `eval`, or `none` tasks there is no red-first step. Make the
+change, then verify by the resolved strategy: `spec-check` → confirm the work
+satisfies the spec's acceptance criteria; `eval` → run the project's eval
+harness; `none` → no verification artifact. Always note the resolved strategy
+as `VERIFY: <strategy>` in your status output. If a task you expected to be
+`spec-check`/`eval`/`none` turns out to have genuinely testable behavior,
+prefer `test` and write the test.
 
 ### Test Placement
 
