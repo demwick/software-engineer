@@ -13,6 +13,31 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Added
+
+- **Pluggable verification strategy.** Each task now resolves one of
+  `test | eval | spec-check | none` instead of being forced through a red-first
+  TDD cycle. Code keeps the real TDD discipline (red→green→refactor + red-proof);
+  markdown / skill / prompt / config work verifies against the spec's acceptance
+  criteria (`spec-check`), a project eval harness (`eval`), or skips (`none`).
+  New deterministic scripts: `resolve-verify-strategy.sh` (phase-level inference
+  from a plan), `detect-eval.sh` (eval-harness discovery), `spec-check.sh`
+  (structural, non-semantic spec verification). `hooks/auto-qa` honors the
+  flow-written `.se/.verify-strategy` marker and degrades `eval → spec-check`
+  when no harness exists. Absent marker resolves to `test` — the prior behavior
+  is byte-for-byte unchanged, and every existing eval still passes.
+- `docs/speckit-integration.md` — design + decision record for composing with
+  GitHub Spec Kit. **Deferred, not implemented:** Spec Kit and this plugin
+  overlap on the spec lifecycle, and the integration only pays off in the
+  (currently empty) intersection of projects running both. Recorded so the
+  research isn't lost; revisit when a real Spec-Kit-plus-`se` project appears.
+
+### Changed
+
+- README and `executor.md` no longer claim "TDD micro-cycle — no exceptions."
+  TDD is now described as the `test` strategy; non-code tasks verify differently.
+  No test-after work is relabeled as TDD.
+
 ## [4.4.0] — 2026-06-18
 
 Closes a self-audit of the verification and safety layers: capabilities that
