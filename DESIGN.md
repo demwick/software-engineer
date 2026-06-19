@@ -231,3 +231,19 @@ Adopt a two-layer cycle:
 - New state artifacts: `.se/specs/`, `.se/verification/`. Both documented in `docs/STATE.md`.
 - `scripts/spec-validate.sh` and `scripts/validate-commit-msg.sh` added for deterministic validation.
 - Backward compatible: pre-v3.1.0 phases without specs or verification files degrade gracefully with warnings.
+
+### Amendment (2026-06-19): TDD generalized into a verification-strategy resolver
+
+The "inner loop" above is now the `test` *strategy* of a per-task resolver, not
+a universal rule. The original `[[ NO-TEST ]]` skip-path was too coarse: it
+silenced verification on docs/config but offered nothing for markdown / skill /
+prompt work, where the real verification artifact is the spec's acceptance
+criteria or an eval — not a red-first unit test. Each task now resolves one of
+`test | eval | spec-check | none` (explicit `[[ VERIFY ]]` > `[[ NO-TEST ]]` >
+commit-type inference). `test` keeps the full Red → Green → Refactor + red-proof
+discipline unchanged; the phase-level Stop gate honors a `.se/.verify-strategy`
+marker the flow writes via `scripts/resolve-verify-strategy.sh`. Absent marker
+resolves to `test`, so pre-amendment behavior is byte-for-byte preserved. This
+does **not** relabel test-after as TDD — the non-`test` strategies are
+explicitly not TDD. See `docs/speckit-integration.md` for the related
+(deferred) Spec Kit composition.
