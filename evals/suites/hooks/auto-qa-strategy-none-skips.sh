@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/evals/lib/assert.sh"
+require_jq
 source "$REPO_ROOT/evals/lib/fixtures.sh"
 
 # node-basic has a passing test; strategy=none must skip it entirely anyway.

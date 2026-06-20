@@ -7,6 +7,16 @@ _fail() {
     exit 1
 }
 
+# require_jq — skip the suite (exit 99) when jq is not installed, instead of
+# producing a false FAIL. evals/run.sh treats exit 99 as SKIP. Call this right
+# after sourcing the libs in any suite whose assertions need jq.
+require_jq() {
+    command -v jq >/dev/null 2>&1 || {
+        printf 'SKIP: jq not installed (brew install jq / apt-get install jq)\n' >&2
+        exit 99
+    }
+}
+
 assert_eq() {
     local expected="$1" actual="$2" message="${3:-assert_eq}"
     if [[ "$expected" != "$actual" ]]; then

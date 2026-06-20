@@ -12,8 +12,11 @@ SE_BEHAVIORAL_EVALS=1 bash evals/suites/behavioral/triage-routing.sh
 ```
 
 Without `SE_BEHAVIORAL_EVALS=1` (or without `claude` on PATH) the suite prints a
-`skip:` line and exits 0 — so `bash evals/run.sh` stays green in CI and the
-auto-discovery harness treats the suite as a no-op pass.
+`skip:` line and exits **99**, which `bash evals/run.sh` reports as an explicit
+`SKIP` (not a silent pass) — so the default gate stays green while the skip is
+honestly accounted. The **deterministic** behavioral suites in this directory
+(`executor-verification-fires`, `red-proof-catches-theater`, `stop-gate-blocks`)
+do run in the default gate; only this LLM-in-the-loop routing suite is opt-in.
 
 ## What it does
 
