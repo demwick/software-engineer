@@ -7,7 +7,7 @@
 
 # Hardening plan — Phase 0 discovery & design
 
-**Date: 2026-06-20. Status: awaiting approval.**
+**Date: 2026-06-20. Status: implemented (Fix 1 + Fix 2 + Fix 4-gap shipped; Fix 3/4 pre-existing on this branch).**
 
 ## Discrepancy flag (read first)
 

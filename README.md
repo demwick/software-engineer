@@ -198,7 +198,7 @@ You rarely type these — the entry is natural language. They exist for direct a
 
 - **Claude Code** ≥ 2.1
 - **bash** — macOS/Linux built-in; Windows: Git for Windows
-- **jq** — `brew install jq` / `apt-get install jq` (hooks degrade gracefully if missing)
+- **jq** — `brew install jq` / `apt-get install jq`. Optional but recommended: the hooks degrade gracefully without it (each guards `command -v jq` and no-ops cleanly), and the eval suite reports jq-dependent suites as an explicit `SKIP` rather than a false failure when jq is absent.
 - **git** — the executor commits atomically; most of the value comes from this
 
 No Node, Python, or Go runtime required for the plugin itself.
