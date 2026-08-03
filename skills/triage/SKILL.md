@@ -1,6 +1,7 @@
 ---
 name: triage
-description: The single entry point for ALL software-engineering work in a SE-managed or candidate project. **Use this skill aggressively whenever** the user describes engineering work in natural language — "fix this button", "add auth", "build me a SaaS", "I have an idea", "finish this project", "implement X", "refactor Y", "make it work", "clean this up", "ship a feature". Triage reads the request, classifies it on two axes (uncertainty × scope), and routes — invisibly to the user — into the right depth of flow: direct-apply, light-plan, or full-flow. Do NOT make the user pick a mode; that decision is yours. This skill does NOT handle pure read-only asks — "where am I"/"status" → use `/se-status`; "audit"/"what's broken" → use `/se-diagnose`; "show/edit the roadmap" → use `/se-roadmap`.
+description: >-
+  The single entry point for ALL software-engineering work in a SE-managed or candidate project. **Use this skill aggressively whenever** the user describes engineering work in natural language — "fix this button", "add auth", "build me a SaaS", "I have an idea", "finish this project", "implement X", "refactor Y", "make it work", "clean this up", "ship a feature". Triage reads the request, classifies it on two axes (uncertainty × scope), and routes — invisibly to the user — into the right depth of flow: direct-apply, light-plan, or full-flow. Do NOT make the user pick a mode; that decision is yours. This skill does NOT handle pure read-only asks — "where am I"/"status" → use `/se-status`; "audit"/"what's broken" → use `/se-diagnose`; "show/edit the roadmap" → use `/se-roadmap`.
 argument-hint: [the engineering request, in natural language]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

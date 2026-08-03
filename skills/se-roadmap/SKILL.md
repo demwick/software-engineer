@@ -1,6 +1,7 @@
 ---
 name: se-roadmap
-description: View or edit the SE project roadmap — verbs: `show`, `add <desc>`, `remove <N>`, `move <N> <to>`, `rename <N> <new>`. Refuses to modify done phases (they're immutable history). **Use this skill whenever** the user asks any of "show roadmap", "list phases", "add a phase", "remove that phase", "reorder", "rename phase N", "change the plan", or wants to tweak the phase list without re-bootstrapping the whole project. Also use when /se-diagnose surfaces 4+ priority actions that should become their own phase.
+description: >-
+  View or edit the SE project roadmap — verbs: `show`, `add <desc>`, `remove <N>`, `move <N> <to>`, `rename <N> <new>`. Refuses to modify done phases (they're immutable history). **Use this skill whenever** the user asks any of "show roadmap", "list phases", "add a phase", "remove that phase", "reorder", "rename phase N", "change the plan", or wants to tweak the phase list without re-bootstrapping the whole project. Also use when /se-diagnose surfaces 4+ priority actions that should become their own phase.
 argument-hint: [show | add <description> | remove <N> | move <N> <to> | rename <N> <new-name>]
 allowed-tools: Read, Write, Edit, Glob, Bash
 ---

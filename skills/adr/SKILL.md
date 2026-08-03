@@ -1,6 +1,7 @@
 ---
 name: adr
-description: Record an Architecture Decision Record when a significant technical decision is made — database choice, auth strategy, sync vs async, monolith vs services, a framework or protocol commitment, anything expensive to reverse. **Invoked automatically by `/triage`'s full-flow** when the spec's trade-offs contain a real architectural fork, and usable directly when the user says "record this decision", "write an ADR", "document why we chose X". Writes a numbered, versioned record. Location is conditional: if claude-charter is installed it writes into `.claude/knowledge/adr/` in charter's template; otherwise into `.se/adr/`.
+description: >-
+  Record an Architecture Decision Record when a significant technical decision is made — database choice, auth strategy, sync vs async, monolith vs services, a framework or protocol commitment, anything expensive to reverse. **Invoked automatically by `/triage`'s full-flow** when the spec's trade-offs contain a real architectural fork, and usable directly when the user says "record this decision", "write an ADR", "document why we chose X". Writes a numbered, versioned record. Location is conditional: if claude-charter is installed it writes into `.claude/knowledge/adr/` in charter's template; otherwise into `.se/adr/`.
 argument-hint: [the decision to record]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
