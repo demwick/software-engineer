@@ -63,7 +63,7 @@ Check `.se/phases/phase-<slug>/progress.json`:
 
 Narrate the handoff first: `→ executor: <feature>` (add `· resuming task <n>` when resuming).
 
-Launch the `executor` agent with the plan path, the plan's context, and resume context if any. Include the **must-have facts** it must confirm concretely in its exit report (tests fail-then-pass with output, each acceptance criterion met) — a vague "done" is not evidence, see `_common.md` Rule 7. It returns `STATUS: done`, `blocked`, or `gate`.
+Launch the `executor` agent with the plan path, the plan's context, and resume context if any. **Brief it with the intent, not just the plan**: one sentence on what the user is ultimately trying to achieve and what the output enables — an executor that knows *why* connects the tasks to the goal instead of inferring it, and makes better routine judgment calls when the plan under-specifies. Include the **must-have facts** it must confirm concretely in its exit report (tests fail-then-pass with output, each acceptance criterion met) — a vague "done" is not evidence, see `_common.md` Rule 7. It returns `STATUS: done`, `blocked`, or `gate`.
 
 - **blocked** → surface verbatim, stop. Recommend an external debugging skill if installed.
 - **gate** → surface the `gate-pending.json` confirmation prompt, wait for explicit confirmation, then re-launch with *"Resume from gate at task \<id\>. User confirmed."* Never auto-confirm.
