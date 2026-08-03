@@ -13,6 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.5.0] — 2026-08-03
+
 ### Changed
 
 - **No agent pins a model; cost is steered with `effort`.** All four agents move
@@ -51,6 +53,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   two or three assumptions before every non-trivial action buried the one that
   mattered. The rule now scopes itself to assumptions whose being wrong would
   change what gets built.
+- README and `executor.md` no longer claim "TDD micro-cycle — no exceptions."
+  TDD is now described as the `test` strategy; non-code tasks verify differently.
+  No test-after work is relabeled as TDD.
+- **jq is now a true optional dependency.** `evals/run.sh` treats suite exit
+  code 99 as an explicit `SKIP` (separate counter), and jq-dependent suites call
+  `require_jq` to skip rather than emit a false `FAIL` when jq is absent.
+  `check-coverage.sh` (the one unguarded script) now degrades to an empty-coverage
+  JSON instead of crashing. Hooks already guarded jq; the README claim is now
+  true end-to-end and documented.
 
 ### Added
 
@@ -79,18 +90,6 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
   `stop-gate-flags-theater` (a passing suite with a theater reproduction still
   lands status=partial + a finding). The LLM-in-the-loop triage-routing suite
   stays opt-in (`SE_BEHAVIORAL_EVALS=1`).
-
-### Changed
-
-- README and `executor.md` no longer claim "TDD micro-cycle — no exceptions."
-  TDD is now described as the `test` strategy; non-code tasks verify differently.
-  No test-after work is relabeled as TDD.
-- **jq is now a true optional dependency.** `evals/run.sh` treats suite exit
-  code 99 as an explicit `SKIP` (separate counter), and jq-dependent suites call
-  `require_jq` to skip rather than emit a false `FAIL` when jq is absent.
-  `check-coverage.sh` (the one unguarded script) now degrades to an empty-coverage
-  JSON instead of crashing. Hooks already guarded jq; the README claim is now
-  true end-to-end and documented.
 
 ## [4.4.0] — 2026-06-18
 
