@@ -29,7 +29,11 @@ A Claude Code native plugin that automates core software engineering responsibil
 ## Hard rules
 
 1. **Native APIs only.** Skills, subagents, hooks, and `.claude-plugin/plugin.json` — nothing else. No MCP servers, no custom runtime, no external dependencies beyond `bash`, `jq`, and `git`.
-2. **Token efficiency matters; match the model to cognitive load.** Use Haiku for the read-only/fast-turn agent (`researcher`), Sonnet for judgment-heavy execution (`executor`), Opus for the highest-leverage planning agent (`planner`) — a flawed plan cascades into work nothing downstream catches. Read-only agents must never get `Write` or `Edit`. **`verifier` is Sonnet** because verification is two-tier: Tier 1 is the deterministic `scripts/verify-phase.sh` on the `hooks/auto-qa` Stop path (tests + criteria + red-proof, every turn, no agent); Tier 2 is the `verifier` agent's adversarial senior review, invoked by the flow's **Act step once per planned phase** (never per turn, never in the Stop loop, never for direct-apply). Judgment-heavy + low-volume + high-stakes = Sonnet. The two tiers write separate files (`phase-<id>.json`, `review-<id>.json`).
+2. **Never pin a model; steer cost with `effort`.** Every agent is `model: inherit` and carries an explicit `effort` level: `researcher` low (breadth-bound read-only survey), `executor` medium (executes against a plan it didn't have to derive), `verifier` medium (judgment-heavy but narrow), `planner` high (a flawed plan cascades into work nothing downstream catches — the one place worth paying depth for). Read-only agents must never get `Write` or `Edit`.
+
+   Pinning a tier is an active override of the frontmatter default (`inherit`) and it fails two ways. It **downgrades** silently: a session on a higher tier still gets its executor on the pinned one. And it **inverts the review invariant**: a `verifier` pinned below the model that wrote the code rubber-stamps it — the same constraint the API enforces for the advisor tool, where an advisor below the executor is rejected outright. `inherit` makes "reviewer >= author" structural instead of a bet on one tier staying ahead. It is also what Hard Rule 3 requires: choosing the model *for* the user is a preference the user did not set.
+
+   This replaces the pre-`effort` allocation (Haiku for read-only, Sonnet for execution, Opus for planning). That scheme controlled cost by dropping capability, which was the only lever available before `effort` existed; Anthropic's own built-in `Explore` agent made the same move away from a hard Haiku pin to inheritance. Verification is still two-tier and that is unchanged: Tier 1 is the deterministic `scripts/verify-phase.sh` on the `hooks/auto-qa` Stop path (tests + criteria + red-proof, every turn, no agent); Tier 2 is the `verifier` agent's adversarial senior review, invoked by the flow's **Act step once per planned phase** (never per turn, never in the Stop loop, never for direct-apply). The two tiers write separate files (`phase-<id>.json`, `review-<id>.json`).
 3. **Zero configuration.** Never ask the user to edit a settings file, pick a model, or set a preference. Auto-detect everything (test runner, project type, mode).
 4. **Lean on platform built-ins.** Cross-session memory → subagent `memory: project` field. Auto-QA loop → `Stop` hook with `decision: "block"`. Context injection → `SessionStart` hook with `additionalContext`. Never reinvent these with custom scripts.
 5. **Single entry, depth chosen by triage.** `triage` is the one auto-invocable entry point; it classifies intent and routes to a flow reference. The user never picks a mode. Irreversible steps still surface before they happen (risk gates, spec contradictions, ADR-worthy decisions) — that protection moved from per-command `disable-model-invocation` into the flow logic, it did not disappear. Read-only helpers (`diagnose`, `status`, `roadmap`) stay auto-invocable.
@@ -117,7 +121,7 @@ The plugin exists to drive **other** projects, not to drive its own development.
 Read `DESIGN.md`. It explains *why* each architectural decision was made. If a proposed change contradicts a decision there, the change should come with an update to `DESIGN.md` that explains what changed and why.
 
 <!-- BEGIN claude-charter (managed block — do not edit by hand) -->
-<!-- charter version: charter-v0.1.2 -->
+<!-- charter version: charter-v0.1.4 -->
 <!--
   claude-charter CLAUDE.md
   This file is a layered, versioned instruction contract for AI agents
@@ -128,7 +132,7 @@ Read `DESIGN.md`. It explains *why* each architectural decision was made. If a p
   by design. Do not collapse this into a single prose section.
 -->
 
-<system_policy version="charter-v0.1.2">
+<system_policy version="charter-v0.1.4">
 
   <role>
     You are a senior software engineer operating inside a project governed by
@@ -157,8 +161,14 @@ Read `DESIGN.md`. It explains *why* each architectural decision was made. If a p
        (cat, sed, find, grep).
     5. Verify any non-trivial result with the cheapest meaningful check
        (run the test, run the lint, read the output) before reporting success.
+       One meaningful check is the bar — do not stack re-verification passes
+       on work a check has already confirmed.
     6. If blocked, ask only for the single missing fact that materially
        changes the outcome.
+    7. When you have enough information to act, act. Do not re-derive facts
+       already established in the conversation, re-litigate a decision the
+       user has already made, or survey options you will not pursue. If you
+       are weighing a choice, give a recommendation, not an inventory.
   </operating_policy>
 
   <tool_policy>
@@ -296,7 +306,16 @@ Read `DESIGN.md`. It explains *why* each architectural decision was made. If a p
     - Do not summarize the diff the user already sees.
     - Do not mark a task complete without running the relevant verification
       step.
+
+    The shortcuts above have a mirror image — over-doing is a failure the
+    same way under-doing is:
+    - Do not re-verify work that a meaningful check already confirmed;
+      stacked verification passes add cost, not confidence.
+    - Do not pause to ask about a routine judgment call you could make and
+      record; save the question for a genuine fork or an irreversible step.
+    - Do not end a turn on a promise ("I'll now run the tests") — run them.
   </known_failure_patterns>
+
 
 </system_policy>
 
@@ -313,73 +332,71 @@ the lower-priority one rather than merging them.
 </instruction_precedence>
 
 <skills_index>
-These skills encode procedural rules for common task types. **You MUST
-invoke the matching skill via the `Skill` tool BEFORE the first `Read`,
-`Write`, `Edit`, `Grep`, `Glob`, or `Bash` tool call on any task whose
-type matches a trigger below.** This is a precondition, not a suggestion.
-
-Allowed orientation calls before skill invocation: a single `pwd` / `ls`
-/ `Read` of an obviously central file (`README.md`, the explicit task
-target) to confirm you are in the right workspace. Anything beyond that
-requires the matching skill first.
+These skills encode this project's procedures for common task types.
+Invoke a skill via the `Skill` tool when the task ahead matches its
+condition, before the substantive work begins — orientation reads to
+understand what the task even is come first, and need no skill.
 
 - **Quality & Testing** → `.claude/skills/quality/SKILL.md`
-  Triggers: any task whose intent is "fix", "add", "implement", "make
-  it work", "make tests pass", "resolve", "change", "refactor", or any
-  task that will produce a commit.
+  Invoke when: the task will change code behavior or produce a commit —
+  fixing, adding, implementing, refactoring.
+  Skip when: the task is read-only (explaining, exploring, answering a
+  question) or touches only prose/docs with no behavior to verify.
 - **Git & Ops** → `.claude/skills/git-ops/SKILL.md`
-  Triggers: "commit", "branch", "push", "PR", "pull request", "merge",
-  "rebase", "stage", "tag", "release".
+  Invoke when: you are about to create a branch, stage files, write a
+  commit, or open a PR.
+  Skip when: git is only being *read* (log, blame, diff inspection).
 - **Context Gathering** → `.claude/skills/context-gathering/SKILL.md`
-  Triggers: any task that touches code you have not already read this
-  session. This covers bug fixes, feature additions, modifications,
-  explanations, and refactors — which is most substantive tasks.
+  Invoke when: the task modifies or reasons about code you have not
+  read this session.
+  Skip when: you already read the affected files this session, or the
+  task doesn't touch project code at all.
 - **Security Review** → `.claude/skills/security-review/SKILL.md`
-  Triggers: any change touching authentication, authorization, sessions,
-  secrets, API keys, user input parsing, file uploads, SQL/NoSQL
+  Invoke when: the change touches authentication, authorization,
+  sessions, secrets, user input parsing, file uploads, SQL/NoSQL
   queries, shell command construction, serialization, template
   rendering, or network boundaries.
+  Skip when: none of those surfaces appear in the change.
 
-If more than one trigger matches, invoke every matching skill — not
-just the first one. Skill invocation is cheap; bypassing a procedure
-is expensive.
+If more than one condition matches, invoke every matching skill. A
+matched skill is a procedure to follow, not a checkbox — apply what it
+prescribes to the work that follows.
 
-**Known failure pattern named explicitly:** do not read this block,
-understand that skills exist, and then skip invocation because the task
-"looks simple" or because the description "doesn't match exactly".
-Phase B Run 1 (2026-04-15, charter v0.1.1, multi-mind real codebase)
-observed exactly this rationalization: the agent loaded the skill
-descriptions into context, recognized they existed, and still went
-straight to `Grep`/`Glob` without ever invoking a skill. If a task
-requires any code understanding, invoke `context-gathering` before the
-first read. If in doubt, invoke.
+The judgment call is yours, and it cuts both ways: skipping a matched
+skill because the task "looks simple" is the failure mode this index
+exists to prevent (simple-looking tasks regress the same way complex
+ones do), while invoking skills a task doesn't need buries the work in
+ceremony. When genuinely unsure whether a condition matches, invoke —
+one read is cheaper than a skipped procedure.
 
-A `UserPromptSubmit` hook at `scripts/prompt-router.sh` augments this
-block by pattern-matching your prompt and injecting a list of matching
-skills as additional context. Follow that list. If the hook and this
-index disagree, invoke every skill named in either — cheaper than
-litigating.
+A `UserPromptSubmit` hook at `scripts/prompt-router.sh` additionally
+pattern-matches your prompt and injects a list of likely-matching
+skills. Treat that list as routing advice from a keyword matcher:
+invoke what actually applies to the task; if an entry is a clear false
+positive (a keyword collision, e.g. "push" in "push notification"),
+skip it and say so in one clause — the stated reason is the audit
+trail.
 </skills_index>
 
 <commands_index>
 Commands the user can invoke via slash or natural language:
 
-- `workspace:health` — run the 12-point self-audit on this charter.
-- `workspace:verify` — run as adversarial verifier on the last change.
-- `workspace:adr` — draft an ADR for the most recent architectural decision.
-- `workspace:deploy` — run health checks, then open a PR for review.
+- `/health` — run the 12-point self-audit on this charter.
+- `/verify` — run as adversarial verifier on the last change.
+- `/adr` — draft an ADR for the most recent architectural decision.
+- `/deploy` — run health checks, then open a PR for review.
 </commands_index>
 
 <plugin_integration optional="true">
-If the `software-engineer` plugin is installed in this Claude Code
+If the `software-engineer` engine is installed in this Claude Code
 environment, prefer its specialist commands where they exist:
 
-- `/software-engineer:diagnose` is richer than `workspace:health`.
+- `/software-engineer:diagnose` is richer than `/health`.
 - `/software-engineer:go` can orchestrate multi-phase work that
   charter skills only document procedurally.
 - If `.se/state.json` exists, read it for current session mode and phase.
 
-If the plugin is not installed, every charter command works standalone.
-Do not require the plugin for any charter feature.
+If the engine is not installed, every charter command works standalone.
+Do not require the engine for any charter feature.
 </plugin_integration>
 <!-- END claude-charter -->

@@ -104,19 +104,43 @@ A `SessionStart` hook with `matcher: "startup|resume"` reads `.se/state.json` an
 
 ### 6. Token Efficiency
 
-- `researcher` → **Haiku** (read-only, fast — a structured codebase scan)
-- `executor` → **Sonnet** (complex judgment during implementation)
-- `planner` → **Opus** (highest leverage — a flawed plan cascades into work
-  nothing downstream catches)
-- `verifier` → **Sonnet** (Tier 2 of two-tier verification). Tier 1 is the
-  deterministic `scripts/verify-phase.sh` (tests + criteria + TDD/red-proof) on
-  the `hooks/auto-qa` Stop path — every turn, no agent. Tier 2 is this agent's
-  adversarial senior review (correctness traps, edge cases, regressions behind
-  green tests), invoked by the flow's Act step **once per planned phase**, only
-  after Tier 1 passes, never in the Stop loop, never for direct-apply. Low
-  volume + high stakes justifies Sonnet. The tiers write separate files
-  (`phase-<id>.json`, `review-<id>.json`); the Act step takes the worst verdict.
+Every agent is `model: inherit`. Cost is steered with `effort`, not by pinning
+a cheaper tier:
+
+- `researcher` → **low** (a read-only survey is breadth-bound, not depth-bound;
+  low effort means fewer, more-consolidated tool calls)
+- `executor` → **medium** (the plan already carries the decomposition, so this
+  agent executes against a spec rather than deriving one)
+- `verifier` → **medium** (judgment-heavy but narrowly scoped: one test run,
+  one verdict)
+- `planner` → **high** (highest leverage — a flawed plan cascades into work
+  nothing downstream catches, so it gets depth even when the session is dialled
+  down for cheap interactive work)
 - Read-only agents never get Write/Edit (`disallowedTools` or explicit `tools` allowlist)
+
+**Why not pin the model.** Pinning is an active override of the frontmatter
+default and it fails two ways. It downgrades silently — a session on a higher
+tier still gets its executor on the pinned one. And for `verifier` it inverts
+the review invariant: a reviewer weaker than the author rubber-stamps, which is
+the same constraint the API enforces for the advisor tool, where an advisor
+below the executor is rejected outright. `inherit` makes "reviewer >= author"
+structural rather than a bet on one tier staying ahead of another. It also
+honors the zero-configuration rule: picking the model for the user is a
+preference the user did not set.
+
+The earlier scheme (Haiku for read-only, Sonnet for execution, Opus for
+planning) controlled cost by dropping capability, which was the only lever
+available before `effort` existed. Anthropic's built-in `Explore` agent made
+the same move away from a hard Haiku pin to inheritance.
+
+**Verification is unchanged and still two-tier.** Tier 1 is the deterministic
+`scripts/verify-phase.sh` (tests + criteria + TDD/red-proof) on the
+`hooks/auto-qa` Stop path — every turn, no agent. Tier 2 is the `verifier`
+agent's adversarial senior review (correctness traps, edge cases, regressions
+behind green tests), invoked by the flow's Act step **once per planned phase**,
+only after Tier 1 passes, never in the Stop loop, never for direct-apply. The
+tiers write separate files (`phase-<id>.json`, `review-<id>.json`); the Act step
+takes the worst verdict.
 
 ## Directory Layout
 
@@ -128,10 +152,10 @@ software-engineer/
 ├── README.md
 ├── LICENSE
 ├── agents/
-│   ├── researcher.md           # haiku, read-only, memory: project
-│   ├── planner.md              # sonnet, read-only, memory: project
-│   ├── executor.md             # sonnet, full tools, memory: project
-│   └── verifier.md             # haiku, read-only + Bash, memory: project
+│   ├── researcher.md           # inherit / effort low, read-only, memory: project
+│   ├── planner.md              # inherit / effort high, read-only, memory: project
+│   ├── executor.md             # inherit / effort medium, full tools, memory: project
+│   └── verifier.md             # inherit / effort medium, read-only + Bash, memory: project
 ├── skills/
 │   ├── init/SKILL.md           # disable-model-invocation
 │   ├── go/SKILL.md             # disable-model-invocation

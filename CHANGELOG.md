@@ -13,6 +13,45 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Changed
+
+- **No agent pins a model; cost is steered with `effort`.** All four agents move
+  to `model: inherit` and gain an explicit effort level: `researcher` low,
+  `executor` medium, `verifier` medium, `planner` high. Pinning a tier was an
+  active override of the frontmatter default that failed two ways — it
+  downgraded silently (a session on a higher tier still got its executor on the
+  pinned one), and for `verifier` it inverted the review invariant, since a
+  reviewer weaker than the author rubber-stamps. That is the same constraint the
+  API enforces for the advisor tool, where an advisor below the executor is
+  rejected outright; `inherit` makes "reviewer >= author" structural instead of
+  a bet on one tier staying ahead. The previous allocation (Haiku read-only,
+  Sonnet execution, Opus planning) controlled cost by dropping capability,
+  which was the only lever available before `effort` existed. Also brings the
+  plugin in line with its own zero-configuration rule: choosing the model for
+  the user is a preference the user did not set. `evals/suites/frontmatter/`
+  now fails on any pinned `model` or missing/invalid `effort`.
+- **Step 0 declares a boundary instead of restating the task.** The
+  `UNDERSTOOD: Task / Inputs / Outputs` block is gone from `researcher`,
+  `planner`, and `executor`; what remains is the load-bearing half — a single
+  `BOUNDARY:` line (`SCOPE:` for the read-only researcher) plus a
+  `ASSUMPTIONS:` line only when an assumption is load-bearing. The restatement
+  echoed a brief the caller had just written, and announcing intent before
+  acting is default behavior on current models rather than something a prompt
+  has to mandate. The negative bound is kept because the pre-commit scope check
+  and `hooks/pre-guard` measure against it. `prompt-quality.sh` now asserts the
+  new contract and fails if the restatement creeps back.
+- **`_common.md` Rule 2 distinguishes a judgment call from a blocker.** A
+  subagent has no user channel mid-run, so "wait for resolution" resolved as
+  ending the turn on a question and costing a full round trip through the
+  orchestrator. The rule now says to decide routine calls and record them in
+  the exit report, and to stop only on a real fork (materially different work,
+  destructive or irreversible action, changed scope) — plus an explicit warning
+  against ending a turn on a promise rather than the tool call.
+- **`_common.md` Rule 1 asks for load-bearing assumptions only.** Enumerating
+  two or three assumptions before every non-trivial action buried the one that
+  mattered. The rule now scopes itself to assumptions whose being wrong would
+  change what gets built.
+
 ### Added
 
 - **Pluggable verification strategy.** Each task now resolves one of

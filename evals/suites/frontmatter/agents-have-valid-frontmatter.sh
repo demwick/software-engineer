@@ -20,6 +20,14 @@ validated = 0
 # Lenient frontmatter parser: matches top-level keys without full YAML parsing.
 # Claude Code itself tolerates colons and brackets inside values, so we must too.
 KEY_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:", re.MULTILINE)
+VAL_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$", re.MULTILINE)
+
+# Agents inherit the session's model and steer cost with `effort` instead
+# of pinning a tier. A pin silently downgrades a session running a higher
+# tier, and it makes `verifier` weaker than the code it reviews. `effort`
+# is the documented cost control; `model` is the user's choice. See
+# DESIGN.md §6.
+VALID_EFFORT = {"low", "medium", "high", "xhigh", "max"}
 
 for path in sorted(glob.glob(os.path.join(repo, "agents", "*.md"))):
     if os.path.basename(path).startswith("_"):
@@ -39,6 +47,7 @@ for path in sorted(glob.glob(os.path.join(repo, "agents", "*.md"))):
 
     block = text[4:end]
     keys = set(KEY_RE.findall(block))
+    values = dict(VAL_RE.findall(block))
 
     for field in ("name", "description"):
         if field not in keys:
@@ -46,6 +55,21 @@ for path in sorted(glob.glob(os.path.join(repo, "agents", "*.md"))):
 
     if "tools" not in keys and "disallowedTools" not in keys:
         errors.append(f"{path}: must define either 'tools' or 'disallowedTools'")
+
+    model = values.get("model", "").strip()
+    if model != "inherit":
+        errors.append(
+            f"{path}: model must be 'inherit', got '{model or '<missing>'}' — "
+            "pinning a tier overrides the user's model choice and can make an "
+            "agent weaker than the work it acts on; steer cost with 'effort'"
+        )
+
+    effort = values.get("effort", "").strip()
+    if effort not in VALID_EFFORT:
+        errors.append(
+            f"{path}: effort must be one of {sorted(VALID_EFFORT)}, "
+            f"got '{effort or '<missing>'}'"
+        )
 
 if errors:
     print("\n".join(errors), file=sys.stderr)
