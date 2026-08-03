@@ -45,6 +45,13 @@ else
     PHASE_ARG=(--arg phase "$PHASE_ID")
 fi
 
+# Append one line to the run log via the existing state-tracker plumbing.
+log_run() {
+    local tracker; tracker="$(cd "$(dirname "${BASH_SOURCE[0]}")/../hooks" && pwd)/state-tracker"
+    [ -f "$tracker" ] || return 0
+    ( cd "$PROJECT_DIR" && bash "$tracker" log-run verify-phase "$PHASE_ID" "" "$1" ) >/dev/null 2>&1 || true
+}
+
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 SPEC_FILE="$PROJECT_DIR/.se/specs/phase-${PHASE_ID}.md"
 OUT_FILE="$PROJECT_DIR/.se/verification/phase-${PHASE_ID}.json"
@@ -64,6 +71,7 @@ if [ ! -f "$SPEC_FILE" ]; then
             tdd_compliance: {compliant: true, skips: []},
             verified_at: $ts
         }' > "$OUT_FILE"
+    log_run '{"status":"pass","reason":"no spec file"}'
     exit 0
 fi
 
@@ -155,5 +163,8 @@ jq -n \
         tdd_compliance: {compliant: $tdd_compliant, skips: $tdd_skips},
         verified_at: $ts
     }' > "$OUT_FILE"
+
+log_run "$(jq -cn --arg s "$STATUS" --argjson tdd "$TDD_COMPLIANT" --argjson n "$TOTAL_CRITERIA" \
+    '{status:$s, tdd_compliant:$tdd, criteria:$n}' 2>/dev/null || echo '{}')"
 
 exit 0

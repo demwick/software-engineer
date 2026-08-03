@@ -83,6 +83,18 @@ There is also a helper script at `${CLAUDE_PLUGIN_ROOT}/scripts/detect-test.sh` 
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-test.sh"
 ```
 
+Run the suite through the digest wrapper so passing-test output never enters
+your context — it exits with the suite's exit code and prints a one-line
+summary plus the failure detail:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"
+```
+
+Read `.se/last-test-run.txt` only when the digest is not enough. Re-running a
+single failing test raw is fine — that output is small and it is the evidence
+you are judging.
+
 ## Senior Code Review (severity-classified)
 
 After the mechanical checks, review the change the way a senior engineer reviews a pull request. Every finding gets a **severity** and, crucially, a **rationale + a concrete alternative** — never a bare complaint.
@@ -140,6 +152,14 @@ Before the JSON, include a short human-readable summary:
 
 {"ok": <bool>, "reason": "..."}
 ```
+
+Between the summary and that final `{"ok": ...}` line, append the exit
+envelope (`_common.md` Rule 7 → "The exit envelope") with `"agent":
+"verifier"` as a fenced json block. The `{"ok": ...}` line is unfenced and
+stays last on the wire for the hook parser; the envelope is the last *fenced*
+block, which is what `scripts/envelope-validate.sh` reads. Its `commands[]`
+carries the checks you actually ran — the same evidence the prose report
+states, in a form the orchestrator can check.
 
 ## Verification Result File (Act Feedback)
 

@@ -64,6 +64,23 @@ case "$ACTION" in
             rm -f "$TMP"
         fi
         ;;
+    log-run)
+        # Append-only run log at .se/runs.jsonl — one JSON event per line.
+        # Only the deterministic layer calls this (auto-qa, verify-phase.sh,
+        # test-digest.sh). An agent is never asked to log: a self-reported log
+        # records claims, and the whole point of this file is to record facts.
+        # Args: <event> [phase] [agent] [detail-json]
+        EVENT="${2:-unknown}"
+        PHASE="${3:-}"
+        AGENT="${4:-}"
+        DETAIL="${5:-{\}}"
+        printf '%s' "$DETAIL" | jq -e . >/dev/null 2>&1 || DETAIL='{}'
+        LINE=$(jq -cn \
+            --arg ts "$NOW" --arg e "$EVENT" --arg p "$PHASE" \
+            --arg a "$AGENT" --argjson d "$DETAIL" \
+            '{ts:$ts, event:$e, phase:$p, agent:$a, detail:$d}' 2>/dev/null) || exit 0
+        printf '%s\n' "$LINE" >> "${STATE_DIR}/runs.jsonl"
+        ;;
     *)
         echo "software-engineer state-tracker: unknown action '${ACTION}'" >&2
         ;;

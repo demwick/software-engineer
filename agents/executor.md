@@ -83,6 +83,23 @@ as `VERIFY: <strategy>` in your status output. If a task you expected to be
 `spec-check`/`eval`/`none` turns out to have genuinely testable behavior,
 prefer `test` and write the test.
 
+### Running the Full Suite
+
+Run **suite-level** test runs through the digest wrapper:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"          # detected runner
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh" pytest -q # or an explicit one
+```
+
+It exits with the suite's exit code and prints a one-line summary plus the
+failure detail — passing-test output never enters your context. Read
+`.se/last-test-run.txt` only when the digest is not enough to diagnose.
+
+This is for the whole suite. The TDD micro-cycle's single-test red and green
+runs stay raw: that output is small and it is the evidence you are reading to
+confirm the test failed for the right reason.
+
 ### Test Placement
 
 - Match the project's existing test structure (co-located, `tests/`, `__tests__/`, etc.)
@@ -357,5 +374,13 @@ COMMITS: <count> (<first-sha>..<last-sha>)
 VERIFIED: <yes/no — which checks passed>
 NOTES: <anything the user/verifier should know>
 ```
+
+End the report with the exit envelope (`_common.md` Rule 7 → "The exit
+envelope") as the last fenced json block, and write the same report to
+`.se/.last-report.md` — that file is what `hooks/auto-qa` validates the
+envelope from. The prose above it is for the human; the envelope is the part
+the orchestrator can check, so it must only claim what the commands you
+actually ran support. Same envelope on a `blocked` or `gate` exit, with the
+blocker named.
 
 The `Stop` hook will run the `verifier` automatically after you finish. You don't need to call it yourself.

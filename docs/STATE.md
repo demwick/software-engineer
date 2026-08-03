@@ -68,6 +68,22 @@ Architecture Decision Records written by the `/adr` skill (Aşama 2). Path is **
 
 The plugin's `risk` mechanism is **forward-looking only**: it warns before a change (plan phase). It never scores a diff at acceptance/commit time — that is centaur-layer's job when present.
 
+## Later additions (context diet, typed envelope, run log)
+
+Three additive files. No `schema_version` bump — all three are optional, and every reader treats absence as "not written yet".
+
+### `last-test-run.txt` (written by `scripts/test-digest.sh`)
+
+The full stdout+stderr of the last suite-level test run. The digest prints only a summary line plus failure detail, so this file is where the passing output goes instead of into an agent's context. Overwritten on every run; safe to delete.
+
+### `.last-report.md` (written by `executor` / `verifier`, read by `hooks/auto-qa`)
+
+The finishing agent's exit report. Its last fenced `json` block is the typed envelope (`agent`, `status`, `phase`, `tasks_completed`, `commands[]`, `deviations[]`, `blockers[]`), validated by `scripts/envelope-validate.sh`. A per-turn artifact: `hooks/auto-qa` clears it with `.needs-verify` and the other markers, so a stale report can never be checked against the next turn. Absent → the hook skips the envelope check (pre-envelope agents keep working).
+
+### `runs.jsonl` (append-only, written by `hooks/state-tracker log-run`)
+
+One JSON event per line: `{"ts", "event", "phase", "agent", "detail"}`. Written **only** by the deterministic layer — `hooks/auto-qa` verdicts, `scripts/verify-phase.sh` results, `scripts/test-digest.sh` summaries, envelope-validation failures. No agent is ever asked to log; a self-reported log would record claims, and this file exists to record facts. Read it with `bash scripts/runs.sh [-n N] [-p phase]`. Never truncated by the plugin; deleting it loses history and nothing else.
+
 ---
 
 ## Convention

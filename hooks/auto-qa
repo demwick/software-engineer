@@ -54,6 +54,10 @@ PHASE_MARKER="${STATE_DIR}/.verify-phase"
 # clears them at the end of the task so the budget doesn't leak across tasks).
 DIRECT_MARKER="${STATE_DIR}/.direct-apply"
 DIRECT_FILES="${STATE_DIR}/.direct-files"
+# The finishing agent's exit report. Written by the executor (and the verifier)
+# so the deterministic layer can check the typed envelope at its tail instead of
+# only reading prose. Cleared with the other per-turn markers.
+REPORT_FILE="${STATE_DIR}/.last-report.md"
 
 # Read hook input (stdin JSON). Used to check stop_hook_active for loop protection.
 INPUT=$(cat 2>/dev/null || echo "{}")
@@ -63,7 +67,7 @@ INPUT=$(cat 2>/dev/null || echo "{}")
 
 # Require jq for safe JSON output. If missing, drop markers and exit cleanly.
 if ! command -v jq >/dev/null 2>&1; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     exit 0
 fi
 
@@ -123,8 +127,17 @@ run_guarded() {
 STRATEGY=$(tr -d '[:space:]' < "${STATE_DIR}/.verify-strategy" 2>/dev/null || echo "")
 STRATEGY=${STRATEGY:-test}
 
+# Append one line to .se/runs.jsonl through the existing state-tracker
+# plumbing. Deterministic only — the verdict recorded here is this hook's,
+# not an agent's account of it.
+log_run() {
+    local tracker="${CLAUDE_PLUGIN_ROOT:-}/hooks/state-tracker"
+    [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$tracker" ] || return 0
+    bash "$tracker" log-run auto-qa "$PHASE_ID" "" "$1" >/dev/null 2>&1 || true
+}
+
 clear_markers() {
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "${STATE_DIR}/.verify-strategy"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE" "${STATE_DIR}/.verify-strategy"
 }
 
 # Increment the retry counter and emit a block, or give up past MAX_RETRIES.
@@ -165,6 +178,26 @@ run_spec_check() {
         "Auto-QA (${label}): the phase spec is malformed or missing required structure. Read .se/verification/phase-${PHASE_ID}.json and the rules in scripts/spec-validate.sh, fix the spec's sections / acceptance criteria, and the Stop hook will re-verify." \
         "Auto-QA (${label}) gave up after ${MAX_RETRIES} retries — the spec is still malformed. Fix it and report the situation to the user."
 }
+
+# --- Typed exit envelope ------------------------------------------------
+# An executor turn is being checked (the marker is armed). If the finishing
+# agent left a report artifact, its tail must carry a valid envelope — that is
+# the only part of the report this hook can actually check. No artifact means
+# a pre-envelope agent or a flow that writes no report: skip, don't block.
+ENVELOPE_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/envelope-validate.sh"
+if [ -f "$REPORT_FILE" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$ENVELOPE_SCRIPT" ]; then
+    ENV_RC=0
+    ENV_OUT=$(bash "$ENVELOPE_SCRIPT" "$REPORT_FILE" 2>&1) || ENV_RC=$?
+    # 2 = jq missing upstream; this hook already requires jq, so it cannot
+    # happen here, but treating it as a skip keeps the contract identical.
+    if [ "$ENV_RC" -eq 1 ]; then
+        log_run "$(jq -cn --arg r "$ENV_OUT" '{verdict:"envelope-invalid", reason:$r}')"
+        retry_or_giveup \
+            "Auto-QA (envelope): the exit report at ${REPORT_FILE} failed envelope validation — ${ENV_OUT}. Rewrite the report's final fenced json block so it matches the schema in agents/executor.md (agent, status, phase, tasks_completed, commands, deviations, blockers) and only claims what the commands you actually ran support." \
+            "Auto-QA (envelope) gave up after ${MAX_RETRIES} retries — the exit envelope is still invalid (${ENV_OUT}). Report the situation to the user."
+    fi
+fi
+# --- end envelope gate ---------------------------------------------------
 
 case "$STRATEGY" in
     none)
@@ -222,7 +255,7 @@ esac
 # Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
 # already retried twice, give up and report the situation to the user.
 if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     LAST_LOG="${STATE_DIR}/.last-verify.log"
     jq -cn --arg log "$LAST_LOG" --arg max "$MAX_RETRIES" \
         '{decision: "block", reason: ("Auto-QA loop-protection tripped after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
@@ -238,7 +271,7 @@ fi
 
 # No detectable test runner → auto-pass, clear marker + counter.
 if [ -z "$TEST_CMD" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     exit 0
 fi
 
@@ -251,7 +284,8 @@ run_guarded "$TEST_CMD" "$TEST_LOG" || TEST_RC=$?
 
 # Timed out → retrying the identical command won't help. Give up and report.
 if [ "$TEST_RC" -eq 124 ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    log_run "$(jq -cn --arg cmd "$TEST_CMD" '{verdict:"timeout", cmd:$cmd}')"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     TIMEOUT_TAIL=$(tail -"$TEST_TAIL_LINES" "$TEST_LOG" 2>/dev/null || echo "")
     jq -cn --arg secs "$TEST_TIMEOUT" --arg cmd "$TEST_CMD" --arg tail "$TIMEOUT_TAIL" \
         '{decision: "block", reason: ("Auto-QA: test command timed out after " + $secs + "s and was killed — it likely hangs (watch mode, a prompt on stdin, or a blocking network call). Command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nDo not just re-run it: make it non-interactive and bounded (CI=1, --watch=false, --run, a test timeout) or tell the user. Re-arm and the Stop hook will re-verify.")}'
@@ -269,7 +303,7 @@ if [ "$TEST_RC" -eq 0 ]; then
             # Append to log so /se-status and humans can see it later.
             printf '\n\n=== host-compat warning ===\n%s\n' "$COMPAT_OUT" >> "$TEST_LOG"
             # Return a block so Claude fixes it now rather than shipping broken packaging.
-            rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+            rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
             jq -cn --arg msg "$COMPAT_OUT" \
                 '{decision: "block", reason: ("Tests passed but host-compat check failed: " + $msg + " Fix the packaging metadata and re-run tests. Do not skip — this blocks pip install on the user host.")}'
             exit 0
@@ -288,7 +322,8 @@ if [ "$TEST_RC" -eq 0 ]; then
     fi
 
     # Pass → clear marker + counter, let Claude stop.
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    log_run "$(jq -cn --arg cmd "$TEST_CMD" '{verdict:"pass", cmd:$cmd}')"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     exit 0
 fi
 
@@ -296,7 +331,8 @@ fi
 NEXT=$((ATTEMPTS + 1))
 
 if [ "$NEXT" -gt "$MAX_RETRIES" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    log_run "$(jq -cn --arg max "$MAX_RETRIES" '{verdict:"giveup", retries:$max}')"
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "$REPORT_FILE"
     jq -cn \
         --arg log "$TEST_LOG" --arg max "$MAX_RETRIES" \
         '{decision: "block", reason: ("Auto-QA gave up after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
@@ -308,6 +344,8 @@ TMP_ATTEMPTS=$(mktemp)
 jq -n --argjson n "$NEXT" '{attempts: $n}' > "$TMP_ATTEMPTS"
 mv "$TMP_ATTEMPTS" "$ATTEMPTS_FILE"
 TEST_TAIL=$(tail -"$TEST_TAIL_LINES" "$TEST_LOG" 2>/dev/null || echo "")
+
+log_run "$(jq -cn --arg cmd "$TEST_CMD" --argjson n "$NEXT" '{verdict:"block", cmd:$cmd, attempt:$n}')"
 
 jq -cn \
     --arg cmd "$TEST_CMD" \

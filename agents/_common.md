@@ -144,3 +144,34 @@ concrete re-assertion is the evidence it needs.
 This rule does not replace the Prove-It pattern (`executor.md:73-98`)
 for bug fixes. Prove-It is the stricter rule for its specific
 trigger; Rule 7 is the baseline rule for every other claim.
+
+### The exit envelope (executor and verifier)
+
+Prose evidence is for the human reading the report. The orchestrator can
+only *read* prose — it cannot check it. So the executor and the verifier
+also end their report with a fenced `json` block in this fixed schema,
+which `scripts/envelope-validate.sh` checks and `hooks/auto-qa` enforces:
+
+```json
+{
+  "agent": "executor",
+  "status": "done",
+  "phase": "3",
+  "tasks_completed": ["1", "2"],
+  "commands": [{"cmd": "pytest -q", "exit": 0}],
+  "deviations": [],
+  "blockers": []
+}
+```
+
+`agent` is `executor|verifier`, `status` is `done|blocked|partial`, and the
+four list fields are always present (empty is fine). The envelope is the
+**last** fenced json block in the report.
+
+`commands[]` is the evidence Rule 7 already asks for, in a shape a script
+can read: every entry is a command you actually ran, with the exit code it
+actually returned. Do not list a command you did not run, and do not claim
+`done` on tasks whose verification is not in that list — the envelope
+narrows the report, it never widens it. `status: done` with an empty
+`commands[]` and `status: blocked` with an empty `blockers[]` are both
+rejected.
