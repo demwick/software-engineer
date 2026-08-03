@@ -63,7 +63,7 @@ Check `.se/phases/phase-<slug>/progress.json`:
 
 Narrate the handoff first: `→ executor: <feature>` (add `· resuming task <n>` when resuming).
 
-Launch the `executor` agent with the plan path, the plan's context, and resume context if any. Include the **must-have facts** it must confirm concretely in its exit report (tests fail-then-pass with output, each acceptance criterion met) — a vague "done" is not evidence, see `_common.md` Rule 7. It returns `STATUS: done`, `blocked`, or `gate`.
+Launch the `executor` agent with the plan path, the plan's context, and resume context if any. **Brief it with the intent, not just the plan**: one sentence on what the user is ultimately trying to achieve and what the output enables — an executor that knows *why* connects the tasks to the goal instead of inferring it, and makes better routine judgment calls when the plan under-specifies. Include the **must-have facts** it must confirm concretely in its exit report (tests fail-then-pass with output, each acceptance criterion met) — a vague "done" is not evidence, see `_common.md` Rule 7. It returns `STATUS: done`, `blocked`, or `gate`.
 
 - **blocked** → surface verbatim, stop. Recommend an external debugging skill if installed.
 - **gate** → surface the `gate-pending.json` confirmation prompt, wait for explicit confirmation, then re-launch with *"Resume from gate at task \<id\>. User confirmed."* Never auto-confirm.
@@ -74,9 +74,10 @@ Launch the `executor` agent with the plan path, the plan's context, and resume c
 ```bash
 mkdir -p .se && : > .se/.needs-verify
 printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used for the spec/plan/progress paths above
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-verify-strategy.sh" .se/phases/phase-<slug>/plan.md > .se/.verify-strategy
 ```
 
-`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. The Stop hook runs the test runner, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. `.verify-strategy` carries the **phase-level** verification strategy that `resolve-verify-strategy.sh` infers from the plan (`test` for a code phase, `spec-check` for a docs/markdown phase, `eval` when the project has an eval harness, `none` for pure config); absent or unreadable resolves to `test`, the unchanged behavior. The Stop hook honors it: `test` runs the test runner + red-proof, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`; the other strategies verify accordingly. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
 
 ## Step 6: Act decision (two-tier verification feedback)
 

@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/evals/lib/assert.sh"
+require_jq
 
 PLAN="$REPO_ROOT/evals/fixtures/plans/trivial.md"
 PROGRESS=$(mktemp)

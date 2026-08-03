@@ -54,8 +54,8 @@ claude --plugin-dir ./software-engineer
 | **Architecture decisions** | `adr` records significant, hard-to-reverse choices as numbered, versioned records |
 | **Risk foresight** | `risk` warns what a change could break, expose, or regress **before** it's written, while the plan can still absorb it |
 | **Planning** | atomic, verifiable task plans with explicit dependencies and risk gates |
-| **Implementation** | code phase by phase, one atomic commit per task, TDD-first |
-| **Testing & QA** | auto-runs your test suite after every change — blocks on failure, auto-fixes, retries |
+| **Implementation** | code phase by phase, one atomic commit per task; each task resolves its own verification strategy (red-first TDD for code) |
+| **Testing & QA** | auto-verifies after every change — the test suite for code, a structural spec-check or eval for prompt/markdown/config work — blocks on failure, auto-fixes, retries |
 | **Senior code review** | the verifier reviews like a senior engineer: findings classified blocker / major / minor / nit, each with a rationale and an alternative |
 | **Health audit** | `diagnose` finds gaps (tests, errors, security) and ranks priority actions |
 | **Memory** | each agent keeps its own memory across sessions; human-readable project context persists in `.se/memory/` |
@@ -76,7 +76,7 @@ Triage routes to one of three flows. You don't choose — it does.
 
 ## How a phase runs
 
-Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by specialist agents. Inside each task, the executor enforces a **TDD (Test-Driven Development) micro-cycle** — no exceptions.
+Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by specialist agents. Inside each task, the executor resolves a **verification strategy**: code with testable behavior runs a red-first **TDD (Test-Driven Development) micro-cycle**; markdown, skill, prompt, and config work verifies against the spec's acceptance criteria or an eval harness instead — it is not forced through a unit test it can't meaningfully have.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -93,11 +93,11 @@ Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by specialist
 │                                │              │   fail  → ✗  │                           │
 │                                │              │     retry    │                           │
 │                                │              └──────────────┘                           │
-│                                └─ TDD micro-cycle: 🔴 Red → 🟢 Green → 🔵 Refactor → 📦 Commit │
+│                                └─ test strategy:  🔴 Red → 🟢 Green → 🔵 Refactor → 📦 Commit │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The Stop hook is the quality gate: if tests fail after a commit, it blocks the turn, surfaces the failure reason, and forces a fix before Claude can continue. Up to 2 auto-retries — then it escalates to you.
+The Stop hook is the quality gate: if verification fails after a commit (a failing test, a malformed spec, a red eval), it blocks the turn, surfaces the failure reason, and forces a fix before Claude can continue. Up to 2 auto-retries — then it escalates to you.
 
 ---
 
@@ -198,7 +198,7 @@ You rarely type these — the entry is natural language. They exist for direct a
 
 - **Claude Code** ≥ 2.1
 - **bash** — macOS/Linux built-in; Windows: Git for Windows
-- **jq** — `brew install jq` / `apt-get install jq` (hooks degrade gracefully if missing)
+- **jq** — `brew install jq` / `apt-get install jq`. Optional but recommended: the hooks degrade gracefully without it (each guards `command -v jq` and no-ops cleanly), and the eval suite reports jq-dependent suites as an explicit `SKIP` rather than a false failure when jq is absent.
 - **git** — the executor commits atomically; most of the value comes from this
 
 No Node, Python, or Go runtime required for the plugin itself.

@@ -1,7 +1,7 @@
 {
   "name": "software-engineer",
   "description": "AI Software Engineer — one natural-language entry point that triages every request and runs the right depth of engineering: clarify, spec, ADR, risk, architecture, planning, implementation, testing, and senior code review. Defers to claude-charter and centaur-layer when present.",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "author": {
     "name": "demwick"
   },

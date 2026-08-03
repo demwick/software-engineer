@@ -17,15 +17,18 @@ source "$REPO_ROOT/evals/lib/assert.sh"
 
 FIXTURE="$REPO_ROOT/evals/fixtures/behavioral/triage-routing.jsonl"
 
-# --- Gate: skip cleanly unless explicitly opted in with claude available. ----
+# --- Gate: skip cleanly (exit 99 = SKIP in run.sh) unless explicitly opted in
+# with claude available. The opt-in check comes first since that is the dominant
+# reason this suite is skipped in the default gate. ---
 if [ "${SE_BEHAVIORAL_EVALS:-}" != "1" ]; then
     printf 'skip: behavioral evals are opt-in (set SE_BEHAVIORAL_EVALS=1 to run)\n' >&2
-    exit 0
+    exit 99
 fi
 if ! command -v claude >/dev/null 2>&1; then
     printf 'skip: behavioral evals require the `claude` CLI on PATH\n' >&2
-    exit 0
+    exit 99
 fi
+require_jq   # the classification loop parses fixtures with jq
 
 # run_triage_classification PROMPT
 # Drives `claude` headless (print mode, -p) with the plugin loaded, asking ONLY

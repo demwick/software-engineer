@@ -1,6 +1,7 @@
 ---
 name: spec
-description: Write the single source of truth for a feature to disk at `.se/specs/<feature>.md` from a requirements digest. **Normally invoked by `/triage`'s full-flow right after `/clarify`**, but also use directly when the user says "write the spec", "document the requirements", "lock down what we're building". The spec is binding: during implementation, any contradiction between the code and the spec STOPS the flow and asks the user — it is never silently worked around. Mandatory content: what we're building, non-goals, edge cases, acceptance criteria, trade-offs.
+description: >-
+  Write the single source of truth for a feature to disk at `.se/specs/<feature>.md` from a requirements digest. **Normally invoked by `/triage`'s full-flow right after `/clarify`**, but also use directly when the user says "write the spec", "document the requirements", "lock down what we're building". The spec is binding: during implementation, any contradiction between the code and the spec STOPS the flow and asks the user — it is never silently worked around. Mandatory content: what we're building, non-goals, edge cases, acceptance criteria, trade-offs.
 argument-hint: [feature name or requirements digest]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---

@@ -85,29 +85,6 @@ else
 fi
 ATTEMPTS=${ATTEMPTS:-0}
 
-# Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
-# already retried twice, give up and report the situation to the user.
-if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
-    LAST_LOG="${STATE_DIR}/.last-verify.log"
-    jq -cn --arg log "$LAST_LOG" --arg max "$MAX_RETRIES" \
-        '{decision: "block", reason: ("Auto-QA loop-protection tripped after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
-    exit 0
-fi
-
-# Detect test runner via shared helper script.
-TEST_CMD=""
-DETECT_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/detect-test.sh"
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$DETECT_SCRIPT" ]; then
-    TEST_CMD=$(bash "$DETECT_SCRIPT" . 2>/dev/null || true)
-fi
-
-# No detectable test runner → auto-pass, clear marker + counter.
-if [ -z "$TEST_CMD" ]; then
-    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
-    exit 0
-fi
-
 # Run a shell command with output to a log, bounded by TEST_TIMEOUT. Returns
 # the command's exit code, or 124 (GNU `timeout` convention) if it timed out.
 # Prefers timeout/gtimeout; falls back to a portable bash watchdog because
@@ -137,6 +114,133 @@ run_guarded() {
     # Watchdog fired → the command was killed → timeout.
     return 124
 }
+
+# --- Verification-strategy dispatch --------------------------------------
+# The flow writes the resolved phase strategy to .se/.verify-strategy when it
+# arms the gate. Absent → "test", which falls through to the unchanged test
+# path below (byte-for-byte the pre-resolver behavior). The non-test branches
+# below handle their own clearing and retry accounting and then exit.
+STRATEGY=$(tr -d '[:space:]' < "${STATE_DIR}/.verify-strategy" 2>/dev/null || echo "")
+STRATEGY=${STRATEGY:-test}
+
+clear_markers() {
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES" "${STATE_DIR}/.verify-strategy"
+}
+
+# Increment the retry counter and emit a block, or give up past MAX_RETRIES.
+# Shared by the spec-check and eval branches. The test path keeps its own
+# inline counter logic, unchanged.
+retry_or_giveup() {
+    local reason="$1" give_up_reason="$2"
+    local next=$((ATTEMPTS + 1))
+    if [ "$next" -gt "$MAX_RETRIES" ]; then
+        clear_markers
+        jq -cn --arg r "$give_up_reason" '{decision: "block", reason: $r}'
+        exit 0
+    fi
+    local tmp; tmp=$(mktemp)
+    jq -n --argjson n "$next" '{attempts: $n}' > "$tmp"; mv "$tmp" "$ATTEMPTS_FILE"
+    jq -cn --arg r "$reason" '{decision: "block", reason: $r}'
+    exit 0
+}
+
+# Run scripts/spec-check.sh and clear-or-block. Used by the spec-check strategy
+# and as the eval-degradation target. Graceful pass if the script is absent.
+run_spec_check() {
+    local label="$1"
+    local script="${CLAUDE_PLUGIN_ROOT:-}/scripts/spec-check.sh"
+    if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ] || [ ! -f "$script" ]; then
+        clear_markers
+        exit 0
+    fi
+    local rc=0
+    bash "$script" . "$PHASE_ID" >/dev/null 2>&1 || rc=$?
+    # 0 = spec well-formed; 1 = uninitialized project / jq missing (graceful
+    # skip). Only 2 (structural failure) is a real block.
+    if [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; then
+        clear_markers
+        exit 0
+    fi
+    retry_or_giveup \
+        "Auto-QA (${label}): the phase spec is malformed or missing required structure. Read .se/verification/phase-${PHASE_ID}.json and the rules in scripts/spec-validate.sh, fix the spec's sections / acceptance criteria, and the Stop hook will re-verify." \
+        "Auto-QA (${label}) gave up after ${MAX_RETRIES} retries — the spec is still malformed. Fix it and report the situation to the user."
+}
+
+case "$STRATEGY" in
+    none)
+        mkdir -p "$STATE_DIR"
+        printf '\n=== VERIFY-SKIP: strategy=none ===\nNo verification was run for this phase (verification strategy resolved to "none").\n' \
+            >> "${STATE_DIR}/.last-verify.log"
+        clear_markers
+        exit 0
+        ;;
+    spec-check)
+        run_spec_check "spec-check"
+        ;;
+    eval)
+        EVAL_CMD=""
+        DETECT_EVAL="${CLAUDE_PLUGIN_ROOT:-}/scripts/detect-eval.sh"
+        if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$DETECT_EVAL" ]; then
+            EVAL_CMD=$(bash "$DETECT_EVAL" . 2>/dev/null || true)
+        fi
+        if [ -z "$EVAL_CMD" ]; then
+            # No eval harness → degrade to spec-check (constraint: never hard-fail).
+            mkdir -p "$STATE_DIR"
+            printf '\n=== VERIFY-DEGRADE: eval -> spec-check (no eval harness found) ===\n' \
+                >> "${STATE_DIR}/.last-verify.log"
+            run_spec_check "eval→spec-check"
+        fi
+        mkdir -p "$STATE_DIR"
+        EVAL_LOG="${STATE_DIR}/.last-verify.log"
+        EVAL_RC=0
+        run_guarded "$EVAL_CMD" "$EVAL_LOG" || EVAL_RC=$?
+        if [ "$EVAL_RC" -eq 124 ]; then
+            clear_markers
+            EVAL_TAIL=$(tail -"$TEST_TAIL_LINES" "$EVAL_LOG" 2>/dev/null || echo "")
+            jq -cn --arg secs "$TEST_TIMEOUT" --arg cmd "$EVAL_CMD" --arg tail "$EVAL_TAIL" \
+                '{decision: "block", reason: ("Auto-QA (eval): eval command timed out after " + $secs + "s and was killed. Command: " + $cmd + "\n\nLast output:\n" + $tail + "\n\nMake it non-interactive and bounded, then re-arm.")}'
+            exit 0
+        fi
+        if [ "$EVAL_RC" -eq 0 ]; then
+            clear_markers
+            exit 0
+        fi
+        EVAL_TAIL=$(tail -"$TEST_TAIL_LINES" "$EVAL_LOG" 2>/dev/null || echo "")
+        retry_or_giveup \
+            "Auto-QA (eval): eval command failed. Command: ${EVAL_CMD}. Read the full log at .se/.last-verify.log, fix the failure, and the Stop hook will re-verify.
+
+Last output:
+${EVAL_TAIL}" \
+            "Auto-QA (eval) gave up after ${MAX_RETRIES} retries — the eval suite is still failing. Review .se/.last-verify.log and report to the user."
+        ;;
+    test | *)
+        : # fall through to the unchanged test path below
+        ;;
+esac
+# --- end strategy dispatch -----------------------------------------------
+
+# Loop-protection belt-and-suspenders: if the runtime is already looping AND we've
+# already retried twice, give up and report the situation to the user.
+if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    LAST_LOG="${STATE_DIR}/.last-verify.log"
+    jq -cn --arg log "$LAST_LOG" --arg max "$MAX_RETRIES" \
+        '{decision: "block", reason: ("Auto-QA loop-protection tripped after " + $max + " retries — tests are still failing. Review " + $log + " and report the situation to the user. Do not keep retrying.")}'
+    exit 0
+fi
+
+# Detect test runner via shared helper script.
+TEST_CMD=""
+DETECT_SCRIPT="${CLAUDE_PLUGIN_ROOT:-}/scripts/detect-test.sh"
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$DETECT_SCRIPT" ]; then
+    TEST_CMD=$(bash "$DETECT_SCRIPT" . 2>/dev/null || true)
+fi
+
+# No detectable test runner → auto-pass, clear marker + counter.
+if [ -z "$TEST_CMD" ]; then
+    rm -f "$MARKER" "$ATTEMPTS_FILE" "$PHASE_MARKER" "$DIRECT_MARKER" "$DIRECT_FILES"
+    exit 0
+fi
 
 # Run the tests, capturing output.
 TEST_LOG="${STATE_DIR}/.last-verify.log"

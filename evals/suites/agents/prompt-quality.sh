@@ -13,16 +13,32 @@ fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 grep -q 'Evidence-Bearing Exit Reports' agents/_common.md \
   || fail "_common.md missing Rule 7 (Evidence-Bearing Exit Reports)"
 
-# Each write-critical agent has Step 0 comprehension check
+# Step 0 declares a boundary; it no longer restates the task. The
+# task/inputs/outputs restatement was removed — current models announce
+# intent by default, and the restatement duplicated a brief the caller
+# wrote. What survives is the load-bearing half: the explicit negative
+# bound the scope checks measure against. See DESIGN.md §6.
 for agent in researcher planner executor; do
-  grep -q 'Demonstrate Comprehension' "agents/${agent}.md" \
-    || fail "${agent}.md missing Step 0 (Demonstrate Comprehension)"
-  grep -q 'UNDERSTOOD:' "agents/${agent}.md" \
-    || fail "${agent}.md missing UNDERSTOOD: output format"
+  grep -q 'Step 0: Declare the' "agents/${agent}.md" \
+    || fail "${agent}.md missing Step 0 (Declare the Boundary/Scope)"
+done
+for agent in planner executor; do
+  grep -q '^BOUNDARY:' "agents/${agent}.md" \
+    || fail "${agent}.md missing BOUNDARY: output format"
+done
+# researcher is read-only: it bounds a survey, not a write set.
+grep -q '^SCOPE:' agents/researcher.md \
+  || fail "researcher.md missing SCOPE: output format"
+
+# The removed restatement format must not creep back in.
+for agent in researcher planner executor verifier; do
+  if grep -q 'UNDERSTOOD:\|Demonstrate Comprehension' "agents/${agent}.md"; then
+    fail "${agent}.md reintroduced the UNDERSTOOD: restatement — Step 0 declares a boundary only (see DESIGN.md §6)"
+  fi
 done
 
-# verifier.md intentionally skipped — no Step 0 by design
-if grep -q 'Demonstrate Comprehension' agents/verifier.md 2>/dev/null; then
+# verifier.md intentionally has no Step 0 by design
+if grep -q 'Step 0' agents/verifier.md 2>/dev/null; then
   fail "verifier.md should NOT have Step 0 — it is intentionally excluded"
 fi
 

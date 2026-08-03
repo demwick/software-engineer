@@ -23,6 +23,14 @@ set -euo pipefail
 PLAN="${1:?plan file required}"
 PROGRESS="${2:?progress file required}"
 
+# Graceful degradation: every other code path here builds JSON with jq. Without
+# jq, emit a valid empty-coverage result the caller can still parse, rather than
+# crashing mid-pipeline.
+if ! command -v jq >/dev/null 2>&1; then
+    printf '{"covered":[],"uncovered":[],"errors":["jq not installed — coverage check skipped"]}\n'
+    exit 0
+fi
+
 if [[ ! -f "$PLAN" ]]; then
     jq -n '{covered: [], uncovered: [], errors: ["plan not found"]}'
     exit 0

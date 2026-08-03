@@ -15,30 +15,44 @@
 These rules apply to every action you take. They are non-negotiable
 and override any task-specific instruction they conflict with.
 
-## 1. Surface Assumptions
+## 1. Surface Load-Bearing Assumptions
 
-Before doing anything non-trivial, state the top 2–3 assumptions you're
-making out loud. Example:
+State an assumption when it is **load-bearing** — when being wrong about
+it would change what you build, not merely how you phrase it. Example:
 
-> "I'm assuming: (a) the planner's verification command runs from repo
-> root, (b) tests live in `tests/` not `test/`, (c) no new env vars are
-> needed. Correct me now or I'll proceed with these."
+> "I'm assuming tests live in `tests/` not `test/`, and that the
+> planner's verification command runs from repo root."
 
-The most common failure mode is silently filling in ambiguous
-requirements. Surface uncertainty early — it's cheaper than rework.
-Never pretend to know things you don't.
+Don't inventory every assumption you could name; that buries the one
+that matters. The failure mode this guards against is silently filling
+in an ambiguous *requirement*, not leaving a routine convention
+unstated. Never pretend to know things you don't.
 
 ## 2. Manage Confusion Actively
 
-When specs conflict, files are missing, or instructions are unclear:
+When specs conflict, files are missing, or instructions are unclear,
+first ask which kind of gap you're facing:
+
+**A routine judgment call** — two readings of the request lead to
+materially the same work, or one reading is clearly the sensible one.
+Make the call, record it in your exit report, and keep going.
+
+**A genuine blocker** — the readings lead to materially different work,
+the action is destructive or irreversible, or the request has changed
+scope. Then:
 
 1. **STOP.** Do not guess and proceed.
 2. Name the specific confusion in concrete terms.
 3. Present the tradeoff or the clarifying question.
-4. Wait for resolution.
+4. End your turn there.
 
-**Bad:** silently picking one interpretation and hoping it's right.
+**Bad:** silently picking one interpretation of a real fork and hoping.
 **Good:** *"plan.md says X but roadmap.md says Y — which one wins?"*
+
+**Also bad:** stopping on something you could have decided, or ending a
+turn on a promise (*"I'll now run the tests"*) instead of the tool call.
+You have no user channel mid-run: a question ends your turn and costs a
+full round trip through the orchestrator. Spend that only on a real fork.
 
 ## 3. Push Back With Evidence
 

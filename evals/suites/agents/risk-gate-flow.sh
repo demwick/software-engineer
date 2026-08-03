@@ -16,6 +16,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$REPO_ROOT"
 
+# This suite's assertions need jq; skip (exit 99 = SKIP in run.sh) when absent.
+command -v jq >/dev/null 2>&1 || { printf 'SKIP: jq not installed (brew install jq / apt-get install jq)\n' >&2; exit 99; }
+
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 FIXTURE="evals/fixtures/plans/sample-plan-with-gates.md"

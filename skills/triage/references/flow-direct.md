@@ -58,6 +58,15 @@ Only if `.se/` **already exists**, touch the existence-only marker so the Stop h
 
 Do not write a number into the marker; the hook owns the retry counter in `.se/.verify-attempts`. If the project is not SE-initialized, skip this — direct tasks never create `.se/` themselves.
 
+A direct task has no plan to resolve a strategy from. If the change is **purely non-code** (a markdown/docs edit, a config tweak), tell the Stop gate not to force a unit test onto it — otherwise omit this and the gate resolves to `test` (unchanged behavior):
+
+```bash
+printf 'spec-check' > .se/.verify-strategy   # docs / markdown with a spec to honor
+printf 'none'       > .se/.verify-strategy   # pure config / metadata, nothing testable
+```
+
+This optional `.verify-strategy` write is the only addition to the "`.needs-verify` is the only `.se/` write" rule below.
+
 On arm, the Stop hook runs the detected test runner. Pass → clears the marker. Fail → returns a `block` so Claude auto-retries the fix (up to 2 retries). This is **Tier-1 only** — direct-apply does not get the Tier-2 senior-review pass (that is reserved for planned light-plan / full-flow phases; a narrow one-commit task does not warrant it). You do **not** invoke the verifier agent here. For the two-tier contract see `auto-qa-protocol.md`.
 
 ## Step 4: Report
@@ -71,6 +80,6 @@ If the task came from a recent `.se/diagnose.json` priority action, add: *"Re-ru
 - **Narrate the handoff.** Print the `→ executor: …` line before dispatch — the user should always know which agent is running and on what.
 - **One commit only.** If it splits into multiple commits, it wasn't direct — stop and escalate to light-plan.
 - **No scope creep.** Executor stays strictly within the request; notes anything else wrong in the report, doesn't fix it.
-- **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch is the only `.se/` write.
+- **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch (plus the optional `.verify-strategy` above) is the only `.se/` write.
 - **Honor the ecosystem.** Guardrails for destructive ops are charter's job when charter is present; don't add your own.
 - **Gates are named.** This flow's checkpoints map to the four types in `gates-taxonomy.md`: the Step 1 size check is *pre-flight*, the auto-QA hook is *revision*, and a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.

@@ -13,6 +13,84 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.5.0] — 2026-08-03
+
+### Changed
+
+- **No agent pins a model; cost is steered with `effort`.** All four agents move
+  to `model: inherit` and gain an explicit effort level: `researcher` low,
+  `executor` medium, `verifier` medium, `planner` high. Pinning a tier was an
+  active override of the frontmatter default that failed two ways — it
+  downgraded silently (a session on a higher tier still got its executor on the
+  pinned one), and for `verifier` it inverted the review invariant, since a
+  reviewer weaker than the author rubber-stamps. That is the same constraint the
+  API enforces for the advisor tool, where an advisor below the executor is
+  rejected outright; `inherit` makes "reviewer >= author" structural instead of
+  a bet on one tier staying ahead. The previous allocation (Haiku read-only,
+  Sonnet execution, Opus planning) controlled cost by dropping capability,
+  which was the only lever available before `effort` existed. Also brings the
+  plugin in line with its own zero-configuration rule: choosing the model for
+  the user is a preference the user did not set. `evals/suites/frontmatter/`
+  now fails on any pinned `model` or missing/invalid `effort`.
+- **Step 0 declares a boundary instead of restating the task.** The
+  `UNDERSTOOD: Task / Inputs / Outputs` block is gone from `researcher`,
+  `planner`, and `executor`; what remains is the load-bearing half — a single
+  `BOUNDARY:` line (`SCOPE:` for the read-only researcher) plus a
+  `ASSUMPTIONS:` line only when an assumption is load-bearing. The restatement
+  echoed a brief the caller had just written, and announcing intent before
+  acting is default behavior on current models rather than something a prompt
+  has to mandate. The negative bound is kept because the pre-commit scope check
+  and `hooks/pre-guard` measure against it. `prompt-quality.sh` now asserts the
+  new contract and fails if the restatement creeps back.
+- **`_common.md` Rule 2 distinguishes a judgment call from a blocker.** A
+  subagent has no user channel mid-run, so "wait for resolution" resolved as
+  ending the turn on a question and costing a full round trip through the
+  orchestrator. The rule now says to decide routine calls and record them in
+  the exit report, and to stop only on a real fork (materially different work,
+  destructive or irreversible action, changed scope) — plus an explicit warning
+  against ending a turn on a promise rather than the tool call.
+- **`_common.md` Rule 1 asks for load-bearing assumptions only.** Enumerating
+  two or three assumptions before every non-trivial action buried the one that
+  mattered. The rule now scopes itself to assumptions whose being wrong would
+  change what gets built.
+- README and `executor.md` no longer claim "TDD micro-cycle — no exceptions."
+  TDD is now described as the `test` strategy; non-code tasks verify differently.
+  No test-after work is relabeled as TDD.
+- **jq is now a true optional dependency.** `evals/run.sh` treats suite exit
+  code 99 as an explicit `SKIP` (separate counter), and jq-dependent suites call
+  `require_jq` to skip rather than emit a false `FAIL` when jq is absent.
+  `check-coverage.sh` (the one unguarded script) now degrades to an empty-coverage
+  JSON instead of crashing. Hooks already guarded jq; the README claim is now
+  true end-to-end and documented.
+
+### Added
+
+- **Pluggable verification strategy.** Each task now resolves one of
+  `test | eval | spec-check | none` instead of being forced through a red-first
+  TDD cycle. Code keeps the real TDD discipline (red→green→refactor + red-proof);
+  markdown / skill / prompt / config work verifies against the spec's acceptance
+  criteria (`spec-check`), a project eval harness (`eval`), or skips (`none`).
+  New deterministic scripts: `resolve-verify-strategy.sh` (phase-level inference
+  from a plan), `detect-eval.sh` (eval-harness discovery), `spec-check.sh`
+  (structural, non-semantic spec verification). `hooks/auto-qa` honors the
+  flow-written `.se/.verify-strategy` marker and degrades `eval → spec-check`
+  when no harness exists. Absent marker resolves to `test` — the prior behavior
+  is byte-for-byte unchanged, and every existing eval still passes.
+- `docs/speckit-integration.md` — design + decision record for composing with
+  GitHub Spec Kit. **Deferred, not implemented:** Spec Kit and this plugin
+  overlap on the spec lifecycle, and the integration only pays off in the
+  (currently empty) intersection of projects running both. Recorded so the
+  research isn't lost; revisit when a real Spec-Kit-plus-`se` project appears.
+
+- **Deterministic behavioral eval gate.** `evals/suites/behavioral/` now runs
+  real assertions in the default suite, on artifacts/control-flow rather than
+  model prose: `executor-verification-fires` (verify-phase TDD compliance from
+  commit history), `red-proof-catches-theater` (verify-red-proof distinguishes a
+  genuine red phase from a reproduction that passes at its own commit), and
+  `stop-gate-flags-theater` (a passing suite with a theater reproduction still
+  lands status=partial + a finding). The LLM-in-the-loop triage-routing suite
+  stays opt-in (`SE_BEHAVIORAL_EVALS=1`).
+
 ## [4.4.0] — 2026-06-18
 
 Closes a self-audit of the verification and safety layers: capabilities that

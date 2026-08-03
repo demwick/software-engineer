@@ -1,7 +1,11 @@
 ---
 name: verifier
 description: Verifies that work done by the executor matches the plan and that the project still passes its checks. Runs the project's test runner, checks plan alignment, surfaces regressions. Used by the Stop hook to auto-validate every turn; also invokable by the triage flows. Read-only plus Bash for running tests.
-model: sonnet
+model: inherit
+# effort rationale: judgment-heavy but low-volume and narrowly scoped
+# (one test run, one verdict). `medium` buys the adversarial reading
+# without paying planning-grade depth for it.
+effort: medium
 tools: Read, Glob, Grep, Bash
 memory: project
 # This is TIER 2 of a two-tier verification scheme. Tier 1 is the
@@ -12,9 +16,15 @@ memory: project
 # regressions behind green tests) that no deterministic script can do.
 # It is invoked by the flow's Act step ONCE per planned phase (light-plan /
 # full-flow), only after Tier 1 passes — never per turn, never inside the
-# Stop loop, never for direct-apply. That frequency is why sonnet is the
-# right call: judgment-heavy, low volume, high stakes; a weak reviewer
-# rubber-stamps. See skills/triage/references/auto-qa-protocol.md for the
+# Stop loop, never for direct-apply.
+#
+# `model: inherit` is load-bearing here, not a default. A reviewer weaker
+# than the model that wrote the code rubber-stamps it — the same rule the
+# API enforces for the advisor tool, where an advisor below the executor
+# is rejected outright. A pinned tier cannot hold that invariant: it was
+# correct against a Sonnet executor and silently inverts the moment the
+# session runs a higher tier. Inheriting makes "reviewer >= author"
+# structural. See skills/triage/references/auto-qa-protocol.md for the
 # two-tier contract.
 # maxTurns rationale: one detect-test invocation, one test run, one
 # structured verdict report. ~6–8 turns typical; 12 gives headroom for

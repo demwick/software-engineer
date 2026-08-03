@@ -19,14 +19,16 @@ The plugin is a thin layer over Claude Code's native primitives. No external run
 
 **Subagents** (`agents/*.md`) do the heavy work in isolated contexts:
 
-| Agent | Model | Tools | Memory | Called from |
-|-------|-------|-------|--------|-------------|
-| `researcher` | Haiku | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | triage full-flow (finish-existing), `/se-diagnose` |
-| `planner` | Opus | Read, Glob, Grep, Bash, WebFetch (no Write) | project | triage full-flow + light-plan |
-| `executor` | Sonnet | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | triage light-plan, full-flow, direct-apply |
-| `verifier` | Haiku | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), triage flows |
+| Agent | Model | Effort | Tools | Memory | Called from |
+|-------|-------|--------|-------|--------|-------------|
+| `researcher` | inherit | low | Read, Glob, Grep, Bash, WebFetch, WebSearch | project | triage full-flow (finish-existing), `/se-diagnose` |
+| `planner` | inherit | high | Read, Glob, Grep, Bash, WebFetch (no Write) | project | triage full-flow + light-plan |
+| `executor` | inherit | medium | Read, Write, Edit, Glob, Grep, Bash, WebFetch | project | triage light-plan, full-flow, direct-apply |
+| `verifier` | inherit | medium | Read, Glob, Grep, Bash | project | `Stop` hook (auto-qa), triage flows |
 
-All four agents share `agents/_common.md` — an operating constitution (surface assumptions, manage confusion, push back with evidence, enforce simplicity, stop-the-line, commit discipline) that overrides any task-specific instruction it conflicts with.
+No agent pins a model. Each inherits the session's model and steers cost with `effort` — see `DESIGN.md` §6 for why pinning a tier both downgrades silently and inverts the reviewer-stronger-than-author invariant.
+
+All four agents share `agents/_common.md` — an operating constitution (surface load-bearing assumptions, manage confusion, push back with evidence, enforce simplicity, stop-the-line, commit discipline, evidence-bearing exit reports) that overrides any task-specific instruction it conflicts with.
 
 Each agent has `memory: project` in its frontmatter. Claude Code manages a per-agent `MEMORY.md` at `.claude/agent-memory/<agent>/`, auto-loaded every invocation. No hand-rolled session persistence.
 
@@ -57,10 +59,10 @@ software-engineer/
 ├── TESTING.md                     # live-testing checklist
 ├── agents/
 │   ├── _common.md                 # operating constitution shared by all agents
-│   ├── researcher.md              # Haiku, read-only, memory: project
-│   ├── planner.md                 # Opus, read-only, memory: project
-│   ├── executor.md                # Sonnet, full tools, memory: project
-│   └── verifier.md                # Haiku, read-only + Bash, memory: project
+│   ├── researcher.md              # inherit / effort low, read-only, memory: project
+│   ├── planner.md                 # inherit / effort high, read-only, memory: project
+│   ├── executor.md                # inherit / effort medium, full tools, memory: project
+│   └── verifier.md                # inherit / effort medium, read-only + Bash, memory: project
 ├── skills/
 │   ├── triage/SKILL.md           # auto-invocable — the single entry point
 │   │   └── references/           # flow-direct, flow-light, flow-full, auto-qa-protocol
