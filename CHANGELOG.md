@@ -13,6 +13,30 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [4.6.0] — 2026-08-03
+
+### Added
+
+- **`scripts/test-digest.sh` — the context diet for suite runs.** Full test
+  output lands in `.se/last-test-run.txt`; agent context receives one summary
+  line plus failure detail only, capped at 200 lines. Passing output never
+  enters a context window. The TDD micro-cycle's single-test red/green runs
+  are exempt — that output is the evidence being read.
+- **Typed exit envelope.** `executor` and `verifier` end their reports with a
+  fenced JSON envelope (`agent`, `status`, `phase`, `tasks_completed`,
+  `commands[]` with exit codes, `deviations[]`, `blockers[]`).
+  `scripts/envelope-validate.sh` checks it in `hooks/auto-qa` before strategy
+  dispatch, through the existing retry mechanism. Two teeth beyond shape
+  validation: `done` with no commands and `blocked` with no blockers are
+  rejected — the envelope cannot restate an unbacked prose claim. No report
+  artifact means the gate skips, so pre-envelope flows keep working.
+- **`.se/runs.jsonl` — deterministic run log.** Verdicts, test digests, phase
+  verification results and envelope failures, appended only by hooks and
+  scripts, never by asking an agent: a self-reported log records claims, this
+  file records facts. Rendered by `scripts/runs.sh [-n N] [-p phase]`.
+- Four eval suites covering the digest, the envelope validator, the run log,
+  and the auto-qa integration end to end.
+
 ## [4.5.0] — 2026-08-03
 
 ### Changed
