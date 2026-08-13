@@ -111,8 +111,8 @@ a cheaper tier:
   low effort means fewer, more-consolidated tool calls)
 - `executor` → **medium** (the plan already carries the decomposition, so this
   agent executes against a spec rather than deriving one)
-- `verifier` → **medium** (judgment-heavy but narrowly scoped: one test run,
-  one verdict)
+- `verifier` → **medium** (judgment-heavy but narrowly scoped: read Tier-1's
+  result, read the diff, one verdict)
 - `planner` → **high** (highest leverage — a flawed plan cascades into work
   nothing downstream catches, so it gets depth even when the session is dialled
   down for cheap interactive work)
@@ -193,25 +193,31 @@ software-engineer/
 ## Auto-QA Flow
 
 ```
-User: /[name]:go
+User: an engineering request in plain language
   ↓
-Skill: read state → planner agent (writes spec + plan)
+triage: classify → flow-light / flow-full
   ↓
+Plan: roadmap phase → planner agent (Mode B)
+      ad-hoc slice  → the flow writes spec + plan inline
+  ↓  (both pass spec-validate.sh + plan-validate.sh)
 Executor: TDD cycle per task (Red → Green → Refactor → Commit)
   ↓
 Executor finishes work (Stop event fires)
   ↓
-Stop hook: type="agent", prompt="run verifier, check tests & plan"
+Tier 1 — hooks/auto-qa (deterministic, no agent):
+  run the suite → fail: block, Claude retries (≤2)
+                → pass: scripts/verify-phase.sh writes
+                        .se/verification/phase-<id>.json
+                        (criteria + TDD commit order + red-proof)
   ↓
-Verifier: run tests + check spec criteria + TDD compliance
-  → writes .se/verification/phase-N.json
-  → {ok: bool, reason: ...}
+Tier 2 — Act step launches the verifier agent, once per planned phase:
+  reads phase-<id>.json + the diff → adversarial senior review
+  → writes .se/verification/review-<id>.json
   ↓
-ok=false → Claude auto-continues (retry)
-ok=true  → Act decision:
-           pass    → mark phase done, advance
-           partial → surface unmet criteria, offer roadmap feedback
-           fail    → block, stay in-progress
+Act decision (worst of the two tiers wins):
+  pass    → mark phase done, advance
+  partial → surface unmet criteria, offer roadmap feedback
+  fail    → block, stay in-progress
 ```
 
 ## Superpowers Compatibility
