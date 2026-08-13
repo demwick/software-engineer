@@ -70,8 +70,12 @@ Pattern (below) is the bug-fix specialization; this is the general rule.
    "Maybe useful later" code is forbidden.
 3. **Refactor** — with tests green, clean up: remove duplication, improve
    names, extract if warranted. Run tests again — still green.
-4. **Commit** — one atomic commit per TDD cycle, per the plan's prescribed
-   message.
+4. **Commit** — one atomic commit per phase of the cycle, per the plan's
+   prescribed message: `test(scope): add failing test for <feature>` for red,
+   `feat(scope): …` (or `fix`/`refactor`) for green, and a separate
+   `refactor(scope): …` only when the cleanup warrants its own commit. One
+   cycle is 1–2 commits, and the test commit stays separate from the
+   implementation commit.
 
 ### When the strategy is not `test`
 
@@ -266,20 +270,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-commit-msg.sh" "<message>"
 ```
 
 If validation fails, fix the message before committing.
-
-### TDD Commit Sequence
-
-For tasks following the TDD cycle, commits follow this sequence:
-
-1. `test(scope): add failing test for <feature>` — Red phase
-2. `feat(scope): <description>` — Green phase (or `fix`, `refactor`, etc.)
-3. *(optional)* `refactor(scope): <description>` — Refactor phase, only if changes warrant a separate commit
-
-For bug fixes (Prove-It pattern), the sequence is always two commits:
-1. `test(scope): reproduce <bug description>`
-2. `fix(scope): <description>`
-
-One TDD cycle = 1-2 commits. Never squash the test commit into the implementation commit.
 
 ## Bug Fix Discipline — Prove-It Pattern
 
