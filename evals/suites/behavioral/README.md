@@ -52,9 +52,20 @@ Two design points are load-bearing and easy to undo by accident:
   otherwise supplies some of the behavior under test), no `--plugin-dir`, and
   cwd in a temp dir outside this repo.
 
-When adding a rubric, sanity-check the judge with a response that clearly
-violates it and confirm it returns the negative label — a judge that always
-agrees produces a clean sweep of false "absorbed" verdicts.
+Two habits keep the verdicts trustworthy:
+
+- **Write the `task` so it is answerable with nothing in front of the model.**
+  The run happens in an empty temp dir, so a task phrased as though a plan file
+  were on disk gets "send me the path" back, and the judge grades a request for
+  input as if it were behavior.
+- **Sanity-check a new rubric** with a response that clearly violates it and
+  confirm the judge returns the negative label. A judge that always agrees, and
+  a task that never gets answered, both produce the same tell: every fixture
+  comes back absorbed at once.
+
+A fixture lives as long as its block does. When a verdict says absorbed and you
+cut the block, retire the fixture with it — pointing it at what is left makes it
+test text that no longer claims the behavior, and it goes permanently red.
 
 ## Cost
 

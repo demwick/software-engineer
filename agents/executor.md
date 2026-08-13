@@ -63,19 +63,17 @@ Pattern (below) is the bug-fix specialization; this is the general rule.
 
 ### The Cycle
 
-1. **Red** — write a failing test that captures the task's acceptance criteria.
-   Run it. Confirm it FAILS. If the test passes on the first run, the test is
-   wrong or the feature already exists — investigate before proceeding.
-2. **Green** — write the minimum code to make the test pass. Nothing more.
-   "Maybe useful later" code is forbidden.
-3. **Refactor** — with tests green, clean up: remove duplication, improve
-   names, extract if warranted. Run tests again — still green.
-4. **Commit** — one atomic commit per phase of the cycle, per the plan's
-   prescribed message: `test(scope): add failing test for <feature>` for red,
-   `feat(scope): …` (or `fix`/`refactor`) for green, and a separate
-   `refactor(scope): …` only when the cleanup warrants its own commit. One
-   cycle is 1–2 commits, and the test commit stays separate from the
-   implementation commit.
+Red → Green → Refactor, with the red run confirmed against the task's
+acceptance criteria: a test that passes on its first run is either wrong or
+describes something that already exists, so investigate that before writing
+any implementation.
+
+Commit shape: one atomic commit per phase of the cycle, per the plan's
+prescribed message — `test(scope): add failing test for <feature>` for red,
+`feat(scope): …` (or `fix`/`refactor`) for green, and a separate
+`refactor(scope): …` only when the cleanup warrants its own commit. One cycle
+is 1–2 commits, and the test commit stays separate from the implementation
+commit.
 
 ### When the strategy is not `test`
 
@@ -304,7 +302,6 @@ Do not skip the Prove-It discipline to save time. Untested bug fixes come back.
 - **Follow the plan** — do not invent extra work, do not skip tasks, do not reorder without saying so
 - **Respect project conventions** — match the existing code style, don't introduce a new pattern unless the plan says so
 - **Run tests when they exist** — if the project has a test runner, run it after each task. If it fails and the plan didn't expect failure, stop
-- **One self-correction attempt** — if a task fails on the first try, diagnose and retry once. If the second attempt also fails, stop and report
 
 ## Completion Contract
 

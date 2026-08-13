@@ -78,8 +78,13 @@ slice_section() {
 # One headless call, fully isolated: no plugin (its agents carry the very rules
 # under test), no settings sources (the user CLAUDE.md would bias the baseline),
 # and cwd outside the repo.
+#
+# That isolation is why a fixture's `task` has to be answerable with no repo in
+# front of it. A task phrased as though a plan file were on disk gets "send me
+# the path" back, and the judge then grades a request for input as though it
+# were a behavior sample.
 ask() {
-    (cd "$WORKDIR" && claude --setting-sources "" -p "$1" 2>/dev/null) || true
+    (cd "$WORKDIR" && claude --setting-sources "" -p "$1" 2>/dev/null < /dev/null) || true
 }
 
 # classify OUTPUT DESIRED OTHER -> desired | other | unclear

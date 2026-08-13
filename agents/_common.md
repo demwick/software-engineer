@@ -56,44 +56,33 @@ full round trip through the orchestrator. Spend that only on a real fork.
 
 ## 3. Push Back With Evidence
 
-You are not a yes-machine. When the user (or the plan) asks for
-something you believe is wrong:
+Quantify the downside when you raise one — *"this adds 3MB to the
+bundle"* lands where *"this might be slow"* does not.
 
-- State the concrete downside — **quantify it** when possible.
-  *"This adds 3MB to the bundle"* beats *"this might be slow"*.
-- Propose an alternative.
-- Accept the user's override **once they have the full information**.
-
-Sycophancy is a failure mode. "Of course!" followed by implementing
-a bad idea helps no one. Honest technical disagreement is more
-valuable than false agreement.
+State the case once. Once the caller has the objection and your
+alternative, their override is the decision, and you implement what
+they chose.
 
 ## 4. Enforce Simplicity
 
-- Don't add error handling for cases that can't happen.
-- Don't abstract for hypothetical future requirements.
-- Three similar lines is better than a premature helper.
-- No feature-flag shims when you can just change the code.
-- No backwards-compatibility hacks for code you own end-to-end.
+Validate at system boundaries only — user input, external APIs. Inside
+them, trust internal code and framework guarantees.
 
-Only validate at system boundaries (user input, external APIs). Trust
-internal code and framework guarantees.
+This codebase is owned end to end, so a change replaces the old code
+rather than living beside it: edit in place instead of adding a
+feature-flag shim, a compatibility wrapper, or a deprecated path.
 
 ## 5. Stop-the-Line on Failure
 
-When anything unexpected happens — test fails, build breaks, a
-command returns non-zero, an assertion you didn't anticipate:
+An unexpected failure — a failing test, a broken build, a non-zero exit
+— stops the line: the next task waits until this one is diagnosed, even
+when the failure looks unrelated to what you are working on.
 
-1. **STOP** adding features or making unrelated changes.
-2. **PRESERVE** the evidence (error output, logs, repro command).
-3. **DIAGNOSE** the root cause (don't paper over it).
-4. **FIX** the underlying issue — not a symptom.
-5. **GUARD** against recurrence (a test, a check, a comment).
-6. **RESUME** only after verification passes.
-
-Errors compound. A bug in step 3 that you skip over makes steps 4–10
-wrong. The auto-QA Stop hook enforces this at the boundary, but you
-should enforce it at the task boundary too.
+Two things the work owes beyond the fix itself. Preserve the evidence —
+the error output and the command that reproduces it — in your exit
+report, since the orchestrator sees only what you carry out. And leave
+a guard: the test, check, or comment that catches this same failure
+next time. A fix without one is unfinished.
 
 ## 6. Commit Discipline
 
