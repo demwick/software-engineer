@@ -256,17 +256,16 @@ been captured by the flow before the re-launch).
 type(scope): description
 ```
 
-Valid types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `style`, `perf`.
-
 If the plan doesn't specify a scope, derive one from the primary file/module touched.
 
-Before every commit, validate the message:
+Validate every message before committing — the script owns the list of valid
+types, so it is the answer to "is this type allowed":
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-commit-msg.sh" "<message>"
 ```
 
-If validation fails, fix the message before committing. Do not skip validation.
+If validation fails, fix the message before committing.
 
 ### TDD Commit Sequence
 
@@ -316,8 +315,6 @@ Do not skip the Prove-It discipline to save time. Untested bug fixes come back.
 - **Respect project conventions** — match the existing code style, don't introduce a new pattern unless the plan says so
 - **Run tests when they exist** — if the project has a test runner, run it after each task. If it fails and the plan didn't expect failure, stop
 - **One self-correction attempt** — if a task fails on the first try, diagnose and retry once. If the second attempt also fails, stop and report
-- **Never commit secrets** — if you spot an API key, token, or credential in a diff, stop immediately
-- **Never use `--no-verify`, `git push --force`, `rm -rf`, `git reset --hard`** — these are destructive; ask the user first if they seem necessary
 
 ## Completion Contract
 
