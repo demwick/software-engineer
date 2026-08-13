@@ -24,20 +24,38 @@ Goal: $ARGUMENTS
 
 ## The dialogue
 
-Ask **one topic at a time** using `AskUserQuestion`. Do not dump all questions at once. Stop as soon as you have enough to write a spec — usually 3–6 questions, not an interrogation. Read existing code first (Glob/Grep) so you don't ask what the repo already answers.
+Requirements form a **design tree**: an answer changes which questions come next, and which ones stop mattering. Work it in **rounds**.
 
-Cover these dimensions, in roughly this order, skipping any the user already answered:
+The **frontier** is every question whose prerequisites are already settled — the ones you can ask *now* without guessing at an answer you haven't heard yet. Ask the whole frontier in one `AskUserQuestion` call (the tool takes up to four; if the frontier is wider, take the four that most change the spec and leave the rest for the next round). Lead each question with your recommended answer so the user can accept it in one click.
 
-1. **Outcome & users.** What does success look like in one sentence? Who uses this, and what do they do with it?
-2. **Scale & load.** How many users / requests / records, now and in 6 months? This decides architecture more than any other answer.
-3. **Auth & identity.** Is there authentication? Authorization roles? Multi-tenancy? Or is it single-user / internal?
-4. **Critical non-functional requirements.** Which of these are *load-bearing*: latency, security/compliance, availability, data durability, cost ceiling? Force a ranking — "all of them" is not an answer.
-5. **Non-goals (mandatory).** What are we explicitly NOT building in this pass? This is the highest-value question — it prevents scope creep and wrong assumptions. Push until you get at least two concrete non-goals.
-6. **Constraints & givens.** Existing stack, deadlines, team skills, must-use services, hard prohibitions.
+Each round's answers reshape the tree — settled questions push the frontier outward and unblock what depended on them. Recompute the frontier and ask the next round. A question whose answer depends on another question still open *this* round belongs to a later one.
+
+### The roots
+
+Six dimensions seed the tree. The arrows are prerequisites, not a script — an answer can open a branch none of them names.
+
+1. **Outcome & users** (root). What does success look like in one sentence? Who uses this, and what do they do with it?
+2. **Constraints & givens** (root). Existing stack, deadlines, team skills, must-use services, hard prohibitions.
+3. **Scale & load** ← outcome. How many users / requests / records, now and in 6 months? This decides architecture more than any other answer.
+4. **Auth & identity** ← users. Authentication? Authorization roles? Multi-tenancy? Or single-user / internal?
+5. **Critical non-functional requirements** ← scale, auth. Which are *load-bearing*: latency, security/compliance, availability, data durability, cost ceiling? Force a ranking — "all of them" is not an answer.
+6. **Non-goals** ← outcome, sharpened by every answer above. What are we explicitly NOT building in this pass? The highest-value question here — it prevents scope creep and wrong assumptions. Push until you get at least two concrete non-goals.
+
+Left alone, that lays out as three rounds — 1+2, then 3+4, then 5+6 — plus whatever branches the answers opened.
+
+### Facts are yours, decisions are theirs
+
+Finding facts is your job, never the user's. Anything the repo already answers — the stack, the current auth model, whether a table exists — you look up with Glob/Grep before the round, and it never becomes a question. What you put to the user is only what they alone can decide.
+
+### Done
+
+The frontier is empty: every root visited, and every branch the answers opened either settled or carried into the digest as an open question.
+
+A branch joins the frontier only when its answer would **change something in the spec** — a different acceptance criterion, a different non-goal, a different NFR ranking. A question that leaves the spec identical either way isn't a branch, it's an interrogation.
 
 ## Bias
 
-- **Prefer asking over assuming.** A wrong requirement is more expensive than a question. If an answer is ambiguous, ask the follow-up rather than guessing.
+- **Prefer asking over assuming**, on anything that changes the spec. A wrong requirement is more expensive than a question. If an answer is ambiguous, ask the follow-up rather than guessing.
 - **Force trade-offs into the open.** When the user wants two things that conflict (cheap + highly available; fast + fully consistent), name the tension and ask them to choose.
 - **Surface the non-goal.** If the user resists naming non-goals, propose some ("I'll assume no mobile app and no SSO for v1 — correct?") and get confirmation.
 
@@ -62,12 +80,10 @@ Then hand off: *"Requirements captured. Writing the spec."* — and invoke `/spe
 ## Rules
 
 - **Requirements, not design.** Don't choose libraries, schemas, or patterns here. That's the planner's job after the spec exists.
-- **One topic per question.** Use `AskUserQuestion`; let the user pick or override.
+- **One decision per question.** A round carries several questions; each one asks for a single decision, and the user can pick or override.
 - **Non-goals are mandatory output.** A digest without explicit non-goals is incomplete — keep asking.
-- **Read before you ask.** Don't ask what `grep` would answer.
 
 ## Related
 
 - `/triage` — routes fuzzy+broad work here
-- `/spec` — consumes this digest and writes the single source of truth
-- **External**: `superpowers:brainstorming` — for divergent/convergent *design* exploration once requirements are fixed
+- `/spec` — consumes this digest and writes the single source of truth; design alternatives land in its **Trade-offs** section, and a hard-to-reverse one graduates to `/adr`

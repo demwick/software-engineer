@@ -133,7 +133,7 @@ claude --plugin-dir /path/to/software-engineer \
 - **Project analysis & memory.** It reads an existing codebase, finds gaps, builds a roadmap, and persists project state and decisions across sessions.
 - **The engineering around the code** — requirements, specs, ADRs, forward risk, senior review — as first-class, not afterthoughts.
 
-When superpowers is installed, the plugin happily delegates to its brainstorming and debugging skills instead of reinventing them.
+When superpowers is installed, the plugin happily delegates to its debugging and TDD skills instead of reinventing them. Requirements are the one place it does not delegate: `/clarify` asks *what must be true* — scale, auth, non-goals — where brainstorming explores *how to build it*, and the spec is this plugin's own artifact.
 
 ---
 
