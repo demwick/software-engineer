@@ -78,7 +78,7 @@ fix the typo in the title of README.md
 add a CSV export endpoint to the existing user API
 ```
 
-**Expect:** at most 1–2 critical questions; planner writes a short spec + plan; `/risk` surfaces blast-radius/security before the executor; risk gates honored; execute → auto-QA. **Fail:** dives straight to code with no plan; asks a full requirements interview.
+**Expect:** at most 1–2 critical questions; a short spec + plan written inline by the flow (no `→ planner` dispatch — this is an ad-hoc slice, not a numbered roadmap phase) and passing `plan-validate.sh`; `/risk` surfaces blast-radius/security before the executor; risk gates honored; execute → auto-QA. **Fail:** dives straight to code with no plan; asks a full requirements interview; dispatches the planner agent for a one-feature slice.
 
 ## 3. Triage → full-flow (fuzzy + broad)
 

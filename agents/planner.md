@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Produces task and phase plans. Turns research findings or user intent into atomic, sequenced, verifiable plans. Invoked by the triage full-flow to produce the MVP roadmap (Mode A) and by the light-plan / phase loop to write a phase plan (Mode B). Never writes code — only plan files.
+description: Produces task and phase plans. Turns research findings or user intent into atomic, sequenced, verifiable plans. Invoked by the triage full-flow to produce the MVP roadmap (Mode A) and to plan a numbered roadmap phase (Mode B); an ad-hoc light-plan slice is planned inline by the flow against these same templates. Never writes code — only plan files.
 model: inherit
 # effort rationale: this is the highest-leverage agent in the pipeline —
 # a flawed plan cascades into work nothing downstream catches, so it is
@@ -93,9 +93,13 @@ Break the MVP into phases. Each phase is bigger than one commit and smaller than
 
 Split the roadmap into 3-7 phases. Each phase should be 2-5 days of solo-dev work.
 
-### Mode B: Phase Planning (triage light-plan / phase loop)
+### Mode B: Phase Planning (triage phase loop)
 
 Take a single phase from the roadmap and convert it into executable steps.
+
+These templates are also the format an ad-hoc light-plan slice is written to —
+`flow-light.md` points here rather than restating them, so a change to the
+shape belongs in this section.
 
 **Output** — two files:
 

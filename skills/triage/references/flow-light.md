@@ -21,14 +21,17 @@ This is a planned flow, not direct-apply — clear any leftover direct-apply sco
 rm -f .se/.direct-apply .se/.direct-files
 ```
 
-Narrate the handoff first: `→ planner: <feature> plan`.
-
-Launch the `planner` agent in **Mode B (Phase Planning)** targeting an ad-hoc slice. Pass the user's request plus any answers from Step 1. The planner writes:
+Two files must exist before the executor runs — together they are its contract:
 
 - `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
-- `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, `risk_gates`, complexity
+- `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, per-task scope bounds, `risk_gates`, complexity
 
-Use a kebab-case `<slug>` derived from the feature when the project has no numbered roadmap; use the next phase number when it does. Validate the spec **and the plan** deterministically — don't eyeball the markdown for `[[ ASK ]]` markers or a missing `risk_gates:` block, run the linters:
+Who writes them follows the same branch that names them:
+
+- **A roadmap phase** — `.se/roadmap.md` exists and you are driving phase N. `<slug>` is the phase number. Narrate `→ planner: phase N plan` and launch the `planner` agent in **Mode B (Phase Planning)**, passing the roadmap phase and any answers from Step 1.
+- **An ad-hoc slice** — no numbered roadmap covers this work. `<slug>` is kebab-case, derived from the feature. Write both files yourself, following the Mode B templates in `agents/planner.md` (spec shape, task shape, scope bounds, `risk_gates` triggers). The plan still gets written to the same bar; `plan-validate.sh` below is what holds it there.
+
+Validate the spec **and the plan** deterministically — don't eyeball the markdown for `[[ ASK ]]` markers or a missing `risk_gates:` block, run the linters:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".se/specs/phase-<slug>.md"
@@ -110,7 +113,7 @@ Write a short `summary.md` for the slice. Then:
 ## Rules
 
 - **Narrate every handoff.** Print a `→ <agent>: …` line before each dispatch (planner, executor) so the user can always see who is working and on what.
-- **Don't skip the planner** even if it "looks obvious" — the plan is the executor's contract.
+- **The plan is the executor's contract** — it gets written even when the work looks obvious. Step 2's branch decides who writes it, never whether it exists.
 - **Don't run the verifier yourself** — the Stop hook owns it.
 - **Respect blockers and gates** — surface, don't unstick.
 - **At most two clarifying questions here.** More unknowns → escalate to full-flow.
