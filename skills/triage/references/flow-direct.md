@@ -41,7 +41,7 @@ Launch the `executor` agent. Pass it:
 
 - The resolved task (the user's request)
 - Instruction: *"This is a direct task, not a planned phase. Do the work TDD-first where a test is meaningful, verify locally if possible, and commit atomically. There is no plan file."*
-- The **must-have facts** the executor must confirm concretely in its exit report (e.g. "confirm the test fails before the fix and passes after, with the command output"). A vague "done" is not evidence — see `_common.md` Rule 7.
+- The **must-have facts** the executor must confirm concretely in its exit report (e.g. "confirm the test fails before the fix and passes after, with the command output").
 
 Executor returns `done` or `blocked`.
 

@@ -27,7 +27,7 @@ Launch the `researcher` agent:
 
 > Analyze this codebase. Produce the standard report: tech stack, structure, findings, priority actions. Focus on test coverage, error handling, security basics, doc coverage. **Output file: `.se/research.md`** — write incrementally as you verify. Keep mandatory reading tight: CLAUDE.md + at most 3 context files. If multiple subrepos exist, audit the one most central to the goal and list the others as "not audited in this pass".
 
-Tell the researcher the **must-have facts** to confirm concretely in its report (stack identified with the file that proves it, test command actually run, each priority action tied to a `file:line`) — vague summaries are not evidence, see `_common.md` Rule 7.
+Tell the researcher the **must-have facts** to confirm concretely in its report: stack identified with the file that proves it, test command actually run, each priority action tied to a `file:line`.
 
 Read `.se/research.md` (fall back to the agent's final message). Summarize the top 3 findings and top 3 priority actions in your own words. If the report header is `## STATUS: TRUNCATED`, tell the user the audit was partial and offer a scoped re-run before building the roadmap.
 
