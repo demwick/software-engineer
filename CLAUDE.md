@@ -80,6 +80,19 @@ To run a single eval suite in isolation (each suite is a self-contained bash scr
 bash evals/suites/hooks/auto-qa-blocks-on-failing-tests.sh
 ```
 
+On a model upgrade, run the opt-in behavioral gate — it is how Hard Rule 8's
+compensation-vs-preference test is settled, by running the prompts rather than
+arguing about the new model's defaults:
+
+```bash
+SE_BEHAVIORAL_EVALS=1 bash evals/suites/behavioral/instruction-noop.sh
+```
+
+An `ABSORBED` verdict names a block the model now does on its own — cut it,
+keeping only what it asserts that no model can infer, and retire its fixture.
+`evals/suites/behavioral/README.md` covers how to add one without fooling
+yourself.
+
 For live testing in Claude Code, run:
 
 ```bash
