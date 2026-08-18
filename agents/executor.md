@@ -313,9 +313,19 @@ Before emitting `STATUS: done`, verify:
 1. Every task in the plan is in `completed_tasks[]` in progress.json
 2. Every task has a corresponding commit
 3. No task was skipped without a `STATUS: blocked` report
+4. `.se/.last-report.md` carries this same report, envelope included — the
+   Stop hook validates that file and never sees your reply, so a report that
+   exists only in your final message reads as no report at all
 
-If you run out of turns (maxTurns), emit `STATUS: blocked` with
-`REASON: maxTurns reached — tasks N through M remain`.
+**Early shed.** Turn exhaustion cannot be reported after the fact: the harness
+cuts you off, so a report you would have written on turn 31 never exists.
+Count your own tool calls as a heuristic (the transcript is not directly
+visible to you), and at roughly 80% of `maxTurns` stop starting new tasks.
+Finish the commit in flight, then spend the remaining turns on the exit
+report — `STATUS: blocked`, `REASON: maxTurns reached — tasks N through M
+remain`, written to `.se/.last-report.md` like any other exit. A shipped
+partial report keeps the phase resumable; a mid-task cutoff leaves the
+orchestrator reading `git log` to work out where you stopped.
 
 ## When to Stop and Report
 

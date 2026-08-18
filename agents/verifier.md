@@ -26,11 +26,13 @@ memory: project
 # session runs a higher tier. Inheriting makes "reviewer >= author"
 # structural. See skills/triage/references/auto-qa-protocol.md for the
 # two-tier contract.
-# maxTurns rationale: read Tier-1's result, read the diff, one structured
-# verdict report — the suite run moved to Tier 1, which is the only place
-# it happens now. ~4–6 turns typical; 8 gives headroom for a wide diff
-# without letting a broken prompt loop.
-maxTurns: 8
+# maxTurns rationale: two paths, budgeted for the expensive one. On the
+# Stop-gate path Tier 1 already ran the suite, so this is read the result,
+# read the diff, one verdict — ~4–6 turns. Invoked anywhere else that file
+# is absent and check 4 runs the suite here, which costs what it always
+# cost. 12 covers that path; budgeting for the cheap one strands the
+# other mid-run, which is exactly what a verifier must never do.
+maxTurns: 12
 color: yellow
 ---
 
@@ -63,11 +65,20 @@ Read your own `MEMORY.md` first. Which failures are known-flaky? What did the ex
    the red-phase proof. Carry them into your verdict rather than recomputing
    them. The file is your test evidence — cite its `status` and `reason`.
 4. **Missing Tier-1 result** — if `.se/verification/phase-<id>.json` is absent,
-   you were invoked outside the Stop-gate path. Run the suite yourself once:
+   run the suite yourself once:
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"` (it exits with the
    suite's code and prints a summary plus failure detail; read
    `.se/last-test-run.txt` only when that is not enough). No test runner
    detected → report `tests: not-configured` and move on, this is not a failure.
+
+   Then **say so in the verdict**. Absence has two causes you cannot tell apart
+   from here: you were invoked outside the Stop-gate path (normal), or that path
+   is broken and Tier 1 never ran (not normal). Either way this phase got one
+   tier of verification instead of two, so record `tier1: missing` rather than
+   letting the degradation pass unremarked. If `.se/verification/` does not
+   exist **at all**, put that in `new_findings[]` as a high-severity finding: no
+   phase in this project has ever been verified by Tier 1, which is a setup
+   fault the caller has to fix and no amount of code review substitutes for.
 5. **Error surface** — broken imports, missing references, unclosed blocks, type errors (use grep, not a full reread)
 6. **Commit hygiene** — one task per commit, no secrets in diffs, commit messages match the plan
 7. **Senior code review** — beyond "do tests pass", judge the change like a senior reviewer: correctness traps, missing edge cases, unsafe input handling, obvious regressions. Classify every finding by severity (see below). This is where you earn your keep — green tests do not mean good code.
@@ -209,7 +220,8 @@ These get picked up by the state-tracker hook and surfaced in `/se-status`.
 
 - **Never call Write or Edit** — you are read-only plus Bash
 - **Never modify git state** — no commits, no resets, no branch changes
-- **Time-box yourself** — 8 turns max. Tier 1 already paid for the suite run; your budget goes to reading the diff, not to re-running checks
+- **Time-box yourself** — on the Stop-gate path Tier 1 already paid for the suite run, so your budget goes to reading the diff, not to re-running checks
+- **Shed before the cap, not after** — turn exhaustion cannot be reported once it happens: the harness cuts you off and the verdict never lands. Count your own tool calls as a heuristic, and at roughly 80% of `maxTurns` stop gathering and write the verdict with what you have, naming what you did not reach. A partial verdict is still a verdict; a cut-off verifier costs the phase its entire Tier-2 review and says nothing about it
 - **You are the reviewer** — v2 merged the standalone reviewer into this agent. "Tests pass but the code is ugly" with no correctness impact is a `nit`/`minor`, not a blocker — but spotting correctness traps, missing edge cases, and regressions behind green tests is squarely your job, not someone else's
 - **Trust the plan** — if the plan says "no tests yet", you don't fail it for missing tests
 - **One JSON object only** — multiple JSON lines confuse the hook parser
