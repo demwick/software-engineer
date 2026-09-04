@@ -183,27 +183,56 @@ case "$TOOL" in
             fi
         fi
 
-        # 2. Commit gate — exact, and the backstop for any write technique
-        #    the extractor below misses. Nothing lands in history unarmed.
-        if [ ! -f "$ACTIVE" ] \
-           && printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'; then
+        # 2. Commit gates. The staged set is computed once; two checks read it.
+        if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'; then
             STAGED=$(git diff --cached --name-only 2>/dev/null || true)
             # -a may sit anywhere in a flag cluster (-am, -a, --all).
             if printf '%s' "$CMD" | grep -Eq '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all'; then
                 STAGED="${STAGED}
 $(git diff --name-only 2>/dev/null || true)"
             fi
-            GATED=""
-            while IFS= read -r f; do
-                [ -n "$f" ] || continue
-                is_open "$f" || GATED="${GATED} ${f}"
-            done <<EOF
+
+            # 2a. Nothing lands in history unarmed — the exact backstop for
+            #     any write technique the heuristic gate below misses.
+            if [ ! -f "$ACTIVE" ]; then
+                GATED=""
+                while IFS= read -r f; do
+                    [ -n "$f" ] || continue
+                    is_open "$f" || GATED="${GATED} ${f}"
+                done <<EOF
 $STAGED
 EOF
-            if [ -n "$GATED" ]; then
-                printf 'software-engineer guard: commit blocked — no active SE work.\nStaged project files:%s\nThis project is managed by software-engineer, and a commit of project code belongs to a slice that has a plan. Run triage; it plans the work, arms .se/.active, and the executor commits inside that slice. Committing the plugin artifacts alone (.se/, CLAUDE.md, .gitignore) is always allowed.\n' \
-                    "$GATED" >&2
-                exit 2
+                if [ -n "$GATED" ]; then
+                    printf 'software-engineer guard: commit blocked — no active SE work.\nStaged project files:%s\nThis project is managed by software-engineer, and a commit of project code belongs to a slice that has a plan. Run triage; it plans the work, arms .se/.active, and the executor commits inside that slice. Committing the plugin artifacts alone (.se/, CLAUDE.md, .gitignore) is always allowed.\n' \
+                        "$GATED" >&2
+                    exit 2
+                fi
+            fi
+
+            # 2b. Prove-It: a `fix(` commit does not carry its own reproduction
+            #     test. The test lands alone and first, so `git checkout
+            #     <test-sha>` reproduces the bug and the fix commit is pure
+            #     remediation. This is enforced rather than asked for because
+            #     live testing caught the model collapsing the pair into one
+            #     commit — the only rule in this plugin that had no backstop.
+            if printf '%s' "$CMD" | grep -Eq -- '-m[[:space:]]+["'"'"']?fix\('; then
+                FIX_TESTS=""; FIX_SOURCES=""
+                while IFS= read -r f; do
+                    [ -n "$f" ] || continue
+                    is_open "$f" && continue
+                    if printf '%s' "$f" | grep -Eq '(^|/)(tests?|__tests__|specs?)/|(^|/)test_[^/]*\.[A-Za-z]+$|(_test|_spec)\.[A-Za-z]+$|\.(test|spec)\.[A-Za-z]+$|(^|/)tests?\.[A-Za-z]+$'; then
+                        FIX_TESTS="${FIX_TESTS} ${f}"
+                    else
+                        FIX_SOURCES="${FIX_SOURCES} ${f}"
+                    fi
+                done <<EOF
+$STAGED
+EOF
+                if [ -n "$FIX_TESTS" ] && [ -n "$FIX_SOURCES" ]; then
+                    printf 'software-engineer guard: a fix commit cannot carry its own reproduction test.\nStaged tests:%s\nStaged source:%s\nCommit the failing test on its own first — `test(scope): reproduce <bug>` — confirm it fails for the reported reason, write its path to .se/.fixing, then commit the fix alone. That order is what makes the bug permanent evidence in git history and the fix diff pure remediation. If this commit only repairs a broken test and fixes no behaviour, name it `test(...)` or `chore(...)` instead.\n' \
+                        "$FIX_TESTS" "$FIX_SOURCES" >&2
+                    exit 2
+                fi
             fi
         fi
 

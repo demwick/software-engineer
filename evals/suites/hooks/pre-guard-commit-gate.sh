@@ -62,4 +62,36 @@ assert_eq 0 "$(rc 'git log --oneline -3')" "git log open"
 assert_eq 0 "$(rc 'git status --short')"   "git status open"
 assert_eq 0 "$(rc 'git diff --cached')"    "git diff open"
 
+# --- Prove-It: a fix commit cannot carry its own reproduction test ---
+# Runs armed too: fix commits happen inside planned slices.
+printf '{"kind":"planned","id":"bug","files":[]}' > .se/.active
+mkdir -p tests
+printf 'x\n' > tests/test_model.py
+printf 'x\n' > test.js
+git add -A && git commit -q -m "chore: add tests"
+
+stage() { git reset -q; printf '%s\n' "$(date +%s%N)" > "$1"; [ $# -gt 1 ] && printf '%s\n' "$(date +%s%N)" > "$2"; git add "$@"; }
+
+stage src/app.js tests/test_model.py
+assert_eq 2 "$(rc 'git commit -m "fix(model): off-by-one"')" "fix staging test + source blocked"
+assert_contains "$(msg 'git commit -m "fix(model): x"')" "reproduction test" "message states the rule"
+assert_contains "$(msg 'git commit -m "fix(model): x"')" "test(scope): reproduce" "message gives the commit shape"
+
+# A root-level test file counts as a test.
+stage src/app.js test.js
+assert_eq 2 "$(rc 'git commit -m "fix(cli): bad exit code"')" "root test.js counts as a test"
+
+# The halves on their own are fine — that is the pair being done right.
+stage tests/test_model.py
+assert_eq 0 "$(rc 'git commit -m "test(model): reproduce the off-by-one"')" "reproduction alone allowed"
+stage src/app.js
+assert_eq 0 "$(rc 'git commit -m "fix(model): off-by-one"')" "fix alone allowed"
+
+# Only `fix(` is constrained; a feature legitimately ships with its tests.
+stage src/app.js tests/test_model.py
+assert_eq 0 "$(rc 'git commit -m "feat(model): add streaks"')" "feat with tests allowed"
+assert_eq 0 "$(rc 'git commit -m "refactor(model): extract helper"')" "refactor with tests allowed"
+assert_eq 0 "$(rc 'git commit -m "test(model): cover the boundary"')" "test commit allowed"
+
+rm -f .se/.active
 echo "PASS: pre-guard commit gate"

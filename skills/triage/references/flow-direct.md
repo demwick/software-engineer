@@ -31,7 +31,7 @@ In an SE-managed project, arm the gate with the direct kind — the guard counts
 
 A block on the 4th file is the signal triage misrouted: stop, and run `flow-light.md` for this task.
 
-Narrate `→ executor: <short task>` and launch the `executor` agent with the request and: *"Direct task, no plan file. Do the one thing asked, run the suite, one commit."*
+Narrate `→ executor: <short task>` and launch the `executor` agent with the request and: *"Direct task, no plan file. Do the one thing asked, run the suite, one commit — unless it is a bug fix, which is still two: the reproduction test alone first, then the fix."*
 
 - **blocked** → surface the report verbatim; stop.
 - **done** → report.
@@ -40,6 +40,8 @@ Narrate `→ executor: <short task>` and launch the `executor` agent with the re
 
 > Done: \<what\>. Commit: \<short-sha\>.
 
-The Stop hook runs the suite on `.active` and clears it; a failure blocks the turn with the failing output so you fix it (≤2 retries). No verifier — a one-commit task does not warrant a senior review.
+The Stop hook runs the suite on `.active` and clears it; a failure blocks the turn with the failing output so you fix it (≤2 retries). No verifier — a task this small does not warrant a senior review.
+
+**One commit — except a bug fix.** Every other split means it wasn't direct: stop and run `flow-light.md`. A fix is the `test(scope): reproduce …` / `fix(scope): …` pair, and the guard enforces it: a `fix(` commit that stages its own test alongside the source is blocked.
 
 If the task came from `.se/diagnose.json`, add: *"Re-run /se-diagnose to see the next priority."*

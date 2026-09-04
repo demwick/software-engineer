@@ -32,7 +32,10 @@ Decision record: `docs/specs/2026-09-04-playbook-architecture.md`.
   before `state.json` made the project managed. The gate is
   layered across all three write routes — `Write`/`Edit`, shell writes
   (`sed -i`, redirects, tee/cp/mv/touch, interpreter one-liners), and
-  `git commit` with gated paths staged, which is the exact backstop.
+  `git commit` with gated paths staged, which is the exact backstop. The
+  same gate enforces Prove-It: a `fix(` commit may not stage its own
+  reproduction test alongside the source, so the failing test keeps its
+  own earlier commit.
   Live testing found the Write/Edit-only version fully bypassed by the
   model's default `sed` edit in a bypass-permissions session.
 - **`.se/.fixing`.** A reproduction test committed red is locked against

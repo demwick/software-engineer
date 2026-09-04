@@ -156,8 +156,14 @@ a fix". The executor removes it after the fix commit.
 
 TDD is no longer a rule. What stays is the playbook's feedback loop:
 "done" means the verification command is green and its summary is in the
-report; a bug fix starts from a failing test and the `.fixing` lock holds
-it. Commit-order forensics, red-proof replay, the verification-strategy
+report; a bug fix starts from a failing test, the `.fixing` lock holds it,
+and the commit gate refuses a `fix(` commit that stages its own
+reproduction alongside the source. That last check exists because live
+testing (2026-09-05) caught the pair collapsed into one commit — and the
+cause was an instruction collision, not model laziness: `flow-direct`
+briefed the executor with "one commit" while `executor.md` asked for two,
+and the nearer instruction won. Prove-It was the only rule in the plugin
+left to prose alone; it now has a backstop like the rest. Commit-order forensics, red-proof replay, the verification-strategy
 resolver and the typed exit envelope are removed — with Opus 5 they check
 behavior the model exhibits by default, and the Stop hook already runs the
 suite itself.
