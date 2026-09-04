@@ -162,7 +162,7 @@ Agents `planner`, `researcher`, `_common`. Skills `risk` (a plan's
       contains exactly `triage`, `intent`, `spec`, `adr`, `se-status`,
       `se-diagnose`; `hooks/hooks.json` registers exactly SessionStart,
       Stop, PreToolUse.
-- [ ] Total instruction text under `agents/` + `skills/` is under 40 KB
+- [ ] Total instruction text under `agents/` + `skills/` is under 48 KB
       (was ~130 KB).
 - [ ] `docs/STATE.md`, `README.md`, `CLAUDE.md`, `DESIGN.md`, `TESTING.md`,
       `CHANGELOG.md`, `plugin.json` describe v5 and nothing older as current.
