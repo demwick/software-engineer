@@ -77,12 +77,23 @@ One marker replaces `.needs-verify`, `.verify-phase`, `.direct-apply`,
 `.direct-files`, `.verify-strategy` and `.last-report.md`:
 
 ```json
-{"kind": "direct" | "planned", "id": "<slug>", "files": []}
+{"kind": "direct" | "planned" | "bootstrap", "id": "<slug>", "files": []}
 ```
+
+`direct` caps at three distinct files and writes no verification record.
+`planned` requires `.se/plans/<id>.md` and gets one. `bootstrap` is the
+from-scratch scaffold: gated like any write, but with no file budget and no
+record, because there is no plan for a scaffold to be checked against.
 
 - **Armed by the flow** immediately before the executor runs — after the
   plan passed `plan-validate.sh` and the user accepted it (planned), or
-  after the size check (direct).
+  after the size check (direct). The from-scratch bootstrap arms it too:
+  live testing (2026-09-05) showed the scaffold escaping the gate entirely,
+  because `flow-full` wrote code *before* `.se/state.json` existed and the
+  guard reads that file's existence as "this project is managed". The first
+  code in a project was therefore always ungated, and an interrupted session
+  left orphan code with no state. Step 4 now writes the state, the
+  `.gitignore` and `CLAUDE.md` first, then arms `bootstrap`, then scaffolds.
 - **Read by `pre-guard`** (PreToolUse): in an SE-managed project a write to
   a path under the project root that is not `.se/`, `CLAUDE.md`,
   `.gitignore` or `.claude/` is **blocked unless `.active` exists**. This is

@@ -39,7 +39,9 @@ if [ -z "$KIND" ] && [ -f "$ACTIVE" ]; then
     KIND=$(jq -r '.kind // ""' "$ACTIVE" 2>/dev/null || echo "")
 fi
 [ -n "$ID" ] || exit 0
-[ "$KIND" = "direct" ] && exit 0
+# Only a planned slice has a plan to check criteria against. `direct` and
+# `bootstrap` write no record — and must not be failed for the missing plan.
+[ "$KIND" = "planned" ] || exit 0
 
 PLAN="$STATE_DIR/plans/${ID}.md"
 OUT="$STATE_DIR/verification/${ID}.json"

@@ -26,7 +26,10 @@ Decision record: `docs/specs/2026-09-04-playbook-architecture.md`.
   `chore(se): close <id>`.
 - **`.se/.active`, the edit gate.** `pre-guard` blocks writes to project
   code while no work is armed; the flows arm it after the plan is accepted.
-  Direct-apply's 3-file tripwire moves into the same marker. The gate is
+  Direct-apply's 3-file tripwire moves into the same marker, and a third
+  kind, `bootstrap`, gates the from-scratch scaffold — which escaped the
+  gate entirely until live testing caught it, because the flow wrote code
+  before `state.json` made the project managed. The gate is
   layered across all three write routes — `Write`/`Edit`, shell writes
   (`sed -i`, redirects, tee/cp/mv/touch, interpreter one-liners), and
   `git commit` with gated paths staged, which is the exact backstop.
