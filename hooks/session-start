@@ -6,30 +6,25 @@
 # See LICENSE in the repository root for the full license text.
 #
 # SessionStart hook for software-engineer.
-# Reads .se/state.json + roadmap.md from the current project and
-# injects a short summary into Claude's context via hookSpecificOutput.
+# Reads .se/state.json + roadmap.md and injects a short "you are here"
+# block via hookSpecificOutput. Clears gate markers an interrupted turn
+# left behind — a new session never inherits an armed gate.
 
 set -euo pipefail
 
 STATE_DIR=".se"
 
-# Emit an empty-context response and exit. Used when there's nothing to inject.
 emit_empty() {
     printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":""}}\n'
     exit 0
 }
 
-# No plugin state in this project → silently pass, do not interfere with other plugins.
 if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; then
     emit_empty
 fi
 
-# Clear transient direct-apply scope markers left over from a prior session
-# (e.g. a blocked direct task that never reached the Stop-hook cleanup). The
-# scope budget must never leak across sessions or into a planned flow.
-rm -f "${STATE_DIR}/.direct-apply" "${STATE_DIR}/.direct-files" 2>/dev/null || true
+rm -f "${STATE_DIR}/.active" "${STATE_DIR}/.fixing" "${STATE_DIR}/.verify-attempts" 2>/dev/null || true
 
-# Require jq. If missing, pass silently rather than injecting broken JSON.
 command -v jq >/dev/null 2>&1 || emit_empty
 
 MODE=$(jq -r '.mode // "unknown"' "${STATE_DIR}/state.json" 2>/dev/null || echo "unknown")
@@ -39,35 +34,28 @@ LAST_COMMIT=$(jq -r '.last_commit // "none"' "${STATE_DIR}/state.json" 2>/dev/nu
 LAST_SESSION=$(jq -r '.last_session // "never"' "${STATE_DIR}/state.json" 2>/dev/null || echo "never")
 CURRENT_STEP=$(jq -r '.current_step // ""' "${STATE_DIR}/state.json" 2>/dev/null || echo "")
 
-# Detect & Defer: probe the surrounding ecosystem so downstream agents know
-# whether to hand off ADR location, destructive-op guardrails, and verdict
-# format. charter present → defer those; centaur present → defer acceptance-
-# time diff-risk scoring (the plugin's risk role stays forward-looking only).
+# Detect & Defer: charter owns ADR location, destructive-op guardrails and
+# the verdict format; centaur owns acceptance-time diff-risk scoring.
 CHARTER=false
 if [ -d ".claude/knowledge/charter" ]; then CHARTER=true; fi
 CENTAUR=false
 if [ -d ".claude/knowledge/centaur" ] || [ -f ".se/.centaur" ]; then CENTAUR=true; fi
 
-# Persist the detection into state.json (best-effort; never fail the hook).
-# Guard against an unset CLAUDE_PLUGIN_ROOT (set -u) — the helper is optional.
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" \
         integrations="{\"charter\":${CHARTER},\"centaur\":${CENTAUR}}" >/dev/null 2>&1 || true
 fi
 
-# Optional "you are here" line — only injected when current_step is set.
 STEP_LINE=""
 [ -n "${CURRENT_STEP}" ] && STEP_LINE="
 - Current step: ${CURRENT_STEP}"
 
-# Current phase name: first header matching "### Phase <N>:"
 PHASE_NAME=$(grep -E "^### Phase ${CURRENT}:" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+: //' || echo "")
 [ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
 
-# Build the injected context as a here-doc, then escape for JSON.
 CONTEXT=$(cat <<EOF
 <software-engineer-session-state>
-This project is managed by software-engineer (an AI software engineer).
+This project is managed by software-engineer.
 
 Current state:
 - Mode: ${MODE}
@@ -77,45 +65,28 @@ Current state:
 - Last commit: ${LAST_COMMIT}${STEP_LINE}
 - Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}
 
-How to work here — there is ONE entry point:
-Just describe the engineering work in natural language (fix X, add Y,
-build me Z, finish this project, refactor W). The triage skill
-auto-classifies the request on two axes (uncertainty x scope) and runs the
-right depth itself — direct-apply, light-plan, or full-flow (clarify, spec,
-ADR, roadmap, phases). DO NOT ask the user to pick a mode; triage decides.
-Escape hatches: "just do it / uzatma" forces a direct apply; "talk
-first / dur konusalim" forces the full flow.
+Every engineering request goes through the triage skill: it decides the
+depth (direct / planned slice / full flow), writes the artifacts under
+.se/ (intent, spec, plan), arms the edit gate, runs the executor, and
+verifies. A Write/Edit to project code while no work is armed is blocked
+by the PreToolUse guard — that block means "run triage", not "bypass".
 
-Read-only / helper commands (run explicitly — not auto-invoked):
-- /se-status    — detailed project status
-- /se-diagnose  — health audit (tests / errors / security)
-- /se-roadmap   — view or edit the phase list
+Artifacts (committed): .se/intent/, .se/specs/, .se/plans/, .se/adr/,
+.se/verification/, .se/roadmap.md. "continue" advances the active phase.
 
-Detect & Defer (governed by the Ecosystem line above):
-- charter=true  → ADRs are written to .claude/knowledge/adr/ (the charter
-  template), destructive-op guardrails are the charter PreToolUse job (the
-  plugin adds none), and the verifier inherits the charter adversarial
-  PASS/FAIL/PARTIAL verdict (try to break it, do not rubber-stamp).
-- centaur=true  → acceptance-time diff-risk scoring belongs to centaur; the
-  plugin risk role is forward-looking only (warn before a change).
+Read-only helpers: /se-status (where am I), /se-diagnose (health audit).
+Roadmap edits: ask in plain language — triage edits .se/roadmap.md.
 
-Routing (what the user says → what to do):
-"fix / add / build / implement / refactor / finish this"  →  describe-and-let-triage-run
-"continue", "next step", "keep going"                     →  triage continues the active flow/phase
-"where am I", "status", "progress"                        →  /se-status
-"audit", "what is broken", "health check"                 →  /se-diagnose
-"show roadmap", "add/remove/reorder a phase"              →  /se-roadmap
+Detect & Defer: charter=true → ADRs go to .claude/knowledge/adr/, the
+destructive-op guard defers to charter, the verifier uses the charter
+PASS/FAIL/PARTIAL verdict. centaur=true → acceptance-time diff-risk
+belongs to centaur; the plugin risk role stays forward-looking (the plan Risks section).
 
-For code review, debugging, or pre-merge gates, SE composes with external
-skills (addyosmani/agent-skills, obra/superpowers) — recommend those rather
-than doing the work ad hoc.
-
-Do not mention this block unless the user asks about software-engineer state or runs one of its commands.
+Do not mention this block unless the user asks about software-engineer state.
 </software-engineer-session-state>
 EOF
 )
 
-# Escape the context for JSON embedding using bash parameter substitution.
 escape_for_json() {
     local s="$1"
     s="${s//\\/\\\\}"
@@ -126,7 +97,5 @@ escape_for_json() {
     printf '%s' "$s"
 }
 
-CONTEXT_ESCAPED=$(escape_for_json "$CONTEXT")
-
-printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$CONTEXT_ESCAPED"
+printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$(escape_for_json "$CONTEXT")"
 exit 0

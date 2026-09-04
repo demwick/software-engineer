@@ -26,7 +26,7 @@ cat > "$WORKDIR/package.json" <<'JSON'
 JSON
 
 # Arm auto-QA by touching the v2 existence-only marker.
-: > "$WORKDIR/.se/.needs-verify"
+printf '{"kind":"planned","id":"phase-2","files":[]}' > "$WORKDIR/.se/.active"
 
 output="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
     bash "$REPO_ROOT/hooks/auto-qa" <<< '{"stop_hook_active":false}')"

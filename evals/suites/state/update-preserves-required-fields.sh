@@ -18,7 +18,7 @@ bash "$REPO_ROOT/scripts/state-update.sh" \
 
 STATE="$(cat "$WORKDIR/.se/state.json")"
 
-assert_jq "$STATE" '.schema_version'  '== 2'              "schema_version preserved (v2)"
+assert_jq "$STATE" '.schema_version'  '== 3'              "schema_version preserved (v3)"
 assert_jq "$STATE" '.mode'            '== "from-scratch"' "mode preserved"
 assert_jq "$STATE" '.created'         '!= null'           "created preserved"
 assert_jq "$STATE" '.current_phase'   '== 1'              "current_phase preserved"

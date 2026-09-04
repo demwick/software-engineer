@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Verify auto-qa hook writes verification JSON on test pass.
+# On a green suite with a planned .active marker, auto-qa runs verify-phase
+# and writes .se/verification/<id>.json from the plan's acceptance criteria,
+# then clears every marker. A missing plan is recorded as a fail — the plan
+# cannot be skipped.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
 
@@ -13,67 +16,49 @@ WORKDIR="$(fixture_repo node-basic)"
 fixture_state "$WORKDIR" executing
 trap 'rm -rf "$WORKDIR"' EXIT
 
-# Create .needs-verify marker and a spec file.
-mkdir -p "$WORKDIR/.se/specs"
-: > "$WORKDIR/.se/.needs-verify"
-
-cat > "$WORKDIR/.se/specs/phase-2.md" << 'SPEC'
-# Phase 2 Spec: Test Feature
-
-## Goal
-Add a test feature.
-
-## Acceptance Criteria
-- AC1: feature returns 200
-- AC2: feature handles errors
-- AC3: unit tests pass
-
-## Out of Scope
-- Nothing
-SPEC
-
-# Create a fake plan with tasks.
-mkdir -p "$WORKDIR/.se/phases/phase-2"
-cat > "$WORKDIR/.se/phases/phase-2/plan.md" << 'PLAN'
-# Phase 2 Plan
-
+mkdir -p "$WORKDIR/.se/plans"
+cat > "$WORKDIR/.se/plans/phase-2.md" <<'EOF'
+# Plan: phase 2
+## Files
+- src/x.js
 ## Tasks
+### Task 1: x
+## Acceptance criteria
+- [ ] feature returns 200
+- [ ] feature handles errors
+- [ ] unit tests pass
+## Risks
+- none
+## Proof
+- npm test
+EOF
 
-### Task 1: Add feature
-### Task 2: Add tests
-PLAN
+printf '{"kind":"planned","id":"phase-2","files":[]}' > "$WORKDIR/.se/.active"
+printf 'tests/a.test.js\n' > "$WORKDIR/.se/.fixing"
 
-# Init git repo with some commits (for TDD check).
-cd "$WORKDIR"
-git init -q
-git config user.email "test@test.com"
-git config user.name "Test"
-git add -A && git commit -q -m "feat(init): initial"
-git commit -q --allow-empty -m "test(feature): add unit tests"
-git commit -q --allow-empty -m "feat(feature): implement feature"
-
-# Run auto-qa — tests should pass (node-basic has passing npm test).
-CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/auto-qa" < /dev/null
-
-# Verify: .needs-verify should be cleared.
-if [ -f "$WORKDIR/.se/.needs-verify" ]; then
-    echo "FAIL: .needs-verify should have been cleared" >&2
-    exit 1
+out="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/auto-qa" < /dev/null)"
+if printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null 2>&1; then
+    _fail "green suite must not block: $out"
 fi
 
-# Verify: verification JSON should exist.
-VERIFY_FILE="$WORKDIR/.se/verification/phase-2.json"
-assert_file_exists "$VERIFY_FILE" "verification JSON must exist"
+[ ! -f "$WORKDIR/.se/.active" ] || _fail ".active should be cleared on pass"
+[ ! -f "$WORKDIR/.se/.fixing" ] || _fail ".fixing should be cleared on pass"
 
-# Verify: JSON structure.
-VJSON=$(cat "$VERIFY_FILE")
-assert_jq "$VJSON" '.phase' '== 2' "phase must be 2"
-assert_jq "$VJSON" '.status' '!= null' "status must exist"
-assert_jq "$VJSON" '.reason' '!= null' "reason must exist"
-assert_jq "$VJSON" '.tdd_compliance' '!= null' "tdd_compliance must exist"
-assert_jq "$VJSON" '.verified_at' '!= null' "verified_at must exist"
+V="$WORKDIR/.se/verification/phase-2.json"
+assert_file_exists "$V" "verification JSON must exist"
+J="$(cat "$V")"
+assert_jq "$J" '.id' '== "phase-2"' "id recorded"
+assert_jq "$J" '.status' '== "pass"' "plan present → pass"
+assert_jq "$J" '.criteria | length' '== 3' "criteria recorded"
 
-# Verify: state.json should have last_verification.
-STATE=$(cat "$WORKDIR/.se/state.json")
-assert_jq "$STATE" '.last_verification' '!= null' "last_verification must exist in state"
-assert_jq "$STATE" '.last_verification.status' '!= null' "verification status in state"
+# Planned slice whose plan is missing → the record says fail.
+printf '{"kind":"planned","id":"phase-3","files":[]}' > "$WORKDIR/.se/.active"
+(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/auto-qa" < /dev/null >/dev/null)
+assert_jq "$(cat "$WORKDIR/.se/verification/phase-3.json")" '.status' '== "fail"' "missing plan → fail"
+
+# Direct-apply → no verification file.
+printf '{"kind":"direct","id":"typo","files":[]}' > "$WORKDIR/.se/.active"
+(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$REPO_ROOT/hooks/auto-qa" < /dev/null >/dev/null)
+[ ! -e "$WORKDIR/.se/verification/typo.json" ] || _fail "direct-apply must not write a verification file"
+
+echo "PASS: auto-qa writes the Tier-1 record and clears markers"

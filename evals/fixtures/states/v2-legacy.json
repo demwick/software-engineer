@@ -1,9 +1,11 @@
 {
-  "schema_version": 3,
+  "schema_version": 2,
   "mode": "from-scratch",
   "created": "1970-01-01T00:00:00Z",
   "current_phase": 1,
   "total_phases": 3,
   "last_session": "1970-01-01T00:00:00Z",
-  "last_commit": null
+  "last_edit": "1970-01-01T00:00:00Z",
+  "last_commit": null,
+  "last_verification": {"status": "pass"}
 }
