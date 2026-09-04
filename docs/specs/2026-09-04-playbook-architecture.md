@@ -1,0 +1,191 @@
+<!--
+  software-engineer
+  Copyright (C) 2026 demwick
+  Licensed under the GNU Affero General Public License v3.0 or later.
+  See LICENSE in the repository root for the full license text.
+-->
+
+# Spec: v5.0.0 — the playbook architecture
+
+**Created:** 2026-09-04
+**Status:** accepted
+**Source:** Anthropic, *The AI-Native SDLC Playbook* (claude.com/blog/the-ai-native-sdlc-playbook), stages 1–4; the user's decisions of 2026-09-04
+
+## What we're building
+
+The plugin re-shaped around the playbook's artifact chain — `intent.md →
+spec.md → plan.md → diff + tests → review` — with every artifact committed
+to git, every stage transition gated by a deterministic check, and the
+model-facing prose cut to what no model infers. The target model is Opus 5;
+the audience stays the solo developer; the product stays "describe the work,
+the plugin runs the right depth".
+
+The one rule that decides keep-vs-cut: **prose that tells the model how to
+think is cut; structure that says "this artifact exists before the next
+step" is kept and made deterministic.** Not forgetting a step is a hook's
+job, not a sentence's.
+
+## Non-goals
+
+- Stages 5–6 of the playbook: PR review gates, approval hooks in managed
+  settings, CI/CD integration, control-band monitoring, security scans.
+- Org roles (product owner / tech lead / ops). One person plays all of
+  them; nothing in the plugin assumes otherwise.
+- Generating policy skills into the user's project. When claude-charter is
+  present it owns policy; standalone, `CLAUDE.md` carries conventions.
+- Metrics. `git log` on the committed artifacts is the measurement surface.
+- Backwards compatibility with `.se/` layouts before v5. `state-update.sh`
+  migrates `state.json`; artifact paths are not migrated.
+
+## The artifact chain and where it lives
+
+`.se/` is split by lifetime. Committed (the audit trail):
+
+| Path | Written by | Read by |
+|---|---|---|
+| `intent/<slug>.md` | `intent` skill | `spec`, plan mode |
+| `specs/<slug>.md` | `spec` skill | plan mode, `verifier` |
+| `plans/<id>.md` | plan mode via the flows (`<id>` = `phase-N` or a slug) | `executor`, `verifier`, `verify-phase.sh` |
+| `adr/NNNN-<slug>.md` | `adr` skill (standalone; charter dir when present) | humans |
+| `verification/<id>.json`, `verification/<id>.review.json` | `verify-phase.sh` (Tier 1), `verifier` (Tier 2) | the flow's Act step |
+| `roadmap.md` | full-flow | SessionStart, `se-status` |
+
+Transient (gitignored): `state.json`, `.active`, `.fixing`,
+`.verify-attempts`, `.last-verify.log`, `last-test-run.txt`,
+`plans/*.progress.json`, `research.md`, `diagnose.json`.
+
+The `.gitignore` the full-flow bootstrap writes is a whitelist so a new
+transient file is ignored by default:
+
+```
+.se/*
+!.se/intent/
+!.se/specs/
+!.se/plans/
+!.se/adr/
+!.se/verification/
+!.se/roadmap.md
+.se/plans/*.progress.json
+```
+
+Every planned slice ends with a `chore(se): close <id>` commit carrying its
+plan and verification files. Direct-apply commits no artifacts.
+
+## The gate model: `.se/.active`
+
+One marker replaces `.needs-verify`, `.verify-phase`, `.direct-apply`,
+`.direct-files`, `.verify-strategy` and `.last-report.md`:
+
+```json
+{"kind": "direct" | "planned", "id": "<slug>", "files": []}
+```
+
+- **Armed by the flow** immediately before the executor runs — after the
+  plan passed `plan-validate.sh` and the user accepted it (planned), or
+  after the size check (direct).
+- **Read by `pre-guard`** (PreToolUse): in an SE-managed project a `Write`
+  or `Edit` on a path under the project root that is not `.se/`,
+  `CLAUDE.md`, `.gitignore` or `.claude/` is **blocked unless `.active`
+  exists**. This is the deterministic form of "no code without a plan".
+  With `kind: direct`, the 4th distinct file is blocked (triage misrouted).
+- **Read by `auto-qa`** (Stop): its presence means "verify this turn". Tests
+  run through `detect-test.sh`; failure blocks (≤2 retries via
+  `.verify-attempts`); pass runs `verify-phase.sh` and clears the marker.
+- **Cleared** by `auto-qa` on every terminal state and by `session-start`.
+
+A second marker, `.se/.fixing`, lists test files (one path per line) the
+executor committed as a failing reproduction. While it exists `pre-guard`
+blocks edits to those files — the playbook's "hook blocks test edits during
+a fix". The executor removes it after the fix commit.
+
+## Verification, two tiers, unchanged shape
+
+- **Tier 1** — `hooks/auto-qa` + `scripts/verify-phase.sh`, every turn, no
+  agent. Tests green + the plan's `## Acceptance criteria` recorded into
+  `verification/<id>.json`. A planned id whose plan file is missing fails
+  here — the plan cannot be skipped.
+- **Tier 2** — the `verifier` subagent, once per planned slice, from the
+  Act step. Reads Tier 1's file, the plan, the spec if any, and the diff;
+  classifies findings `blocker / major / minor / nit`; writes
+  `verification/<id>.review.json`; ends with `{"ok": bool, "reason": ...}`.
+  Separation of duties: the executor never marks its own work done.
+
+TDD is no longer a rule. What stays is the playbook's feedback loop:
+"done" means the verification command is green and its summary is in the
+report; a bug fix starts from a failing test and the `.fixing` lock holds
+it. Commit-order forensics, red-proof replay, the verification-strategy
+resolver and the typed exit envelope are removed — with Opus 5 they check
+behavior the model exhibits by default, and the Stop hook already runs the
+suite itself.
+
+## `CLAUDE.md` in the user's project
+
+New. `scripts/claude-md-init.sh` writes a one-page `CLAUDE.md` when the
+full-flow bootstraps a project (commands from `detect-quality.sh`, a
+"Verifying your work" block, an empty "Things Claude gets wrong" section)
+and ensures the section exists in a pre-existing file. The same script
+takes `--note "<line>"` to append one line under that section, idempotently.
+The flow's Act step calls it when the verifier reports a finding it has
+seen before (`repeated_findings[]`) — the playbook's "second mistake goes
+into `CLAUDE.md`".
+
+## Planning is plan mode
+
+The `planner` agent is removed. A flow that needs a plan enters Claude
+Code's plan mode with the template from `skills/triage/references/templates.md`
+(Files / Tasks / Acceptance criteria / Risks / Proof), and on acceptance
+writes it to `.se/plans/<id>.md`, runs `plan-validate.sh`, commits it.
+Plan mode's own "no edits until accepted" is the gate the agent used to be
+asked to honor. The `researcher` agent is removed too: finish-existing and
+`se-diagnose` use the built-in Explore agent with a fixed question list.
+
+## What is deleted
+
+Agents `planner`, `researcher`, `_common`. Skills `risk` (a plan's
+`## Risks` section, HIGH items confirmed before execution), `se-roadmap`
+(`roadmap.md` is a file; the flow edits it). Hooks `state-tracker`,
+`subagent-start`. Scripts `verify-red-proof`, `envelope-validate`,
+`resolve-verify-strategy`, `spec-check`, `runs`, `detect-eval`,
+`check-coverage`. `gates-taxonomy.md`, `auto-qa-protocol.md`. The
+`runs.jsonl` log, `last_edit` / `last_verification` in `state.json`
+(schema 3).
+
+## Acceptance criteria
+
+- [ ] `bash evals/run.sh` is green with suites covering: the `.active`
+      edit gate, the direct tripwire, the `.fixing` lock, `auto-qa` on
+      `.active`, `verify-phase.sh` failing on a missing plan,
+      `plan-validate.sh` on the v5 template, `claude-md-init.sh` (create /
+      ensure-section / note idempotent), `state-update.sh` v2→v3.
+- [ ] `.gitignore` written by the bootstrap is the whitelist above.
+- [ ] `agents/` contains exactly `executor.md` and `verifier.md`; `skills/`
+      contains exactly `triage`, `intent`, `spec`, `adr`, `se-status`,
+      `se-diagnose`; `hooks/hooks.json` registers exactly SessionStart,
+      Stop, PreToolUse.
+- [ ] Total instruction text under `agents/` + `skills/` is under 40 KB
+      (was ~130 KB).
+- [ ] `docs/STATE.md`, `README.md`, `CLAUDE.md`, `DESIGN.md`, `TESTING.md`,
+      `CHANGELOG.md`, `plugin.json` describe v5 and nothing older as current.
+
+## Edge cases
+
+- A turn ends with `.active` armed and no edits made: `auto-qa` runs the
+  suite on unchanged code, passes, clears the marker. The next edit is
+  blocked with a message that names the re-arm step. Flows therefore arm
+  in the same turn as the executor launch.
+- Non-SE project (no `.se/state.json`): `pre-guard` is inert, direct-apply
+  writes no marker, `auto-qa` never fires. Unchanged from v4.
+- charter present: destructive-op guard defers; the edit gate does **not**
+  defer (charter has no equivalent).
+- `jq` missing: every hook fails open, as before.
+
+## Trade-offs
+
+- **Edit gate is fail-closed.** A user who asks for an edit outside triage
+  gets a block. Accepted: the user asked for a plugin that cannot skip its
+  own process; the block message is the re-entry point.
+- **Plan mode over a planner subagent.** Loses the isolated high-effort
+  context; gains native approval gating and the user seeing the plan
+  before code. The playbook's choice; taken.
+- **Verification files committed.** Small JSON churn in git; buys the
+  review record the playbook calls the audit trail.
