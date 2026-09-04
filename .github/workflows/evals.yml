@@ -22,14 +22,11 @@ jobs:
           files=(
             hooks/session-start
             hooks/auto-qa
-            hooks/state-tracker
+            hooks/pre-guard
             hooks/run-hook.cmd
-            scripts/detect-test.sh
-            scripts/state-update.sh
-            scripts/check-host-compat.sh
-            scripts/archive-state.sh
             evals/run.sh
           )
+          for f in scripts/*.sh; do bash -n "$f"; done
           for f in "${files[@]}"; do
               [[ -f "$f" ]] && bash -n "$f"
           done

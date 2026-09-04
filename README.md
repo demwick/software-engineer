@@ -7,209 +7,118 @@
 
 # Software Engineer
 
-> **Your AI software engineer. Not a code generator — a teammate that does the engineering around the code.**
+> **Your AI software engineer. The engineering around the code — as committed artifacts, gated by hooks, not by good intentions.**
 
-`software-engineer` is a Claude Code plugin that takes on the core responsibilities of a software engineer: clarifying requirements, writing specs, recording architectural decisions, foreseeing risk, planning, implementing, testing, and reviewing. You don't pick a mode or learn a command surface. You describe what you want in plain language, and a **triage** layer decides how deep the work needs to go.
+`software-engineer` is a Claude Code plugin built on the [AI-native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook): every change leaves a chain of artifacts in git — **intent → spec → plan → diff + tests → review** — and the plugin cannot skip a link, because a hook blocks code edits until the link exists. You describe the work in plain language; a **triage** layer decides how deep it goes.
 
 ---
 
 ## The one thing you need to know
 
-There is a **single entry point**: just say what you want.
+There is a single entry point: say what you want.
 
 ```
-fix the glow on the secondary button          → applied directly, one commit
-add rate limiting to the login endpoint        → short plan, then implemented
-I want to build a booking app for clinics       → requirements dialogue → spec → roadmap → phases
+fix the glow on the secondary button          → direct: executor, one commit, suite runs
+add rate limiting to the login endpoint        → planned slice: plan in plan mode → execute → verify → review
+I want to build a booking app for clinics       → full flow: intent → spec → ADR → roadmap → phases
 ```
 
-Behind the scenes, `triage` classifies every request on two axes — **uncertainty** (is it clear what you want?) and **scope** (one file or a whole subsystem?) — and routes it to the right depth. You never see the machinery. When it's unsure, it rounds *up*: asking one extra question is cheaper than writing the wrong code.
+Triage classifies every request on **uncertainty** (is it clear what you want?) and **scope** (one file or a subsystem?) and rounds *up* when unsure. Two overrides always work:
 
-Two natural-language overrides are always available:
-
-- **"just do it"** / "uzatma" → forces the shallow path, no questions.
-- **"let's talk first"** / "dur konuşalım" → forces the full requirements flow.
+- **"just do it"** / "uzatma" → the shallow path, no questions.
+- **"let's talk first"** / "dur konuşalım" → the full requirements flow.
 
 ---
 
 ## Install
 
 ```bash
-# From a local directory
 claude --plugin-dir /path/to/software-engineer
-
-# From GitHub
-git clone https://github.com/demwick/software-engineer
-claude --plugin-dir ./software-engineer
 ```
 
 ---
 
-## What it does
+## The artifact chain
 
-| Responsibility | How |
-| --- | --- |
-| **Requirements engineering** | `clarify` runs a Socratic dialogue — scale, auth, critical NFRs, and especially **non-goals** — before any code on fuzzy work |
-| **Specification** | `spec` writes a binding single source of truth to `.se/specs/`; contradictions later **stop the flow and ask**, never get worked around |
-| **Architecture decisions** | `adr` records significant, hard-to-reverse choices as numbered, versioned records |
-| **Risk foresight** | `risk` warns what a change could break, expose, or regress **before** it's written, while the plan can still absorb it |
-| **Planning** | atomic, verifiable task plans with explicit dependencies and risk gates |
-| **Implementation** | code phase by phase, one atomic commit per task; each task resolves its own verification strategy (red-first TDD for code) |
-| **Testing & QA** | auto-verifies after every change — the test suite for code, a structural spec-check or eval for prompt/markdown/config work — blocks on failure, auto-fixes, retries |
-| **Senior code review** | the verifier reviews like a senior engineer: findings classified blocker / major / minor / nit, each with a rationale and an alternative |
-| **Health audit** | `diagnose` finds gaps (tests, errors, security) and ranks priority actions |
-| **Memory** | each agent keeps its own memory across sessions; human-readable project context persists in `.se/memory/` |
+Every planned change commits its record under `.se/`:
 
----
+| Artifact | Written by | What it is |
+| --- | --- | --- |
+| `.se/intent/<slug>.md` | `intent` — a requirements dialogue: outcome, users, scale, auth, ranked NFRs, **non-goals** | what is wanted and why, in your terms |
+| `.se/specs/<slug>.md` | `spec` — validated, accepted by you | the binding source of truth; a contradiction later **stops and asks** |
+| `.se/adr/NNNN-*.md` | `adr` — for hard-to-reverse decisions | context, decision, consequences, alternatives |
+| `.se/plans/<id>.md` | Claude Code **plan mode**, linted by `plan-validate.sh` | files, ordered tasks with checks, acceptance criteria, risks, proof |
+| `.se/verification/<id>.json` + `.review.json` | Tier 1 (script) and Tier 2 (`verifier` agent) | the suite result, the criteria, the senior review |
+| `.se/roadmap.md` | the full flow | 3–7 phases from the code to the spec |
 
-## Three depths, one door
-
-Triage routes to one of three flows. You don't choose — it does.
-
-**Direct-apply** — clear and narrow (_"fix that button"_). Straight to execute and commit. No planning overhead.
-
-**Light-plan** — a cohesive feature (_"add CSV export"_). A short plan, at most one or two critical questions, then implement with the quality gate.
-
-**Full-flow** — fuzzy or broad (_"build me a SaaS"_, _"finish this project"_). The deepest path: clarify → spec → ADR → roadmap → phase loop. New ideas get scaffolded; existing repos get analyzed and given a completion roadmap.
+Runtime state (`state.json`, markers, logs) stays gitignored. `git log .se/` is the audit trail.
 
 ---
 
-## How a phase runs
+## The gate
 
-Every phase runs a **PDCA (Plan-Do-Check-Act) macro-cycle** driven by specialist agents. Inside each task, the executor resolves a **verification strategy**: code with testable behavior runs a red-first **TDD (Test-Driven Development) micro-cycle**; markdown, skill, prompt, and config work verifies against the spec's acceptance criteria or an eval harness instead — it is not forced through a unit test it can't meaningfully have.
+The plugin's process is enforced, not described:
+
+- **No code without a plan.** In a managed project the `PreToolUse` hook blocks any `Write`/`Edit` to project code until a flow arms `.se/.active` — which happens only after the plan is accepted (or the task is confirmed direct).
+- **Direct means small.** A direct task that touches a 4th file is blocked: triage misrouted it, escalate to a plan.
+- **The fix goes into the code.** A bug fix starts with a failing test; while `.se/.fixing` lists it, edits to that test are blocked.
+- **Done means verified.** The `Stop` hook runs the suite on every armed turn; a failure blocks the turn with the output until it is fixed (≤2 retries). The `verifier` agent — never the agent that wrote the code — reviews each planned slice with severity-classified findings.
+- **The second mistake becomes a rule.** A finding the verifier has seen before is appended to the project's `CLAUDE.md` under *Things Claude gets wrong*.
+
+Irreversible git and database operations are hard-blocked (deferred to `claude-charter` when present).
+
+---
+
+## How a planned slice runs
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                  one phase  (PDCA)                                        │
-│                                                                                          │
-│    PLAN                      DO                    CHECK                    ACT          │
-│                                                                                          │
-│  ┌────────────┐         ┌──────────────┐      ┌──────────────┐      ┌──────────────┐     │
-│  │  planner   │────────▶│   executor   │─────▶│   verifier   │─────▶│   feedback   │     │
-│  │            │         │              │      │   Stop hook  │      │              │     │
-│  │  spec +    │         │  task loop   │      │  senior      │      │   → next     │     │
-│  │  plan.md   │         │              │      │  review      │      │     phase    │     │
-│  └────────────┘         └──────┬───────┘      │   pass  ✓    │      └──────────────┘     │
-│                                │              │   fail  → ✗  │                           │
-│                                │              │     retry    │                           │
-│                                │              └──────────────┘                           │
-│                                └─ test strategy:  🔴 Red → 🟢 Green → 🔵 Refactor → 📦 Commit │
-└──────────────────────────────────────────────────────────────────────────────────────────┘
+plan mode ──▶ .se/plans/<id>.md ──▶ plan-validate ──▶ risks confirmed ──▶ arm .active
+                                                                              │
+   chore(se): close <id> ◀── Act ◀── verifier (Tier 2) ◀── suite + record (Tier 1) ◀── executor
 ```
 
-The Stop hook is the quality gate: if verification fails after a commit (a failing test, a malformed spec, a red eval), it blocks the turn, surfaces the failure reason, and forces a fix before Claude can continue. Up to 2 auto-retries — then it escalates to you.
+The full flow runs this once per roadmap phase, one phase per turn; say "continue" to advance.
 
 ---
 
 ## Part of an ecosystem: Detect & Defer
 
-The plugin is the **engine** of a three-part system. It runs perfectly well alone, but when its siblings are installed it **hands off** the responsibilities they own rather than duplicating them:
-
-| Sibling | Role | What the plugin defers when it's present |
+| Sibling | Role | What the plugin defers |
 | --- | --- | --- |
-| [`claude-charter`](https://github.com/demwick/claude-charter) | the **constitution** — policy, guardrails, decision format | ADRs are written to charter's `.claude/knowledge/adr/`; destructive-op guardrails are charter's `PreToolUse` job (the plugin ships none); the verifier inherits charter's adversarial PASS/FAIL/PARTIAL verdict |
-| `centaur-layer` | the **human-judgment brake** | acceptance-time diff-risk scoring is centaur's; the plugin's `risk` stays strictly forward-looking (warn before the change, never score the committed diff) |
+| [`claude-charter`](https://github.com/demwick/claude-charter) | the constitution | ADR location (`.claude/knowledge/adr/`), the destructive-op guard, the verdict vocabulary (PASS/FAIL/PARTIAL) |
+| `centaur-layer` | the human-judgment brake | acceptance-time diff-risk scoring; the plugin's risk role stays forward-looking (the plan's Risks) |
 
-Detection is automatic — the `SessionStart` hook probes for `.claude/knowledge/charter/` and records the result in `.se/state.json.integrations`. **Zero configuration.** Standalone, the plugin does all of this itself; in the ecosystem, it stays in its lane.
-
-> Boundaries and version compatibility are defined canonically in [`ecosystem-contract.md`](https://github.com/demwick/claude-engineering-suite/blob/main/ecosystem-contract.md). This table summarizes; the contract governs. To install all three together, see the [claude-engineering-suite](https://github.com/demwick/claude-engineering-suite) marketplace.
-
-```bash
-# Engine alone
-claude --plugin-dir /path/to/software-engineer
-
-# Engine + constitution
-claude --plugin-dir /path/to/software-engineer \
-       --plugin-dir /path/to/claude-charter
-```
-
----
-
-## How it's different from superpowers
-
-[`obra/superpowers`](https://github.com/obra/superpowers) gives Claude excellent *process* skills — brainstorming, TDD, debugging. This plugin composes with it but covers what it doesn't:
-
-- **A front door, not a toolbox.** You describe intent; triage picks the depth. No deciding which skill to invoke.
-- **Project analysis & memory.** It reads an existing codebase, finds gaps, builds a roadmap, and persists project state and decisions across sessions.
-- **The engineering around the code** — requirements, specs, ADRs, forward risk, senior review — as first-class, not afterthoughts.
-
-When superpowers is installed, the plugin happily delegates to its debugging and TDD skills instead of reinventing them. Requirements are the one place it does not delegate: `/clarify` asks *what must be true* — scale, auth, non-goals — where brainstorming explores *how to build it*, and the spec is this plugin's own artifact.
+Detection is automatic at session start and recorded in `.se/state.json.integrations`. Zero configuration.
 
 ---
 
 ## Commands
 
-You rarely type these — the entry is natural language. They exist for direct access and read-only checks.
+You rarely type these — the entry is natural language.
 
 | Surface | What it does |
 | --- | --- |
-| *(natural language)* | `triage` — the single entry point; describe any engineering work |
-| `/se-diagnose [focus]` | Health audit: tests, error handling, security |
-| `/se-status` | Show current state and progress |
-| `/se-roadmap [verb]` | View or edit the phase list |
+| *(natural language)* | `triage` — describe any engineering work; "continue" advances the roadmap; "add a phase …" edits it |
+| `/se-status` | one-screen state: phase, progress, last verification, working tree |
+| `/se-diagnose [focus]` | health audit on tests, error handling, security — routes findings back into triage |
 
-`triage`, `clarify`, `spec`, `adr`, and `risk` are auto-invoked by the flow when the context calls for them. The read-only helpers (`diagnose`, `status`, `roadmap`) can be called automatically too. Nothing makes an irreversible change without surfacing it first.
-
----
-
-## In practice
-
-**Starting from nothing:**
-
-```
-"I want to build a recipe-sharing app with Next.js and SQLite"
-→ triage sees fuzzy + broad → full-flow
-→ clarify asks scale / auth / non-goals → spec written → 5-phase roadmap
-
-"continue"
-→ Phase 1: data layer — 4 atomic commits, tests pass
-
-"continue"
-→ Phase 2: list UI — a commit breaks a test,
-   Stop hook catches it, Claude auto-fixes, re-verifies, continues
-```
-
-**Finishing an existing repo:**
-
-```
-"help me finish this project"
-→ researcher analyzes the codebase, reports gaps, offers a completion roadmap
-
-/se-diagnose security
-→ flags 3 issues: open API routes, missing validation, .env in git
-
-/se-roadmap add "close the 3 security gaps"
-→ adds a new phase
-
-"continue"
-→ fixes all three, atomic commits, tests pass
-```
-
-**One-off task:**
-
-```
-"bump typescript to ^5.4"
-→ triage sees clear + narrow → direct-apply → commits, test suite runs, done
-```
+`intent`, `spec`, `adr` are invoked by the flows and can be called directly.
 
 ---
 
 ## Requirements
 
 - **Claude Code** ≥ 2.1
-- **bash** — macOS/Linux built-in; Windows: Git for Windows
-- **jq** — `brew install jq` / `apt-get install jq`. Optional but recommended: the hooks degrade gracefully without it (each guards `command -v jq` and no-ops cleanly), and the eval suite reports jq-dependent suites as an explicit `SKIP` rather than a false failure when jq is absent.
-- **git** — the executor commits atomically; most of the value comes from this
+- **bash**, **git**
+- **jq** — `brew install jq` / `apt-get install jq`. Without it every hook fails open and the eval suite reports its jq-dependent suites as `SKIP`.
 
-No Node, Python, or Go runtime required for the plugin itself.
+No Node, Python, or Go runtime is needed for the plugin itself.
 
 ---
 
 ## Contributing
 
-Clone, load locally, make changes, run `/reload-plugins` inside Claude Code to pick them up. Test with a throwaway project using the [`TESTING.md`](TESTING.md) checklist.
-
-For architecture internals, directory layout, agent model breakdown, hook design, and how to debug hook scripts — see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+Clone, load with `--plugin-dir`, run `/reload-plugins` to pick up changes, and test against a throwaway project with [`TESTING.md`](TESTING.md). `bash evals/run.sh` is the deterministic gate. Internals: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); the architecture and its reasons: [`DESIGN.md`](DESIGN.md) and [`docs/specs/2026-09-04-playbook-architecture.md`](docs/specs/2026-09-04-playbook-architecture.md).
 
 **Commit style:** `feat(skills): add …`, `fix(hooks): …`, `docs(readme): …`
 
@@ -218,5 +127,3 @@ For architecture internals, directory layout, agent model breakdown, hook design
 ## License
 
 **GNU Affero General Public License v3.0 or later** — see [LICENSE](LICENSE).
-
-AGPL keeps hosted derivatives open: if you run a modified version as a service, you must share your changes. For ordinary local use in Claude Code, it imposes no practical restrictions.
