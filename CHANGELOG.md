@@ -24,9 +24,14 @@ Decision record: `docs/specs/2026-09-04-playbook-architecture.md`.
   `.se/adr/`, `.se/verification/`, `.se/roadmap.md` are committed through a
   whitelist `.gitignore` the bootstrap writes; every planned slice closes with
   `chore(se): close <id>`.
-- **`.se/.active`, the edit gate.** `pre-guard` blocks any Write/Edit to
-  project code while no work is armed; the flows arm it after the plan is
-  accepted. Direct-apply's 3-file tripwire moves into the same marker.
+- **`.se/.active`, the edit gate.** `pre-guard` blocks writes to project
+  code while no work is armed; the flows arm it after the plan is accepted.
+  Direct-apply's 3-file tripwire moves into the same marker. The gate is
+  layered across all three write routes — `Write`/`Edit`, shell writes
+  (`sed -i`, redirects, tee/cp/mv/touch, interpreter one-liners), and
+  `git commit` with gated paths staged, which is the exact backstop.
+  Live testing found the Write/Edit-only version fully bypassed by the
+  model's default `sed` edit in a bypass-permissions session.
 - **`.se/.fixing`.** A reproduction test committed red is locked against
   edits until the fix lands.
 - **`intent` skill** (from `clarify`) — the dialogue now ends in a committed

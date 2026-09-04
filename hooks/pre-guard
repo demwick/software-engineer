@@ -8,22 +8,38 @@
 # PreToolUse hook for software-engineer — the deterministic layer behind
 # the flows. Active only in SE-managed projects (.se/state.json exists).
 #
-#   Bash        — blocks irreversible git/db operations. Detect & Defer:
-#                 silent when claude-charter is present (charter owns it).
+# The gate is layered because a model can write a file three ways:
 #
-#   Write|Edit  — three gates on paths under the project root:
-#     1. Edit gate: blocked unless .se/.active is armed. The flows arm it
-#        after the plan exists (planned) or the size check (direct). This
-#        is "no code without a plan", enforced rather than asked for.
-#        Flow-owned paths stay open: .se/, CLAUDE.md, .gitignore, .claude/.
-#     2. Direct tripwire: with kind=direct, the 4th distinct file is
-#        blocked — triage misrouted a larger task; escalate to a plan.
-#     3. Fixing lock: paths listed in .se/.fixing (reproduction tests
-#        committed red) cannot be edited until the fix lands.
+#   1. Write|Edit           — the file_path is right there in the payload.
+#   2. Bash that writes     — `sed -i`, a `>` redirect, tee/cp/mv/touch, an
+#                             interpreter one-liner. This is the DEFAULT path
+#                             in bypass-permissions sessions, whose own
+#                             instructions steer the model away from Write/Edit.
+#                             Targets are extracted heuristically; the coverage
+#                             is the ordinary shell, not an adversary.
+#   3. Anything else         — covered by the commit gate below, which is exact:
+#                             `git commit` with gated paths staged is blocked
+#                             while no work is armed, so nothing reaches history
+#                             without a plan regardless of how it was written.
+#
+# Gates applied to a gated path (anything under the project root that is not
+# .se/, CLAUDE.md, .gitignore or .claude/):
+#
+#   Edit gate      — blocked unless .se/.active is armed. "No code without a
+#                    plan", enforced rather than asked for.
+#   Direct tripwire— with kind=direct, the 4th distinct file is blocked;
+#                    triage misrouted a larger task.
+#   Fixing lock    — paths listed in .se/.fixing (reproduction tests committed
+#                    red) cannot be edited until the fix lands.
+#   Commit gate    — see above.
+#
+# Bash also carries the destructive-op guard (force-push, reset --hard, DROP,
+# guarded rm -rf). That one alone defers to claude-charter when charter is
+# present; the write and commit gates have no charter equivalent and stay on.
 #
 # Blocking contract: exit 2 with the reason on stderr denies the call and
-# feeds the reason to the model. Every other failure path exits 0 — a
-# guard bug must never break a working session.
+# feeds the reason to the model. Every other failure path exits 0 — a guard
+# bug must never break a working session.
 
 set -uo pipefail
 
@@ -40,78 +56,155 @@ command -v jq >/dev/null 2>&1 || exit 0
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 
+# --- path policy -------------------------------------------------------
+# Print a path relative to the project root, or fail if it lies outside.
+project_rel() {
+    case "$1" in
+        /*) case "$1" in "$PWD"/*) printf '%s' "${1#"$PWD"/}" ;; *) return 1 ;; esac ;;
+        *)  printf '%s' "${1#./}" ;;
+    esac
+}
+
+# The paths the flows themselves write, open at all times.
+is_open() {
+    case "$1" in
+        .se|.se/*|CLAUDE.md|.gitignore|.claude|.claude/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+deny_unarmed() {
+    printf 'software-engineer guard: no active SE work — writing %s is gated.\nThis project is managed by software-engineer: every change starts with triage (describe the work), which writes the plan (or confirms the task is direct) and arms .se/.active before anything edits code. Run the flow. Do not write the marker by hand, and do not reach for a different write technique — the commit gate blocks the result either way. To make a change outside the plugin, ask the user to run the command themselves with the `!` prefix.\n' \
+        "$1" >&2
+    exit 2
+}
+
+deny_fixing() {
+    printf 'software-engineer guard: %s is a reproduction test locked by .se/.fixing.\nThe fix goes into the code, not the test. Make the test pass by changing the implementation; if the test itself is wrong, say so to the user instead of editing it. The executor removes .se/.fixing after the fix commit.\n' \
+        "$1" >&2
+    exit 2
+}
+
+# Apply the fixing lock and the edit gate to one project-relative path.
+gate_path() {
+    local rel="$1"
+    is_open "$rel" && return 0
+    if [ -f "$FIXING" ] && grep -Fxq "$rel" "$FIXING" 2>/dev/null; then deny_fixing "$rel"; fi
+    [ -f "$ACTIVE" ] || deny_unarmed "$rel"
+    return 0
+}
+
+# --- Bash: which paths would this command write to? --------------------
+# Over-approximates on purpose: a false positive blocks a command that was
+# already reaching for project code while nothing was armed, which is the
+# case this gate exists for.
+write_targets() {
+    # The trailing newline matters: without it `read` drops the last segment,
+    # which for a single-command string is the whole command.
+    printf '%s\n' "$1" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
+        [ -n "$seg" ] || continue
+        # Output redirection: `> path`, `>> path`. Skip fd dups (2>&1, >&2).
+        printf '%s\n' "$seg" \
+            | grep -oE '(^|[^0-9<>&])>>?[[:space:]]*[^[:space:]<>&|;]+' 2>/dev/null \
+            | sed -E 's/.*>>?[[:space:]]*//'
+        # In-place editors, copiers, interpreter one-liners: every non-flag
+        # token that names something on disk, or a new file in a directory
+        # that exists. The existence test is what separates a real target
+        # from a sed script (`s/a/b/`) or a regex that merely looks like one.
+        if printf '%s\n' "$seg" | grep -qE '(^|[[:space:]])(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|install|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
+            printf '%s\n' "$seg" | tr -s " \t\"'" '\n\n\n\n' \
+                | grep -vE '^-|^$' 2>/dev/null | grep -E '/|\.' 2>/dev/null \
+                | grep -vE '[${}!*()]|/$' 2>/dev/null \
+                | while IFS= read -r tok; do
+                      if [ -e "$tok" ] || [ -d "$(dirname "$tok")" ]; then
+                          printf '%s\n' "$tok"
+                      fi
+                  done
+        fi
+    done
+}
+
 case "$TOOL" in
     Bash)
-        if [ -d ".claude/knowledge/charter" ]; then exit 0; fi
-        if [ "$(jq -r '.integrations.charter // false' "$STATE_FILE" 2>/dev/null || echo false)" = "true" ]; then
-            exit 0
-        fi
-
         CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
         [ -n "$CMD" ] || exit 0
 
-        REASON=""
-        if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+(--force-with-lease|--force|-f)\b'; then
-            REASON="force-push rewrites published history"
-        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+--delete\b'; then
-            REASON="git push --delete removes a remote ref"
-        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+reset[[:space:]]+--hard'; then
-            REASON="git reset --hard discards uncommitted work"
-        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+clean[[:space:]]+-[a-z]*f'; then
-            REASON="git clean -f deletes untracked files irreversibly"
-        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+branch[[:space:]]+(-D|--delete[[:space:]]+--force|-[a-zA-Z]*D)'; then
-            REASON="git branch -D force-deletes a branch"
-        elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+tag[[:space:]]+-d'; then
-            REASON="git tag -d deletes a tag"
-        elif printf '%s' "$CMD" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
-            REASON="a destructive SQL statement (DROP/TRUNCATE) is irreversible"
-        elif printf '%s' "$CMD" | grep -Eq 'rm[[:space:]]+-[a-z]*r[a-z]*f|rm[[:space:]]+-[a-z]*f[a-z]*r'; then
-            if printf '%s' "$CMD" | grep -Evq 'node_modules|/dist|/build|/target|\.venv|__pycache__|\.pytest_cache|/coverage|\.next|\.turbo'; then
-                REASON="rm -rf on a non-cache path can destroy work"
+        # 1. Destructive-op guard. Detect & Defer: charter owns this one.
+        CHARTER=false
+        [ -d ".claude/knowledge/charter" ] && CHARTER=true
+        [ "$(jq -r '.integrations.charter // false' "$STATE_FILE" 2>/dev/null || echo false)" = "true" ] && CHARTER=true
+
+        if [ "$CHARTER" = "false" ]; then
+            REASON=""
+            if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+(--force-with-lease|--force|-f)\b'; then
+                REASON="force-push rewrites published history"
+            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+--delete\b'; then
+                REASON="git push --delete removes a remote ref"
+            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+reset[[:space:]]+--hard'; then
+                REASON="git reset --hard discards uncommitted work"
+            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+clean[[:space:]]+-[a-z]*f'; then
+                REASON="git clean -f deletes untracked files irreversibly"
+            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+branch[[:space:]]+(-D|--delete[[:space:]]+--force|-[a-zA-Z]*D)'; then
+                REASON="git branch -D force-deletes a branch"
+            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+tag[[:space:]]+-d'; then
+                REASON="git tag -d deletes a tag"
+            elif printf '%s' "$CMD" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
+                REASON="a destructive SQL statement (DROP/TRUNCATE) is irreversible"
+            elif printf '%s' "$CMD" | grep -Eq 'rm[[:space:]]+-[a-z]*r[a-z]*f|rm[[:space:]]+-[a-z]*f[a-z]*r'; then
+                if printf '%s' "$CMD" | grep -Evq 'node_modules|/dist|/build|/target|\.venv|__pycache__|\.pytest_cache|/coverage|\.next|\.turbo'; then
+                    REASON="rm -rf on a non-cache path can destroy work"
+                fi
+            fi
+            if [ -n "$REASON" ]; then
+                printf 'software-engineer guard: blocked an irreversible command (%s).\nCommand: %s\nIf this is intended, ask the user to run it themselves with the `!` prefix, or confirm explicitly before proceeding.\n' \
+                    "$REASON" "$CMD" >&2
+                exit 2
             fi
         fi
 
-        if [ -n "$REASON" ]; then
-            printf 'software-engineer guard: blocked an irreversible command (%s).\nCommand: %s\nIf this is intended, ask the user to run it themselves with the `!` prefix, or confirm explicitly before proceeding.\n' \
-                "$REASON" "$CMD" >&2
-            exit 2
+        # 2. Commit gate — exact, and the backstop for any write technique
+        #    the extractor below misses. Nothing lands in history unarmed.
+        if [ ! -f "$ACTIVE" ] \
+           && printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'; then
+            STAGED=$(git diff --cached --name-only 2>/dev/null || true)
+            # -a may sit anywhere in a flag cluster (-am, -a, --all).
+            if printf '%s' "$CMD" | grep -Eq '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all'; then
+                STAGED="${STAGED}
+$(git diff --name-only 2>/dev/null || true)"
+            fi
+            GATED=""
+            while IFS= read -r f; do
+                [ -n "$f" ] || continue
+                is_open "$f" || GATED="${GATED} ${f}"
+            done <<EOF
+$STAGED
+EOF
+            if [ -n "$GATED" ]; then
+                printf 'software-engineer guard: commit blocked — no active SE work.\nStaged project files:%s\nThis project is managed by software-engineer, and a commit of project code belongs to a slice that has a plan. Run triage; it plans the work, arms .se/.active, and the executor commits inside that slice. Committing the plugin artifacts alone (.se/, CLAUDE.md, .gitignore) is always allowed.\n' \
+                    "$GATED" >&2
+                exit 2
+            fi
         fi
+
+        # 3. Write gate — the ordinary shell ways of changing a file.
+        while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            REL=$(project_rel "$t") || continue
+            gate_path "$REL"
+        done <<EOF
+$(write_targets "$CMD")
+EOF
         exit 0
         ;;
 
     Write|Edit)
         FP=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
         [ -n "$FP" ] || exit 0
+        REL=$(project_rel "$FP") || exit 0
+        gate_path "$REL"
 
-        ROOT="$PWD"
-        case "$FP" in
-            /*)
-                case "$FP" in
-                    "$ROOT"/*) REL="${FP#"$ROOT"/}" ;;
-                    *) exit 0 ;;   # outside the project — not ours to gate
-                esac
-                ;;
-            *) REL="${FP#./}" ;;
-        esac
-
-        # Flow-owned paths are always open.
-        case "$REL" in
-            .se/*|CLAUDE.md|.gitignore|.claude/*) exit 0 ;;
-        esac
-
-        # 3. Fixing lock.
-        if [ -f "$FIXING" ] && grep -Fxq "$REL" "$FIXING" 2>/dev/null; then
-            printf 'software-engineer guard: %s is a reproduction test locked by .se/.fixing.\nThe fix goes into the code, not the test. Make the test pass by changing the implementation; if the test itself is wrong, say so to the user instead of editing it. The executor removes .se/.fixing after the fix commit.\n' "$REL" >&2
-            exit 2
-        fi
-
-        # 1. Edit gate.
-        if [ ! -f "$ACTIVE" ]; then
-            printf 'software-engineer guard: no active SE work — edits to %s are gated.\nThis project is managed by software-engineer: every change starts with triage (describe the work), which writes the plan (or confirms the task is direct) and arms .se/.active before the executor edits. Run the flow; do not write the marker by hand to bypass the gate.\n' "$REL" >&2
-            exit 2
-        fi
-
-        # 2. Direct tripwire.
+        # Direct tripwire: count distinct files against the marker's budget.
+        [ -f "$ACTIVE" ] || exit 0
         KIND=$(jq -r '.kind // ""' "$ACTIVE" 2>/dev/null || echo "")
         [ "$KIND" = "direct" ] || exit 0
         if jq -e --arg f "$REL" '.files | index($f)' "$ACTIVE" >/dev/null 2>&1; then exit 0; fi

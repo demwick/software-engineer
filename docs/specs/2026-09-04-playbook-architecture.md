@@ -83,11 +83,44 @@ One marker replaces `.needs-verify`, `.verify-phase`, `.direct-apply`,
 - **Armed by the flow** immediately before the executor runs — after the
   plan passed `plan-validate.sh` and the user accepted it (planned), or
   after the size check (direct).
-- **Read by `pre-guard`** (PreToolUse): in an SE-managed project a `Write`
-  or `Edit` on a path under the project root that is not `.se/`,
-  `CLAUDE.md`, `.gitignore` or `.claude/` is **blocked unless `.active`
-  exists**. This is the deterministic form of "no code without a plan".
-  With `kind: direct`, the 4th distinct file is blocked (triage misrouted).
+- **Read by `pre-guard`** (PreToolUse): in an SE-managed project a write to
+  a path under the project root that is not `.se/`, `CLAUDE.md`,
+  `.gitignore` or `.claude/` is **blocked unless `.active` exists**. This is
+  the deterministic form of "no code without a plan". With `kind: direct`,
+  the 4th distinct file is blocked (triage misrouted).
+
+  The gate is **layered, because a model can write a file three ways**, and
+  live testing (2026-09-04) proved a single-layer gate is not a gate at all:
+  asked to change a source file with skills disabled, the model edited it
+  with `sed` through Bash and the Write/Edit gate never fired. It did that
+  *because* a bypass-permissions session's own instructions steer it away
+  from Write/Edit — so the leak is not an edge case, it is the default in
+  the mode this plugin is mostly used in. The layers:
+
+  1. `Write|Edit` — the path is in the payload; exact.
+  2. `Bash` that writes — `sed -i`, `>`/`>>`, tee/cp/mv/touch/dd, an
+     interpreter one-liner. Targets are extracted heuristically and filtered
+     to tokens that name something on disk, which is what separates a real
+     target from a sed script. Over-approximation is deliberate: a false
+     positive only fires on a command already reaching for project code
+     while nothing is armed.
+  3. `git commit` — **exact, and the backstop**. A commit with any gated
+     path staged is blocked while `.active` is absent, so whatever
+     technique wrote the file, it cannot reach history without a plan.
+     Artifact-only commits (`.se/`, `CLAUDE.md`, `.gitignore`) stay open,
+     which is what lets the flows commit the intent, the spec and the plan
+     *before* they arm the gate.
+
+  **The ceiling, stated honestly:** layer 2 is a heuristic over shell text,
+  not a sandbox. A determined bypass (base64 into an interpreter, a helper
+  script written to `/tmp` and executed) gets through it. Layer 3 is what
+  makes that not matter for the artifact chain, and the threat model is a
+  model forgetting the process, not an adversary evading it.
+
+  Charter defers **only** the destructive-op check. The write and commit
+  gates have no charter equivalent and stay on — the first version of this
+  hook returned early for the whole Bash branch under charter, which
+  silently disabled the edit gate in exactly the projects that care most.
 - **Read by `auto-qa`** (Stop): its presence means "verify this turn". Tests
   run through `detect-test.sh`; failure blocks (≤2 retries via
   `.verify-attempts`); pass runs `verify-phase.sh` and clears the marker.

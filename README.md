@@ -59,7 +59,7 @@ Runtime state (`state.json`, markers, logs) stays gitignored. `git log .se/` is 
 
 The plugin's process is enforced, not described:
 
-- **No code without a plan.** In a managed project the `PreToolUse` hook blocks any `Write`/`Edit` to project code until a flow arms `.se/.active` — which happens only after the plan is accepted (or the task is confirmed direct).
+- **No code without a plan.** In a managed project the `PreToolUse` hook blocks writes to project code until a flow arms `.se/.active` — which happens only after the plan is accepted (or the task is confirmed direct). It covers all three routes: `Write`/`Edit`, a shell write (`sed -i`, a `>` redirect, tee/cp/mv/touch), and `git commit` with project files staged. The commit check is the exact backstop, so however a file was changed, it does not reach history without a plan.
 - **Direct means small.** A direct task that touches a 4th file is blocked: triage misrouted it, escalate to a plan.
 - **The fix goes into the code.** A bug fix starts with a failing test; while `.se/.fixing` lists it, edits to that test are blocked.
 - **Done means verified.** The `Stop` hook runs the suite on every armed turn; a failure blocks the turn with the output until it is fixed (≤2 retries). The `verifier` agent — never the agent that wrote the code — reviews each planned slice with severity-classified findings.

@@ -39,7 +39,7 @@ Each planned slice ends with `chore(se): close <id>` committing its plan, verifi
 | Path | Writer | Readers | Notes |
 |---|---|---|---|
 | `state.json` | full-flow bootstrap (initial `Write`), then only `scripts/state-update.sh` | `session-start`, `pre-guard` (existence = managed project), `se-status`, the flows | schema 3: `schema_version`, `mode`, `created`, `current_phase`, `total_phases`, `last_session`, `last_commit`, `current_step`, `integrations{charter,centaur}`, `completed`. Older schemas migrate on the first helper call |
-| `.active` | the flows, in the executor's launch turn | `pre-guard`, `auto-qa` | `{"kind":"direct"|"planned","id":"<id>","files":[]}`. Its presence opens the edit gate and arms verification; `files[]` is the direct tripwire's count. Cleared by `auto-qa` on every terminal state and by `session-start` |
+| `.active` | the flows, in the executor's launch turn | `pre-guard`, `auto-qa` | `{"kind":"direct"|"planned","id":"<id>","files":[]}`. Its presence opens the edit gate — Write/Edit, shell writes (`sed -i`, redirects, tee/cp/mv/touch, interpreter one-liners) and `git commit` with gated paths staged — and arms verification; `files[]` is the direct tripwire's count. Cleared by `auto-qa` on every terminal state and by `session-start` |
 | `.fixing` | `executor` after committing a failing reproduction test | `pre-guard` | one test path per line; edits to those paths are blocked until the executor removes it (also cleared by `auto-qa` / `session-start`) |
 | `.verify-attempts` | `auto-qa` | `auto-qa` | `{"attempts": N}`, N ≤ 2 |
 | `.last-verify.log` | `auto-qa` | humans, `se-status` | the last suite run under the Stop hook |
