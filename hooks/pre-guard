@@ -85,12 +85,33 @@ deny_fixing() {
     exit 2
 }
 
-# Apply the fixing lock and the edit gate to one project-relative path.
+# The direct-apply budget. Counted per distinct file in the marker, so it
+# holds whichever way the file was written — a sed edit spends a slot the
+# same as an Edit call.
+direct_budget() {
+    local rel="$1" kind count
+    kind=$(jq -r '.kind // ""' "$ACTIVE" 2>/dev/null || echo "")
+    [ "$kind" = "direct" ] || return 0
+    jq -e --arg f "$rel" '.files | index($f)' "$ACTIVE" >/dev/null 2>&1 && return 0
+    count=$(jq -r '.files | length' "$ACTIVE" 2>/dev/null || echo 0)
+    if [ $((count + 1)) -gt "$DIRECT_MAX_FILES" ]; then
+        printf 'software-engineer guard: direct-apply scope exceeded (%s distinct files, limit %s).\nThis task touches more files than a direct task should — triage misrouted it. Stop and escalate to a planned slice (skills/triage/references/flow-light.md): write the plan, then resume.\n' \
+            "$((count + 1))" "$DIRECT_MAX_FILES" >&2
+        exit 2
+    fi
+    local tmp; tmp=$(mktemp)
+    if jq --arg f "$rel" '.files += [$f]' "$ACTIVE" > "$tmp" 2>/dev/null; then mv "$tmp" "$ACTIVE"; else rm -f "$tmp"; fi
+    return 0
+}
+
+# Apply the fixing lock, the edit gate and the direct budget to one
+# project-relative path.
 gate_path() {
     local rel="$1"
     is_open "$rel" && return 0
     if [ -f "$FIXING" ] && grep -Fxq "$rel" "$FIXING" 2>/dev/null; then deny_fixing "$rel"; fi
     [ -f "$ACTIVE" ] || deny_unarmed "$rel"
+    direct_budget "$rel"
     return 0
 }
 
@@ -202,20 +223,6 @@ EOF
         [ -n "$FP" ] || exit 0
         REL=$(project_rel "$FP") || exit 0
         gate_path "$REL"
-
-        # Direct tripwire: count distinct files against the marker's budget.
-        [ -f "$ACTIVE" ] || exit 0
-        KIND=$(jq -r '.kind // ""' "$ACTIVE" 2>/dev/null || echo "")
-        [ "$KIND" = "direct" ] || exit 0
-        if jq -e --arg f "$REL" '.files | index($f)' "$ACTIVE" >/dev/null 2>&1; then exit 0; fi
-        COUNT=$(jq -r '.files | length' "$ACTIVE" 2>/dev/null || echo 0)
-        if [ $((COUNT + 1)) -gt "$DIRECT_MAX_FILES" ]; then
-            printf 'software-engineer guard: direct-apply scope exceeded (%s distinct files, limit %s).\nThis task touches more files than a direct task should — triage misrouted it. Stop and escalate to a planned slice (skills/triage/references/flow-light.md): write the plan, then resume.\n' \
-                "$((COUNT + 1))" "$DIRECT_MAX_FILES" >&2
-            exit 2
-        fi
-        TMP=$(mktemp)
-        if jq --arg f "$REL" '.files += [$f]' "$ACTIVE" > "$TMP" 2>/dev/null; then mv "$TMP" "$ACTIVE"; else rm -f "$TMP"; fi
         exit 0
         ;;
 

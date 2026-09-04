@@ -19,9 +19,17 @@ trap 'rm -rf "$W"' EXIT
 out="$(bash "$INIT" --project-dir "$W")"
 assert_contains "$out" "CLAUDE.md" "prints the path"
 assert_file_contains "$W/CLAUDE.md" '^## Commands' "Commands section written"
-assert_file_contains "$W/CLAUDE.md" 'npm test' "detected test command written"
 assert_file_contains "$W/CLAUDE.md" '^## Verifying your work' "verification block written"
 assert_file_contains "$W/CLAUDE.md" "^$SECTION" "mistakes section written"
+
+# Exact shape, not just a substring: BSD sed's missing \u/\U shipped
+# "- Uutest:" once, and a bad ${VAR:+}${VAR:-} pair doubled the command
+# in the verification line. Both passed a grep for "npm test".
+assert_file_contains "$W/CLAUDE.md" '^- Test: `npm test`$' 'command line is "- Test: <backticked cmd>"'
+assert_file_contains "$W/CLAUDE.md" '^Run `npm test` before reporting done' "verification names the command once"
+if grep -qE '^- [A-Z][a-z]*[a-z]:' "$W/CLAUDE.md"; then :; else _fail "no capitalized command category found"; fi
+grep -q 'Uu' "$W/CLAUDE.md" && _fail "BSD sed emitted a literal Uu — \\u/\\U is a GNU extension"
+grep -qE '`npm test`npm test|npm test npm test' "$W/CLAUDE.md" && _fail "test command duplicated in the verification line"
 rm -rf "$W"; trap - EXIT
 
 # 2. Existing file without the section → section appended, rest untouched.

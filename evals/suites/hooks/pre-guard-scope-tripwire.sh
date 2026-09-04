@@ -29,6 +29,17 @@ assert_eq "$(rc "$WORKDIR" "$(edit d.ts)")" 2 "4th distinct file blocked"
 
 assert_eq "3" "$(jq '.files | length' "$WORKDIR/.se/.active")" "exactly 3 files recorded in .active"
 
+# The budget is technique-independent: a shell write spends a slot the same
+# as an Edit, or the limit is bypassed by reaching for sed.
+printf '{"kind":"direct","id":"typo","files":[]}' > "$WORKDIR/.se/.active"
+mkdir -p "$WORKDIR/src"; : > "$WORKDIR/src/a.ts"; : > "$WORKDIR/src/b.ts"; : > "$WORKDIR/src/c.ts"
+bash_w() { printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$(printf '%s' "$1" | jq -Rs .)"; }
+assert_eq "$(rc "$WORKDIR" "$(bash_w 'echo x > src/a.ts')")" 0 "bash write 1st"
+assert_eq "$(rc "$WORKDIR" "$(bash_w "sed -i '' 's/x/y/' src/b.ts")")" 0 "bash write 2nd"
+assert_eq "$(rc "$WORKDIR" "$(bash_w 'echo x >> src/c.ts')")" 0 "bash write 3rd"
+assert_eq "3" "$(jq '.files | length' "$WORKDIR/.se/.active")" "shell writes counted in the budget"
+assert_eq "$(rc "$WORKDIR" "$(edit src/d.ts)")" 2 "4th via Edit blocked after 3 shell writes"
+
 # A planned marker has no file budget.
 printf '{"kind":"planned","id":"csv","files":[]}' > "$WORKDIR/.se/.active"
 for f in a b c d e; do

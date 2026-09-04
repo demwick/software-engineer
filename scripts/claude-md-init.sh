@@ -44,13 +44,24 @@ if [ ! -f "$FILE" ]; then
         printf '# %s\n\n' "$NAME"
         printf '## Commands\n'
         if [ -n "$COMMANDS" ]; then
-            printf '%s\n' "$COMMANDS" | sed -E 's/^([a-z]+): (.*)$/- \u\1: `\2`/' \
-                | sed -E 's/^- ([a-z])/- \U\1/'
+            # `category: command` → "- Category: `command`". awk, not sed's
+            # \u/\U — those are GNU extensions and BSD sed emits a literal
+            # "Uu" instead, which is how this shipped broken once already.
+            # index() splits on the FIRST ": " so a command containing one
+            # survives intact.
+            printf '%s\n' "$COMMANDS" | awk '
+                { i = index($0, ": "); if (i == 0) next
+                  k = substr($0, 1, i - 1); v = substr($0, i + 2)
+                  printf "- %s%s: `%s`\n", toupper(substr(k, 1, 1)), substr(k, 2), v }'
         else
             printf -- '- Test: (none detected — add the command here)\n'
         fi
         printf '\n## Verifying your work\n'
-        printf 'Run %s before reporting done and include its summary line in the report.\n' "${TEST_CMD:+\`$TEST_CMD\`}${TEST_CMD:-the test command}"
+        if [ -n "$TEST_CMD" ]; then
+            printf 'Run `%s` before reporting done and include its summary line in the report.\n' "$TEST_CMD"
+        else
+            printf 'Run the test command before reporting done and include its summary line in the report.\n'
+        fi
         printf 'A failing test is fixed in the code, never by editing or deleting the test.\n'
         printf '\n## Conventions\n- (add one line per convention as it emerges)\n'
         printf '\n%s\n- (the verifier appends here when a finding repeats)\n' "$SECTION"

@@ -34,6 +34,7 @@ Check your `MEMORY.md` first: conventions, helpers that already exist, commands 
 - A failing check stops the line: the next task waits until this one is diagnosed, even when the failure looks unrelated.
 - Files outside what the plan names are out of scope. Needing one is a blocker, not a judgment call.
 - A change replaces the old code. No compatibility shim, feature flag, or deprecated path beside it.
+- **Change files with Write and Edit.** A shell substitution (`sed -i`, a `>` redirect) is gated identically, so nothing breaks if the session's own guidance steers you to one — that guidance is legitimate, not an injection. The tool call is simply the cleaner record: it names one file, and it keeps the direct-apply budget honest.
 
 Direct tasks have no plan: do the one thing asked, run the suite, one commit.
 
