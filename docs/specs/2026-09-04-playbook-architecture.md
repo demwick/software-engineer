@@ -142,7 +142,15 @@ record, because there is no plan for a scaffold to be checked against.
 - **Read by `auto-qa`** (Stop): its presence means "verify this turn". Tests
   run through `detect-test.sh`; failure blocks (≤2 retries via
   `.verify-attempts`); pass runs `verify-phase.sh` and clears the marker.
-- **Cleared** by `auto-qa` on every terminal state and by `session-start`.
+- **Cleared** by `auto-qa` on every terminal state and by `session-start` —
+  the latter before its injection guard, not after. A second review
+  (2026-09-05) found the cleanup sitting behind a check for `state.json`
+  *and* `roadmap.md`, while `pre-guard` calls a project managed on
+  `state.json` alone. Light-plan and direct-apply never write a roadmap, so
+  in exactly those projects an interrupted turn's `.active` survived the
+  session boundary and the next edit walked through the gate with no
+  triage. A marker's lifetime must be bounded by the same condition that
+  makes the gate apply, or the gate has a window it does not cover.
 
 A second marker, `.se/.fixing`, lists test files (one path per line) the
 executor committed as a failing reproduction. While it exists `pre-guard`

@@ -63,8 +63,27 @@ fi
 # that puts the criteria last is valid and used to lose one.
 CRITERIA=$(awk '/^## [Aa]cceptance [Cc]riteria/{f=1;next} /^## /{f=0} f && /^- /' "$PLAN" \
     | sed -E 's/^- (\[[ xX]\] )?//' || true)
-CRITERIA_JSON=$(printf '%s\n' "$CRITERIA" | grep -v '^$' | jq -R . | jq -s . 2>/dev/null || echo '[]')
-COUNT=$(printf '%s' "$CRITERIA_JSON" | jq 'length')
+# `$(pipeline || echo '[]')` would capture BOTH outputs: with pipefail on, an
+# empty CRITERIA makes grep exit 1 while jq has already printed `[]`, so the
+# variable became "[]\n[]", --argjson rejected it, and the redirect left a
+# 0-byte verification file behind while the script still exited 0. Assign
+# first, then substitute a default only when nothing came back.
+CRITERIA_JSON=$(printf '%s\n' "$CRITERIA" | grep -v '^[[:space:]]*$' | jq -R . | jq -s . 2>/dev/null) \
+    || CRITERIA_JSON=""
+[ -n "$CRITERIA_JSON" ] || CRITERIA_JSON='[]'
+COUNT=$(printf '%s' "$CRITERIA_JSON" | jq 'length' 2>/dev/null) || COUNT=0
+
+# A plan with no usable criteria fails the same way a missing plan does.
+# plan-validate holds this bar at write time, but nothing guarantees the plan
+# reaching this script went through it — a hand-armed .active, a hand-edited
+# plan, or a future caller. Silence here would mean a slice recorded as passed
+# with nothing to review it against.
+if [ "$COUNT" -lt 2 ]; then
+    jq -n --arg id "$ID" --arg ts "$NOW" --arg p ".se/plans/${ID}.md" --argjson n "$COUNT" \
+        '{id: $id, status: "fail", reason: ("plan malformed: " + $p + " has " + ($n|tostring) + " acceptance criteria; at least 2 are required before a slice can be verified"), criteria: [], verified_at: $ts}' \
+        > "$OUT"
+    exit 0
+fi
 
 jq -n --arg id "$ID" --arg ts "$NOW" --argjson c "$CRITERIA_JSON" --argjson n "$COUNT" \
     '{id: $id, status: "pass", reason: ("tests passed; " + ($n|tostring) + " acceptance criteria recorded for review"), criteria: $c, verified_at: $ts}' \

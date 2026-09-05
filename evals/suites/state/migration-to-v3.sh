@@ -28,4 +28,17 @@ for legacy in v1-legacy v2-legacy; do
     rm -rf "$W"
 done
 
+# A non-numeric schema_version used to slip past the `-lt 3` test (the `[`
+# error was redirected away), skipping the migration and writing the file back
+# as though it had rolled forward. Refuse loudly instead.
+W="$(fixture_repo empty)"
+mkdir -p "$W/.se"
+printf '{"schema_version":"legacy","mode":"x","created":"t","current_phase":1,"total_phases":1,"last_edit":"t"}' \
+    > "$W/.se/state.json"
+before="$(cat "$W/.se/state.json")"
+rc=0; bash "$SU" --project-dir "$W" current_phase=2 >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || _fail "non-numeric schema_version must not exit 0"
+assert_eq "$before" "$(cat "$W/.se/state.json")" "corrupt state is left untouched"
+rm -rf "$W"
+
 echo "PASS: state-update migrates v1/v2 state to schema 3"

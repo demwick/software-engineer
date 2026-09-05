@@ -78,6 +78,35 @@ J="$(cat "$WORKDIR/.se/verification/reordered.json")"
 assert_jq "$J" '.criteria | length' '== 3' "criteria section last: all three recorded"
 assert_jq "$J" '.criteria[2]' '== "crit C"' "the final criterion survives"
 
+# A plan with no usable criteria fails like a missing plan. It must never
+# leave a truncated file behind: `$(pipeline || echo '[]')` used to capture
+# both outputs, --argjson rejected the result, and the redirect wrote 0 bytes
+# while the script exited 0 — a slice recorded as verified against nothing.
+cat > "$WORKDIR/.se/plans/nocrit.md" <<'EOF'
+# Plan: no criteria
+## Files
+- a
+## Tasks
+### Task 1: x
+## Risks
+- none
+## Proof
+- tests
+EOF
+bash "$VP" "$WORKDIR" nocrit planned
+F="$WORKDIR/.se/verification/nocrit.json"
+[ -s "$F" ] || _fail "verification file is empty — the jq guard regressed"
+J="$(cat "$F")"
+assert_jq "$J" '.status' '== "fail"' "no criteria section → fail"
+assert_jq "$J" '.reason' '| test("acceptance criteria")' "reason names the missing criteria"
+
+# One criterion is below plan-validate's bar too.
+printf '# P\n## Files\n- a\n## Tasks\n### Task 1: x\n## Acceptance criteria\n- [ ] only one\n## Risks\n- none\n## Proof\n- t\n' \
+    > "$WORKDIR/.se/plans/onecrit.md"
+bash "$VP" "$WORKDIR" onecrit planned
+assert_jq "$(cat "$WORKDIR/.se/verification/onecrit.json")" '.status' '== "fail"' \
+    "fewer than two criteria → fail"
+
 # Direct → writes nothing.
 rm -rf "$WORKDIR/.se/verification"
 bash "$VP" "$WORKDIR" typo direct

@@ -19,11 +19,19 @@ emit_empty() {
     exit 0
 }
 
+# Clear the gate markers BEFORE the injection guard. pre-guard treats a
+# project as managed on state.json alone, and light-plan and direct-apply
+# never write roadmap.md — so gating cleanup on both files meant those
+# projects inherited an armed .se/.active from an interrupted turn, and the
+# next session's first edit sailed through the gate with no triage. The
+# injection needs a roadmap to describe; the cleanup needs only a project.
+if [ -f "${STATE_DIR}/state.json" ]; then
+    rm -f "${STATE_DIR}/.active" "${STATE_DIR}/.fixing" "${STATE_DIR}/.verify-attempts" 2>/dev/null || true
+fi
+
 if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; then
     emit_empty
 fi
-
-rm -f "${STATE_DIR}/.active" "${STATE_DIR}/.fixing" "${STATE_DIR}/.verify-attempts" 2>/dev/null || true
 
 command -v jq >/dev/null 2>&1 || emit_empty
 

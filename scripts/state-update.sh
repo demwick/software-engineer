@@ -86,9 +86,19 @@ if [ "$LAST_SESSION_SET" = "false" ]; then
 fi
 
 # Schema migration: anything below 3 is rolled forward to 3 in this merge.
+# `// 0` only fires on null or absent, so a non-numeric value reaches the
+# comparison below, `[` fails with "integer expression expected", the 2>/dev/null
+# hides it, and the migration is skipped while the script still exits 0 —
+# corrupt state written back as though it had been rolled forward. Fail loud.
 CURRENT_SCHEMA=$(jq -r '.schema_version // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+case "$CURRENT_SCHEMA" in
+    ""|*[!0-9]*)
+        echo "state-update: schema_version is not a number: '$CURRENT_SCHEMA'" >&2
+        exit 4
+        ;;
+esac
 MIGRATE=false
-if [ "$CURRENT_SCHEMA" -lt 3 ] 2>/dev/null; then
+if [ "$CURRENT_SCHEMA" -lt 3 ]; then
     MIGRATE=true
     SCHEMA_SET_BY_CALLER=$(printf '%s' "$MERGE_JSON" | jq 'has("schema_version")')
     if [ "$SCHEMA_SET_BY_CALLER" = "false" ]; then
