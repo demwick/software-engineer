@@ -17,7 +17,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 # A Makefile whose test target hangs far longer than the timeout.
 printf 'test:\n\t@sleep 60\n' > "$WORKDIR/Makefile"
-: > "$WORKDIR/.se/.needs-verify"
+printf '{"kind":"planned","id":"phase-2","files":[]}' > "$WORKDIR/.se/.active"
 
 # Bound the whole hook to a 2s test timeout; the watchdog must recover well
 # before the 60s sleep would finish. Guard the wall-clock too.
@@ -38,7 +38,7 @@ fi
 
 # Markers must be cleared (terminal state — retrying an identical hang is futile).
 assert_file_absent() { [[ ! -f "$1" ]] || { printf 'FAIL: %s should be cleared\n' "$1" >&2; exit 1; }; }
-assert_file_absent "$WORKDIR/.se/.needs-verify"
+assert_file_absent "$WORKDIR/.se/.active"
 assert_file_absent "$WORKDIR/.se/.verify-attempts"
 
 echo "PASS: auto-qa times out on a hanging test"

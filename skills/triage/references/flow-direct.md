@@ -7,79 +7,41 @@
 
 # Flow: direct-apply
 
-Clear intent, narrow scope. No planning, no research, no roadmap — straight to executor + atomic commit + auto-QA. (This is the old `quick` procedure, now reached only through `/triage`.)
+Clear intent, narrow scope. No artifacts: executor, one commit, the Stop hook verifies.
 
-The task came from triage as the user's request. Do not re-ask "which mode" — triage already decided.
+## Step 1: Size check
 
-## Step 1: Size sanity check
+Escalate to `flow-light.md` if any of these is now obvious:
 
-Triage classified this as narrow, but confirm before diving in. **Escalate to light-plan** (read `flow-light.md`) if any of these is now obvious:
+- more than 3 files
+- a new module, route, or abstraction
+- a data-model or schema change
+- "figure out how X works" first
+- auth, secrets, permissions
 
-- Touches more than 3 files
-- Introduces a new module, route, or abstraction
-- Changes the data model or database schema
-- Needs research ("figure out how X works")
-- Has security implications (auth, secrets, permissions)
+Escalating costs one plan; a wrong shallow guess costs more.
 
-Escalating is cheap; a wrong shallow guess is not. If it's genuinely small, continue.
+## Step 2: Arm and execute
 
-## Step 2: Execute
-
-If the project is SE-initialized (`.se/` exists), arm the direct-apply scope tripwire so the `pre-guard` PreToolUse barrier enforces the 3-file limit computationally instead of trusting the model to notice:
+In an SE-managed project, arm the gate with the direct kind — the guard counts distinct files and blocks the 4th:
 
 ```bash
-[ -d .se ] && { : > .se/.direct-apply; : > .se/.direct-files; }
+[ -f .se/state.json ] && printf '{"kind":"direct","id":"%s","files":[]}' "<short-slug>" > .se/.active
 ```
 
-If `pre-guard` blocks the executor's 4th distinct file, that is the signal triage misrouted: stop and escalate to light-plan (`flow-light.md`). The marker is cleared automatically by the Stop hook (and on entry to any planned flow).
+A block on the 4th file is the signal triage misrouted: stop, and run `flow-light.md` for this task.
 
-Before launching, narrate the handoff in one line so the user can follow who is working:
+Narrate `→ executor: <short task>` and launch the `executor` agent with the request and: *"Direct task, no plan file. Do the one thing asked, run the suite, one commit — unless it is a bug fix, which is still two: the reproduction test alone first, then the fix."*
 
-> `→ executor: <short task>`
+- **blocked** → surface the report verbatim; stop.
+- **done** → report.
 
-Launch the `executor` agent. Pass it:
-
-- The resolved task (the user's request)
-- Instruction: *"This is a direct task, not a planned phase. Do the work TDD-first where a test is meaningful, verify locally if possible, and commit atomically. There is no plan file."*
-- The **must-have facts** the executor must confirm concretely in its exit report (e.g. "confirm the test fails before the fix and passes after, with the command output").
-
-Executor returns `done` or `blocked`.
-
-- **blocked** → surface the report to the user verbatim and stop. Do not retry. If `superpowers:systematic-debugging` (or an external debugging skill) is installed, recommend it for triage.
-- **done** → arm auto-QA if the project already has `.se/` state (next step).
-
-## Step 3: Arm the Auto-QA hook (conditionally)
-
-Only if `.se/` **already exists**, touch the existence-only marker so the Stop hook verifies:
-
-```bash
-: > .se/.needs-verify
-```
-
-Do not write a number into the marker; the hook owns the retry counter in `.se/.verify-attempts`. If the project is not SE-initialized, skip this — direct tasks never create `.se/` themselves.
-
-A direct task has no plan to resolve a strategy from. If the change is **purely non-code** (a markdown/docs edit, a config tweak), tell the Stop gate not to force a unit test onto it — otherwise omit this and the gate resolves to `test` (unchanged behavior):
-
-```bash
-printf 'spec-check' > .se/.verify-strategy   # docs / markdown with a spec to honor
-printf 'none'       > .se/.verify-strategy   # pure config / metadata, nothing testable
-```
-
-This optional `.verify-strategy` write is the only addition to the "`.needs-verify` is the only `.se/` write" rule below.
-
-On arm, the Stop hook runs the detected test runner. Pass → clears the marker. Fail → returns a `block` so Claude auto-retries the fix (up to 2 retries). This is **Tier-1 only** — direct-apply does not get the Tier-2 senior-review pass (that is reserved for planned light-plan / full-flow phases; a narrow one-commit task does not warrant it). You do **not** invoke the verifier agent here. For the two-tier contract see `auto-qa-protocol.md`.
-
-## Step 4: Report
+## Step 3: Report
 
 > Done: \<what\>. Commit: \<short-sha\>.
 
-If the task came from a recent `.se/diagnose.json` priority action, add: *"Re-run /se-diagnose to confirm and see the next priority."*
+The Stop hook runs the suite on `.active` and clears it; a failure blocks the turn with the failing output so you fix it (≤2 retries). No verifier — a task this small does not warrant a senior review.
 
-## Rules
+**One commit — except a bug fix.** Every other split means it wasn't direct: stop and run `flow-light.md`. A fix is the `test(scope): reproduce …` / `fix(scope): …` pair, and the guard enforces it: a `fix(` commit that stages its own test alongside the source is blocked.
 
-- **Narrate the handoff.** Print the `→ executor: …` line before dispatch — the user should always know which agent is running and on what.
-- **One commit only.** If it splits into multiple commits, it wasn't direct — stop and escalate to light-plan.
-- **No scope creep.** Executor stays strictly within the request; notes anything else wrong in the report, doesn't fix it.
-- **No roadmap mutation.** Don't write `.se/roadmap.md` or create phase dirs. The `.needs-verify` touch (plus the optional `.verify-strategy` above) is the only `.se/` write.
-- **Honor the ecosystem.** Guardrails for destructive ops are charter's job when charter is present; don't add your own.
-- **Gates are named.** This flow's checkpoints map to the four types in `gates-taxonomy.md`: the Step 1 size check is *pre-flight*, the auto-QA hook is *revision*, and a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.
+If the task came from `.se/diagnose.json`, add: *"Re-run /se-diagnose to see the next priority."*

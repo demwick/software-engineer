@@ -13,6 +13,71 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [5.0.0] — 2026-09-04
+
+Rebuilt around Anthropic's *AI-Native SDLC Playbook* (stages 1–4) for Opus 5.
+Decision record: `docs/specs/2026-09-04-playbook-architecture.md`.
+
+### Added
+
+- **The committed artifact chain.** `.se/intent/`, `.se/specs/`, `.se/plans/`,
+  `.se/adr/`, `.se/verification/`, `.se/roadmap.md` are committed through a
+  whitelist `.gitignore` the bootstrap writes; every planned slice closes with
+  `chore(se): close <id>`.
+- **`.se/.active`, the edit gate.** `pre-guard` blocks writes to project
+  code while no work is armed; the flows arm it after the plan is accepted.
+  Direct-apply's 3-file tripwire moves into the same marker, and a third
+  kind, `bootstrap`, gates the from-scratch scaffold — which escaped the
+  gate entirely until live testing caught it, because the flow wrote code
+  before `state.json` made the project managed. The gate is
+  layered across all three write routes — `Write`/`Edit`, shell writes
+  (`sed -i`, redirects, tee/cp/mv/touch, interpreter one-liners), and
+  `git commit` with gated paths staged, which is the exact backstop. The
+  same gate enforces Prove-It: a `fix(` commit may not stage its own
+  reproduction test alongside the source, so the failing test keeps its
+  own earlier commit.
+  Live testing found the Write/Edit-only version fully bypassed by the
+  model's default `sed` edit in a bypass-permissions session.
+- **`.se/.fixing`.** A reproduction test committed red is locked against
+  edits until the fix lands.
+- **`intent` skill** (from `clarify`) — the dialogue now ends in a committed
+  `.se/intent/<slug>.md`.
+- **`scripts/claude-md-init.sh`** — creates the project `CLAUDE.md` at
+  bootstrap and appends the verifier's `repeated_findings[]` under
+  *Things Claude gets wrong*.
+- **Plan mode plans.** The planned slice enters plan mode with
+  `references/templates.md` and lints the result with `plan-validate.sh`.
+- Evals: the edit gate, the tripwire, the fixing lock, `auto-qa` on
+  `.active`, `verify-phase` on a missing plan, `claude-md-init`, the v5
+  `plan-validate` / `spec-validate` shapes, state v2→v3 migration, a
+  structural gate on the prompt surface (`agents/prompt-quality.sh`).
+
+### Changed
+
+- `executor` and `verifier` rewritten to the durable contracts only
+  (58 KB → 10 KB). The verifier writes `verification/<id>.review.json` and
+  reports `repeated_findings[]`.
+- `auto-qa` runs the suite, writes the Tier-1 record from the plan's
+  acceptance criteria, and fails a planned slice whose plan is missing.
+- `spec-validate.sh` checks the feature spec (non-goals ≥2, criteria ≥3);
+  `plan-validate.sh` checks the v5 plan (five sections, ≥1 task, ≥2 testable
+  criteria, no `[[ ASK ]]`).
+- `state.json` schema 3 (drops `last_edit`, `last_verification`); older
+  files migrate on the first `state-update.sh` call.
+- `se-diagnose` and the full-flow survey use the built-in Explore agent.
+- Roadmap edits are a section of `flow-full.md`; `roadmap.md` is edited in
+  place and committed.
+
+### Removed
+
+- Agents `planner`, `researcher`, `_common.md`; hooks `state-tracker`,
+  `subagent-start`; skills `risk` (folded into the plan's Risks),
+  `se-roadmap`; scripts `verify-red-proof`, `envelope-validate`,
+  `resolve-verify-strategy`, `spec-check`, `runs`, `detect-eval`,
+  `check-coverage`; `auto-qa-protocol.md`, `gates-taxonomy.md`; the typed
+  exit envelope, red-proof replay, the verification-strategy resolver,
+  `runs.jsonl`, per-phase spec files, `phases/phase-N/` directories.
+
 ## [4.6.0] — 2026-08-03
 
 ### Added

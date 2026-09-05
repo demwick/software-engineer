@@ -5,117 +5,90 @@
   See LICENSE in the repository root for the full license text.
 -->
 
-# Flow: light-plan
+# Flow: planned slice
 
-Reasonably clear intent, a few files / one cohesive feature — too big to fire blind, too small for a whole roadmap. Short plan, optionally 1–2 critical questions, then execute. (This is the old `go` procedure applied to a single ad-hoc feature, now reached only through `/triage`.)
+One cohesive change — a feature, a roadmap phase, a multi-file fix. The plan is written and accepted before code, the executor works to it, two tiers verify it, the artifacts are committed. Full-flow runs this per phase (Steps 2–7).
+
+`<id>` is `phase-N` for a roadmap phase, else a kebab-case slug for the change.
 
 ## Step 1: Resolve the few critical unknowns
 
-You are *mostly* clear. If 1–2 answers would change the implementation materially (e.g. "store in the existing table or a new one?", "soft-delete or hard-delete?"), ask them now with `AskUserQuestion` — at most two. If more than two genuine unknowns exist, this is fuzzy: escalate to full-flow (`flow-full.md`) and run `/clarify` properly.
+At most two questions whose answers change the implementation ("existing table or new one?"). More than two genuine unknowns → this is fuzzy: run `flow-full.md`.
 
-## Step 2: Plan the feature
+## Step 2: Plan, in plan mode
 
-This is a planned flow, not direct-apply — clear any leftover direct-apply scope markers so the `pre-guard` tripwire never fires on a phase's executor:
+Enter plan mode. Read the spec if one applies (`.se/specs/<slug>.md`) and the intent behind it. Produce the plan in the shape of `templates.md` → *Plan*: files, ordered tasks each with a check and a commit message, testable acceptance criteria, risks with a `confirm: yes|no` flag, proof. Interrogate it before leaving plan mode: what could break, the riskiest step, whether someone else could implement from it alone.
 
-```bash
-rm -f .se/.direct-apply .se/.direct-files
-```
-
-Two files must exist before the executor runs — together they are its contract:
-
-- `.se/specs/phase-<slug>.md` — goal, acceptance criteria (≥2), out-of-scope
-- `.se/phases/phase-<slug>/plan.md` — tasks with verification commands, per-task scope bounds, `risk_gates`, complexity
-
-Who writes them follows the same branch that names them:
-
-- **A roadmap phase** — `.se/roadmap.md` exists and you are driving phase N. `<slug>` is the phase number. Narrate `→ planner: phase N plan` and launch the `planner` agent in **Mode B (Phase Planning)**, passing the roadmap phase and any answers from Step 1.
-- **An ad-hoc slice** — no numbered roadmap covers this work. `<slug>` is kebab-case, derived from the feature. Write both files yourself, following the Mode B templates in `agents/planner.md` (spec shape, task shape, scope bounds, `risk_gates` triggers). The plan still gets written to the same bar; `plan-validate.sh` below is what holds it there.
-
-Validate the spec **and the plan** deterministically — don't eyeball the markdown for `[[ ASK ]]` markers or a missing `risk_gates:` block, run the linters:
+On acceptance, write it to `.se/plans/<id>.md` and lint it:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-validate.sh" ".se/specs/phase-<slug>.md"
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/plan-validate.sh" ".se/phases/phase-<slug>/plan.md"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/plan-validate.sh" .se/plans/<id>.md
 ```
 
-Act on `plan-validate`'s exit code — do not proceed past a non-zero:
-- **3** → unresolved `[[ ASK: ... ]]` markers (it prints the line numbers). Surface them to the user and stop; do not guess.
-- **2** → missing `risk_gates:` section. Send it back to the planner to add the block (use `risk_gates: []` if genuinely none) — the risk gate can't fire on a section that isn't there.
-- **0** → proceed (a scope warning on stderr is informational, not a stop).
+Exit 3 → `[[ ASK ]]` markers remain: put them to the user, resolve, re-lint. Exit 2 or 4 → fix the plan's shape. Then commit: `git add .se/plans/<id>.md && git commit -m "docs(se): plan <id>"`.
 
-If `spec-validate` fails, surface the error and stop.
+If plan mode is unavailable, write the plan file directly and get explicit acceptance with `AskUserQuestion` before Step 3.
 
-## Step 3: Forward-looking risk check
+## Step 3: Confirm the risks
 
-For any non-trivial change, invoke `/risk` with the planned change first — it reads the blast radius and surfaces security / performance / reversibility risks while the plan can still absorb them. HIGH findings should become `risk_gates`. (This is plan-phase risk only; acceptance-time diff scoring is centaur-layer's, never the plugin's.)
+Every `## Risks` line with `confirm: yes` is put to the user with `AskUserQuestion`, one decision each, before anything runs. Non-confirmation stops here with the plan path. (Irreversible git/db operations are also hard-blocked by the guard.)
 
-Then read the plan's `risk_gates` section:
+## Step 4: Arm and execute
 
-- **missing** → pre-v2.1.0 plan; warn and proceed.
-- **`[]`** → planner asserted no gates; proceed.
-- **entries** → surface each (task id, kind, reason, confirmation prompt) and wait for **explicit** confirmation ("confirm", not "ok"). On non-confirmation, surface the plan path and stop.
-
-This is the plugin's *only* risk role: warn before the change. **Acceptance-time diff-risk scoring is delegated to centaur-layer if present — never compute it here.**
-
-## Step 4: Execute
-
-Check `.se/phases/phase-<slug>/progress.json`:
-
-- **exists** → resume: *"Resuming from task \<current_task\>; tasks \<completed\> done."*
-- **absent** → fresh start.
-
-Narrate the handoff first: `→ executor: <feature>` (add `· resuming task <n>` when resuming).
-
-Launch the `executor` agent with the plan path, the plan's context, and resume context if any. **Brief it with the intent, not just the plan**: one sentence on what the user is ultimately trying to achieve and what the output enables — an executor that knows *why* connects the tasks to the goal instead of inferring it, and makes better routine judgment calls when the plan under-specifies. Include the **must-have facts** it must confirm concretely in its exit report: tests fail-then-pass with output, each acceptance criterion met. It returns `STATUS: done`, `blocked`, or `gate`.
-
-- **blocked** → surface verbatim, stop. Recommend an external debugging skill if installed.
-- **gate** → surface the `gate-pending.json` confirmation prompt, wait for explicit confirmation, then re-launch with *"Resume from gate at task \<id\>. User confirmed."* Never auto-confirm.
-- **done** → read `progress.json`; if any planned task is missing from `completed_tasks[]`, re-launch the executor once to finish; if still incomplete, report as blocked.
-
-## Step 5: Arm Auto-QA
+Arm the gate **in the same turn** as the launch — the Stop hook clears it at turn end:
 
 ```bash
-mkdir -p .se && : > .se/.needs-verify
-printf '%s' "<slug>" > .se/.verify-phase   # the SAME <slug> (or number) used for the spec/plan/progress paths above
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-verify-strategy.sh" .se/phases/phase-<slug>/plan.md > .se/.verify-strategy
+printf '{"kind":"planned","id":"%s","files":[]}' "<id>" > .se/.active
+[ -f .se/state.json ] && bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" current_step="<id>: executing"
 ```
 
-`.needs-verify` is the existence-only arming flag (its content is reserved for the v1 retry-count fallback). `.verify-phase` carries the active phase id so the Stop hook validates the right phase: without it, `verify-phase.sh` falls back to state.json's numeric `current_phase` and silently checks `phase-<number>` instead of your `phase-<slug>`. `.verify-strategy` carries the **phase-level** verification strategy that `resolve-verify-strategy.sh` infers from the plan (`test` for a code phase, `spec-check` for a docs/markdown phase, `eval` when the project has an eval harness, `none` for pure config); absent or unreadable resolves to `test`, the unchanged behavior. The Stop hook honors it: `test` runs the test runner + red-proof, retries on failure (≤2) via `.verify-attempts`, and on pass runs `scripts/verify-phase.sh` to write `.se/verification/phase-<slug>.json`; the other strategies verify accordingly. Do not invoke the verifier manually. See `auto-qa-protocol.md`.
+`.se/plans/<id>.progress.json` present → resuming: say from which task.
 
-## Step 6: Act decision (two-tier verification feedback)
+Narrate `→ executor: <id>` and launch the `executor` agent with the plan path, one sentence on what the user is ultimately after, and the resume context if any.
 
-**Tier 1 (deterministic, already done by the Stop hook).** After auto-QA passes, read `.se/verification/phase-<slug>.json` if present. If its `status` is **fail** → do not mark complete; surface `reason`; stop. Otherwise continue to Tier 2.
+- **blocked** → surface the report verbatim; stop.
+- **done** → every task has a commit and the progress file is gone. If not, relaunch once to finish; still incomplete → treat as blocked.
 
-**Tier 2 (adversarial senior review — once, here, for planned phases).** This is where the senior review actually runs. Narrate `→ verifier: review phase <slug>` and launch the `verifier` agent, passing the phase id `<slug>`. It writes `.se/verification/review-<slug>.json` (severity-classified findings; **not** the phase file). If the agent errors or writes nothing usable, note "senior review skipped (tooling)" and fall back to its final message — do not block phase completion on a tooling failure.
-
-Combine both tiers into the final decision (worst wins):
-
-- both **pass** (Tier 1 pass, Tier 2 no blocker/major) → finish (Step 7).
-- **partial** (Tier 1 `partial`, or Tier 2 surfaced a **major** / unmet criteria) → surface `unmet_criteria[]` + Tier-2 findings; offer to fix now or add follow-ups to the roadmap (`/se-roadmap`). Then finish.
-- **fail** (Tier 1 `fail`, or Tier 2 surfaced a **blocker**) → do not mark complete; surface the finding (`severity — file:line — problem — fix`); stop. User fixes and re-runs the phase. Do **not** auto-loop the reviewer.
-
-`minor`/`nit` Tier-2 findings are noted only and never block.
-
-No phase verification file (pre-v3.1.0 or no spec) → skip to Step 7.
-
-## Step 7: Update state and report
-
-If the project has a numbered roadmap and this slice was a phase, update via the helper — **never edit `state.json` directly**:
+## Step 5: Tier 1 — the deterministic check
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" last_commit=<short-sha>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"
 ```
 
-Write a short `summary.md` for the slice. Then:
+Red → fix the code (relaunch the executor for a real defect), rerun until green. Then record:
 
-> \<Feature\> done. \<one line on what shipped\>. Commit(s): \<range\>.
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-phase.sh" . <id> planned
+```
 
-## Rules
+`.se/verification/<id>.json` now carries the plan's criteria; `status: fail` there means the plan file is missing — go back to Step 2.
 
-- **Narrate every handoff.** Print a `→ <agent>: …` line before each dispatch (planner, executor) so the user can always see who is working and on what.
-- **The plan is the executor's contract** — it gets written even when the work looks obvious. Step 2's branch decides who writes it, never whether it exists.
-- **Don't run the verifier yourself** — the Stop hook owns it.
-- **Respect blockers and gates** — surface, don't unstick.
-- **At most two clarifying questions here.** More unknowns → escalate to full-flow.
-- **Forward-looking risk only** — diff scoring at acceptance is centaur's, not yours.
-- **Gates are named.** This flow's checkpoints map to the four types in `gates-taxonomy.md`: spec-validate is *pre-flight*, risk gates are *escalation*, the auto-QA hook is *revision*, and a `blocked` executor is *abort*. State trigger / on-fail / who-resumes for any new checkpoint.
+## Step 6: Tier 2 — the senior review
+
+Narrate `→ verifier: <id>` and launch the `verifier` agent with the id. It writes `.se/verification/<id>.review.json` and ends with `{"ok": …}`. A tooling failure (no file, no JSON) is noted as "review skipped (tooling)" — it does not block.
+
+## Step 7: Act
+
+Worst verdict wins:
+
+- **pass** (Tier 1 pass, no blocker/major) → close.
+- **partial** (a major, or unmet criteria) → show `unmet_criteria[]` and the findings; offer to fix now or record follow-ups in the roadmap; then close.
+- **fail** (Tier 1 fail, or a blocker) → show the finding (`severity — file:line — problem — fix`); stop. Never auto-loop the reviewer.
+
+`repeated_findings[]` become institutional knowledge — one call per rule:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-init.sh" --note "<rule>"
+```
+
+Close: commit the artifacts, `git add .se CLAUDE.md && git commit -m "chore(se): close <id>"`, then for a roadmap phase set its `**Status:** done` in `.se/roadmap.md` and
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" current_phase=<N+1> current_step="phase <N+1> pending" last_commit=<sha>
+```
+
+(never past `total_phases`; the last phase sets `completed=true` and `current_step="all phases complete"`).
+
+> \<id\> done — \<one line on what shipped\>. Commits: \<range\>. Review: \<pass / partial with N follow-ups\>.
+
+The Stop hook still runs the suite once more on `.active` and clears it — the last belt.

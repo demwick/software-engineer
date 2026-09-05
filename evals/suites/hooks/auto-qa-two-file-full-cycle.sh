@@ -32,7 +32,7 @@ JSON
 
 # Arm the v2 existence-only marker. .verify-attempts does not exist
 # yet — the hook treats its absence as attempts=0 on the first call.
-: > "$WORKDIR/.se/.needs-verify"
+printf '{"kind":"planned","id":"phase-2","files":[]}' > "$WORKDIR/.se/.active"
 
 # ---- First failure: attempts 0 → 1 ----
 out1="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
@@ -45,7 +45,7 @@ if [[ ! -f "$WORKDIR/.se/.verify-attempts" ]]; then
 fi
 n1=$(jq -r '.attempts' "$WORKDIR/.se/.verify-attempts")
 assert_eq "1" "$n1" "attempts incremented to 1 after first failure"
-[[ -f "$WORKDIR/.se/.needs-verify" ]] || { printf 'FAIL: marker disappeared mid-retry\n' >&2; exit 1; }
+[[ -f "$WORKDIR/.se/.active" ]] || { printf 'FAIL: marker disappeared mid-retry\n' >&2; exit 1; }
 
 # ---- Second failure: attempts 1 → 2 ----
 out2="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
@@ -54,7 +54,7 @@ assert_jq "$out2" '.decision' '== "block"' \
     "second failure emits block"
 n2=$(jq -r '.attempts' "$WORKDIR/.se/.verify-attempts")
 assert_eq "2" "$n2" "attempts incremented to 2 after second failure"
-[[ -f "$WORKDIR/.se/.needs-verify" ]] || { printf 'FAIL: marker disappeared before give-up\n' >&2; exit 1; }
+[[ -f "$WORKDIR/.se/.active" ]] || { printf 'FAIL: marker disappeared before give-up\n' >&2; exit 1; }
 
 # ---- Third failure with stop_hook_active=true: give-up branch ----
 out3="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
@@ -68,8 +68,8 @@ if ! printf '%s' "$reason3" | grep -qi 'loop-protection\|gave up\|give up\|Do no
 fi
 
 # Both files must be cleared after give-up.
-if [[ -f "$WORKDIR/.se/.needs-verify" ]]; then
-    printf 'FAIL: .needs-verify not cleared after give-up\n' >&2
+if [[ -f "$WORKDIR/.se/.active" ]]; then
+    printf 'FAIL: .active not cleared after give-up\n' >&2
     exit 1
 fi
 if [[ -f "$WORKDIR/.se/.verify-attempts" ]]; then

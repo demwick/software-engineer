@@ -22,20 +22,18 @@ jobs:
 
       - name: Bash syntax check
         run: |
-          for f in hooks/session-start hooks/auto-qa hooks/state-tracker hooks/run-hook.cmd scripts/detect-test.sh scripts/detect-quality.sh scripts/state-update.sh scripts/check-host-compat.sh scripts/archive-state.sh; do
+          for f in hooks/session-start hooks/auto-qa hooks/pre-guard hooks/run-hook.cmd scripts/*.sh; do
             bash -n "$f"
             echo "ok $f"
           done
 
       - name: Shellcheck
         run: |
-          shellcheck -s bash hooks/session-start hooks/auto-qa hooks/state-tracker scripts/detect-test.sh scripts/detect-quality.sh scripts/state-update.sh scripts/check-host-compat.sh scripts/archive-state.sh || true
+          shellcheck -s bash hooks/session-start hooks/auto-qa hooks/pre-guard scripts/*.sh || true
 
       - name: Frontmatter presence
         run: |
           for f in agents/*.md skills/*/SKILL.md; do
-            # Skip agents/_common.md — it's a shared include, not a standalone agent
-            [ "$(basename $(dirname "$f"))/$(basename "$f")" = "agents/_common.md" ] && continue
             head -1 "$f" | grep -q '^---$' || { echo "missing frontmatter: $f"; exit 1; }
             echo "ok $f"
           done

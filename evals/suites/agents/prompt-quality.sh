@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Asserts prompt-quality patterns are installed in agent files.
+# Structural gate on the v5 prompt surface: exactly the agents, hooks and
+# skills the playbook architecture names, each carrying the contracts the
+# deterministic layer parses, and none of the retired compensation blocks.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
 
@@ -9,81 +11,39 @@ cd "$REPO_ROOT"
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
-# Rule 7 present in _common.md
-grep -q 'Evidence-Bearing Exit Reports' agents/_common.md \
-  || fail "_common.md missing Rule 7 (Evidence-Bearing Exit Reports)"
+# --- agents: exactly executor + verifier ---
+agents="$(ls agents | sort | tr '\n' ' ')"
+[ "$agents" = "executor.md verifier.md " ] || fail "agents/ must be exactly executor.md verifier.md, got: $agents"
 
-# Step 0 declares a boundary; it no longer restates the task. The
-# task/inputs/outputs restatement was removed — current models announce
-# intent by default, and the restatement duplicated a brief the caller
-# wrote. What survives is the load-bearing half: the explicit negative
-# bound the scope checks measure against. See DESIGN.md §6.
-for agent in researcher planner executor; do
-  grep -q 'Step 0: Declare the' "agents/${agent}.md" \
-    || fail "${agent}.md missing Step 0 (Declare the Boundary/Scope)"
-done
-for agent in planner executor; do
-  grep -q '^BOUNDARY:' "agents/${agent}.md" \
-    || fail "${agent}.md missing BOUNDARY: output format"
-done
-# researcher is read-only: it bounds a survey, not a write set.
-grep -q '^SCOPE:' agents/researcher.md \
-  || fail "researcher.md missing SCOPE: output format"
+# executor: the contracts scripts and hooks rely on
+grep -q '\.se/\.fixing' agents/executor.md || fail "executor.md must document the .se/.fixing lock"
+grep -q '^STATUS: blocked' agents/executor.md || fail "executor.md missing the STATUS: blocked report shape"
+grep -q 'progress\.json' agents/executor.md || fail "executor.md must persist progress for resume"
+grep -q 'validate-commit-msg\.sh' agents/executor.md || fail "executor.md must validate commit messages"
+grep -q 'test-digest\.sh' agents/executor.md || fail "executor.md must run the suite through test-digest"
 
-# The removed restatement format must not creep back in.
-for agent in researcher planner executor verifier; do
-  if grep -q 'UNDERSTOOD:\|Demonstrate Comprehension' "agents/${agent}.md"; then
-    fail "${agent}.md reintroduced the UNDERSTOOD: restatement — Step 0 declares a boundary only (see DESIGN.md §6)"
-  fi
+# verifier: the record and the wire line the hook parses
+grep -q '\.review\.json' agents/verifier.md || fail "verifier.md must write <id>.review.json"
+grep -q 'repeated_findings' agents/verifier.md || fail "verifier.md must report repeated_findings for CLAUDE.md"
+grep -q '{"ok": true' agents/verifier.md || fail "verifier.md missing the {\"ok\": ...} contract"
+grep -q 'blocker' agents/verifier.md || fail "verifier.md missing severity classes"
+
+# retired compensation blocks stay retired
+for f in agents/*.md; do
+    for needle in 'BOUNDARY:' 'UNDERSTOOD:' '_common.md' 'exit envelope' 'risk_gates' 'Allowed paths' 'red-proof' 'VERIFY:'; do
+        grep -qF "$needle" "$f" && fail "$f reintroduced '$needle'"
+    done
 done
 
-# verifier.md intentionally has no Step 0 by design
-if grep -q 'Step 0' agents/verifier.md 2>/dev/null; then
-  fail "verifier.md should NOT have Step 0 — it is intentionally excluded"
-fi
+# --- hooks: exactly three events, three scripts ---
+events="$(python3 -c "import json;print(' '.join(sorted(json.load(open('hooks/hooks.json'))['hooks'])))")"
+[ "$events" = "PreToolUse SessionStart Stop" ] || fail "hooks.json must register exactly PreToolUse SessionStart Stop, got: $events"
+hooks="$(ls hooks | sort | tr '\n' ' ')"
+[ "$hooks" = "auto-qa hooks.json pre-guard run-hook.cmd session-start " ] || fail "hooks/ has unexpected entries: $hooks"
+for h in auto-qa pre-guard session-start; do [ -x "hooks/$h" ] || fail "hooks/$h not executable"; done
 
-# Planner schema includes scope bounds
-grep -q 'Allowed paths\|allowed_paths' agents/planner.md \
-  || fail "planner.md missing allowed_paths / Allowed paths in plan schema"
-grep -q 'Forbidden paths\|forbidden_paths' agents/planner.md \
-  || fail "planner.md missing forbidden_paths / Forbidden paths in plan schema"
+# --- instruction budget ---
+bytes=$(cat agents/*.md skills/*/SKILL.md skills/*/references/*.md 2>/dev/null | wc -c | tr -d ' ')
+[ "$bytes" -lt 49152 ] || fail "agents + skills instruction text is ${bytes} bytes; the v5 budget is 48 KB"
 
-# Executor has pre-commit scope check
-grep -q 'Pre-commit Scope Check\|Pre-commit scope check' agents/executor.md \
-  || fail "executor.md missing pre-commit scope check"
-grep -q 'scope violation' agents/executor.md \
-  || fail "executor.md missing scope-violation STATUS format"
-
-# Planner schema includes risk_gates section (v2.1.0 Iter 3)
-grep -q 'risk_gates' agents/planner.md \
-  || fail "planner.md missing risk_gates section in plan schema"
-
-# Executor has gate-pause protocol and STATUS: gate exit (v2.1.0 Iter 3)
-grep -q 'Gate-pause protocol' agents/executor.md \
-  || fail "executor.md missing Gate-pause protocol section"
-grep -q 'STATUS: gate' agents/executor.md \
-  || fail "executor.md missing STATUS: gate exit format"
-
-# v4.0.0: the go flow moved into triage/references/flow-light.md.
-# Risk-gate inspection and gate-resume must survive the migration.
-grep -q 'risk_gates\|risk gate\|risk check' skills/triage/references/flow-light.md \
-  || fail "flow-light.md missing forward-looking risk-gate inspection"
-grep -q 'Resume from gate\|gate-pending' skills/triage/references/flow-light.md \
-  || fail "flow-light.md missing gate-resume handling"
-
-# v2.1.0 Iter 4: _common.md is auto-injected by SubagentStart hook,
-# so the manual "Read agents/_common.md first" imperative must be
-# absent from every agent file. The auto-injection replaces it.
-for agent in researcher planner executor verifier; do
-  if grep -q '\*\*Read `agents/_common\.md` first' "agents/${agent}.md"; then
-    fail "${agent}.md still has the manual 'Read agents/_common.md first' imperative — should be auto-injected via SubagentStart hook"
-  fi
-done
-
-# SubagentStart hook exists and is registered
-[[ -x hooks/subagent-start ]] \
-  || fail "hooks/subagent-start missing or not executable"
-grep -q '"SubagentStart"' hooks/hooks.json \
-  || fail "hooks/hooks.json missing SubagentStart registration"
-
-echo "prompt-quality.sh: all checks passed"
+echo "PASS: v5 prompt surface is intact (${bytes} bytes of instruction)"

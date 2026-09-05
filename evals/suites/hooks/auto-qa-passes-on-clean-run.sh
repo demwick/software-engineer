@@ -17,7 +17,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 # Arm auto-QA by touching the v2 existence-only marker. Pre-seed
 # .verify-attempts with a stale counter to verify the clean-run
 # branch also clears the counter file.
-: > "$WORKDIR/.se/.needs-verify"
+printf '{"kind":"planned","id":"phase-2","files":[]}' > "$WORKDIR/.se/.active"
 printf '{"attempts":1}' > "$WORKDIR/.se/.verify-attempts"
 
 output="$(cd "$WORKDIR" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
@@ -34,8 +34,8 @@ if printf '%s' "$output" | jq -e '.decision == "block"' >/dev/null 2>&1; then
 fi
 
 # Both marker and counter must be cleaned up on pass.
-if [[ -f "$WORKDIR/.se/.needs-verify" ]]; then
-    printf 'FAIL: .needs-verify marker was not removed after passing tests\n' >&2
+if [[ -f "$WORKDIR/.se/.active" ]]; then
+    printf 'FAIL: .active marker was not removed after passing tests\n' >&2
     exit 1
 fi
 if [[ -f "$WORKDIR/.se/.verify-attempts" ]]; then

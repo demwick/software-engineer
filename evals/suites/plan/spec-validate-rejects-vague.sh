@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Verify spec-validate.sh rejects vague criteria and accepts valid specs.
+# Verify spec-validate.sh enforces the feature-spec shape: the three
+# load-bearing sections, at least two non-goals, at least three testable
+# acceptance criteria.
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
 
@@ -7,97 +9,80 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/evals/lib/assert.sh"
 
+SV="$REPO_ROOT/scripts/spec-validate.sh"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-# Test 1: valid spec passes
-cat > "$TMPDIR/valid.md" << 'SPEC'
-# Phase 1 Spec: Auth System
+rc() { local rc=0; bash "$SV" "$1" >/dev/null 2>&1 || rc=$?; echo "$rc"; }
 
-## Goal
-Add JWT-based authentication to the API.
+good() {
+cat <<'EOF'
+# Spec: auth
 
-## Acceptance Criteria
-- [ ] POST /api/login returns 200 with a JWT token for valid credentials
+**Status:** draft
+
+## What we're building
+JWT login for the API.
+
+## Non-goals
+- OAuth
+- Password reset
+
+## Acceptance criteria
+- [ ] POST /api/login returns 200 with a JWT for valid credentials
 - [ ] GET /api/protected returns 401 without a valid Authorization header
-- [ ] JWT tokens expire after 15 minutes
+- [ ] Tokens expire after 15 minutes
 
-## Out of Scope
-- OAuth integration
-- Password reset flow
-SPEC
+## Edge cases
+- empty password
 
-bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/valid.md" >/dev/null
-echo "PASS: valid spec accepted"
+## Trade-offs
+- Chose JWT over sessions, accepting no server-side revocation.
+EOF
+}
 
-# Test 2: missing Goal section → exit 2
-cat > "$TMPDIR/no-goal.md" << 'SPEC'
-# Phase 1 Spec: Something
+good > "$TMPDIR/valid.md"
+assert_eq "$(rc "$TMPDIR/valid.md")" 0 "valid spec accepted"
 
-## Acceptance Criteria
-- [ ] thing one works
-- [ ] thing two works
+good | sed 's/^## What we.re building/## Summary/' > "$TMPDIR/nosection.md"
+assert_eq "$(rc "$TMPDIR/nosection.md")" 2 "missing section rejected"
 
-## Out of Scope
-- nothing
-SPEC
+good | sed 's/^- Password reset$//' > "$TMPDIR/onenongoal.md"
+assert_eq "$(rc "$TMPDIR/onenongoal.md")" 3 "fewer than 2 non-goals rejected"
 
-assert_exit_code 2 bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/no-goal.md"
-echo "PASS: missing Goal rejected"
+good | sed 's/^- \[ \] Tokens expire.*$//' > "$TMPDIR/twocriteria.md"
+assert_eq "$(rc "$TMPDIR/twocriteria.md")" 3 "fewer than 3 criteria rejected"
 
-# Test 3: fewer than 2 criteria → exit 3
-cat > "$TMPDIR/few-criteria.md" << 'SPEC'
-# Phase 1 Spec: Tiny
+good | sed 's/Tokens expire after 15 minutes/login works correctly/' > "$TMPDIR/vague.md"
+assert_eq "$(rc "$TMPDIR/vague.md")" 4 "vague criterion rejected"
 
-## Goal
-Do one thing.
+assert_eq "$(rc "$TMPDIR/missing.md")" 1 "missing file reports not-found"
 
-## Acceptance Criteria
-- only one criterion
+# Acceptance criteria as the final `## ` block — the counter must not drop the
+# last item, or a valid spec is rejected for having "too few" criteria.
+cat > "$TMPDIR/reordered.md" <<'EOF'
+# Spec: auth
 
-## Out of Scope
-- everything else
-SPEC
+## What we're building
+JWT login.
 
-assert_exit_code 3 bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/few-criteria.md"
-echo "PASS: too few criteria rejected"
+## Edge cases
+- empty password
 
-# Test 3b: AC-style criteria accepted
-cat > "$TMPDIR/ac-style.md" << 'SPEC'
-# Phase 1 Spec: AC Style
+## Trade-offs
+- Chose JWT over sessions.
 
-## Goal
-Test AC format.
+## Non-goals
+- OAuth
+- Password reset
 
-## Acceptance Criteria
-- AC1: first criterion passes some check
-- AC2: second criterion passes another check
+## Acceptance criteria
+- [ ] POST /api/login returns 200 with a JWT
+- [ ] GET /api/protected returns 401 without a header
+- [ ] Tokens expire after 15 minutes
+EOF
+assert_eq "$(rc "$TMPDIR/reordered.md")" 0 "criteria section last is valid"
+assert_contains "$(bash "$SV" "$TMPDIR/reordered.md")" "3 criteria" \
+    "all three criteria counted when the section is last"
 
-## Out of Scope
-- nothing
-SPEC
-
-bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/ac-style.md" >/dev/null
-echo "PASS: AC-style criteria accepted"
-
-# Test 4: vague criteria → exit 4
-cat > "$TMPDIR/vague.md" << 'SPEC'
-# Phase 1 Spec: Vague
-
-## Goal
-Make it work.
-
-## Acceptance Criteria
-- the feature works correctly
-- users can log in
-
-## Out of Scope
-- nothing
-SPEC
-
-assert_exit_code 4 bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/vague.md"
-echo "PASS: vague criteria rejected"
-
-# Test 5: file not found → exit 1
-assert_exit_code 1 bash "$REPO_ROOT/scripts/spec-validate.sh" "$TMPDIR/nonexistent.md"
-echo "PASS: missing file rejected"
+echo "PASS: spec-validate enforces the feature-spec structure"

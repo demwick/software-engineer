@@ -56,15 +56,6 @@ COUNTS=$(grep -aiE '[0-9]+ +(passed|failed|passing|failing|errors?|skipped|tests
 
 printf 'TEST: %s → exit %s%s\n' "$CMD_DESC" "$RC" "${COUNTS:+ | ${COUNTS%; }}"
 
-log_event() {
-    local tracker="${SCRIPT_DIR}/../hooks/state-tracker"
-    [ -f "$tracker" ] || return 0
-    local detail
-    detail=$(jq -cn --arg cmd "$CMD_DESC" --argjson rc "$RC" \
-        '{cmd:$cmd, exit:$rc}' 2>/dev/null) || return 0
-    ( cd "$PROJECT_DIR" && bash "$tracker" log-run test-digest "" "" "$detail" ) >/dev/null 2>&1 || true
-}
-log_event
 
 if [ "$RC" -eq 0 ]; then
     exit 0

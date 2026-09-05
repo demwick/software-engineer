@@ -14,15 +14,11 @@
 # Required fields (schema_version, mode, created) are never overwritten
 # unless explicitly passed. Unknown keys are allowed but logged.
 #
-# v1 → v2 auto-migration: on every invocation, if the on-disk state file
-# reports schema_version == 1 the script rewrites it to 2 in place (in
-# the same atomic write as the caller's merge). The migration is:
-#   - set schema_version = 2
-#   - no field renames, no field removals in v2.0.0
-# The bump itself is the contract that marks the project as using the
-# two-file .needs-verify / .verify-attempts scheme from hooks/auto-qa.
-# Migration is one-way and idempotent — running it on an already-v2
-# file is a no-op.
+# Schema migration: on every invocation, if the on-disk file reports a
+# schema_version below 3 the script rewrites it to 3 in the same atomic
+# write as the caller's merge, dropping the bookkeeping keys v5 no longer
+# maintains (last_edit, last_verification, last_qa_result, qa_retries,
+# qa_gave_up). One-way and idempotent.
 #
 # Examples:
 #   bash state-update.sh current_phase=3 last_commit=a1b2c3d
@@ -89,19 +85,32 @@ if [ "$LAST_SESSION_SET" = "false" ]; then
     MERGE_JSON=$(printf '%s' "$MERGE_JSON" | jq --arg ts "$NOW" '. + {last_session: $ts}')
 fi
 
-# v1 → v2 auto-migration: if the on-disk file reports schema_version == 1,
-# force it to 2 in the same merge. Idempotent on already-v2 files.
+# Schema migration: anything below 3 is rolled forward to 3 in this merge.
+# `// 0` only fires on null or absent, so a non-numeric value reaches the
+# comparison below, `[` fails with "integer expression expected", the 2>/dev/null
+# hides it, and the migration is skipped while the script still exits 0 —
+# corrupt state written back as though it had been rolled forward. Fail loud.
 CURRENT_SCHEMA=$(jq -r '.schema_version // 0' "$STATE_FILE" 2>/dev/null || echo "0")
-if [ "$CURRENT_SCHEMA" = "1" ]; then
+case "$CURRENT_SCHEMA" in
+    ""|*[!0-9]*)
+        echo "state-update: schema_version is not a number: '$CURRENT_SCHEMA'" >&2
+        exit 4
+        ;;
+esac
+MIGRATE=false
+if [ "$CURRENT_SCHEMA" -lt 3 ]; then
+    MIGRATE=true
     SCHEMA_SET_BY_CALLER=$(printf '%s' "$MERGE_JSON" | jq 'has("schema_version")')
     if [ "$SCHEMA_SET_BY_CALLER" = "false" ]; then
-        MERGE_JSON=$(printf '%s' "$MERGE_JSON" | jq '. + {schema_version: 2}')
+        MERGE_JSON=$(printf '%s' "$MERGE_JSON" | jq '. + {schema_version: 3}')
     fi
 fi
 
 # Merge into existing state.
 TMP=$(mktemp)
-if ! jq --argjson merge "$MERGE_JSON" '. * $merge' "$STATE_FILE" > "$TMP" 2>/dev/null; then
+DROP='.'
+[ "$MIGRATE" = "true" ] && DROP='del(.last_edit, .last_verification, .last_qa_result, .qa_retries, .qa_gave_up)'
+if ! jq --argjson merge "$MERGE_JSON" "$DROP | . * \$merge" "$STATE_FILE" > "$TMP" 2>/dev/null; then
     rm -f "$TMP"
     echo "state-update: failed to merge into $STATE_FILE" >&2
     exit 4

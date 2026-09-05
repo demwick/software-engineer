@@ -7,9 +7,9 @@
 
 # Testing Checklist
 
-Structural / syntactic checks are green via `bash evals/run.sh` (JSON parse, bash syntax, frontmatter, state schema, hook behavior). The rest needs a real Claude Code session because it requires live skill dispatch, subagent spawning, and hook invocation.
+`bash evals/run.sh` covers the deterministic layer (hooks, scripts, state, frontmatter, the prompt surface). What follows needs a live session: skill dispatch, plan mode, subagents, hooks firing on real tool calls.
 
-`PLUGIN=/Users/demirel/Projects/software-engineer` is used below.
+`PLUGIN=/path/to/software-engineer` below.
 
 ## Load the plugin
 
@@ -17,173 +17,70 @@ Structural / syntactic checks are green via `bash evals/run.sh` (JSON parse, bas
 claude --plugin-dir "$PLUGIN"
 ```
 
-Inside the session, run `/help` and `/agents`. You should see these `software-engineer:*` skills — **`triage`** (the single entry), `clarify`, `spec`, `adr`, `risk`, and the read-only helpers `se-diagnose`, `se-status`, `se-roadmap` — plus four agents: `researcher`, `planner`, `executor`, `verifier`.
+`/help` and `/agents` list `software-engineer:` skills `triage`, `intent`, `spec`, `adr`, `se-status`, `se-diagnose` and agents `executor`, `verifier`. If not: `claude --debug-file /tmp/sea.log --plugin-dir "$PLUGIN"` and `tail -f /tmp/sea.log`.
 
-If anything is missing: `claude --debug-file /tmp/sea.log --plugin-dir "$PLUGIN"` and `tail -f /tmp/sea.log` in another terminal shows every hook registration and skill load.
-
-## 0. Headless smoke (automatable)
-
-These two are deterministic enough to run from a script and are part of `Aşama 4` verification:
-
-```bash
-# Plugin loads without manifest error
-P=$(mktemp -d); cd "$P"; git init -q
-claude --plugin-dir "$PLUGIN" -p "Reply with exactly: PLUGIN_LOADS_OK"   # → PLUGIN_LOADS_OK, exit 0
-```
-
-```bash
-# Triage routing probe (classify-only, no side effects)
-claude --plugin-dir "$PLUGIN" -p 'Apply ONLY the triage classification logic, do not edit files. Output one line: ROUTE: <direct-apply|light-plan|full-flow> — <reason>. Request: "fix the typo in the README title"'
-```
-
-**Verified routing (2026-06-03, headless):**
-
-| Request | Expected | Got |
-| --- | --- | --- |
-| "fix the typo in the README title" | direct-apply | ✅ direct-apply |
-| "add a CSV export endpoint to the existing user API" | light-plan | ✅ light-plan |
-| "I want to build a SaaS for clinic appointment booking" | full-flow | ✅ full-flow (bias rounds up) |
-| "just quickly bump lodash, don't overthink it" | direct-apply (escape) | ✅ direct-apply |
-| "fix the login button — but wait, let's talk first" | full-flow (escape) | ✅ full-flow |
-
-This routing probe is automated as a **gated behavioral eval**. It runs against a
-golden fixture (`evals/fixtures/behavioral/triage-routing.jsonl`) but is excluded
-from CI on purpose — it needs the `claude` CLI and costs tokens, so it is opt-in:
+## 0. Headless routing probe
 
 ```bash
 SE_BEHAVIORAL_EVALS=1 bash evals/suites/behavioral/triage-routing.sh
 ```
 
-Without `SE_BEHAVIORAL_EVALS=1` (or without `claude` on PATH) it prints a `skip:`
-line and exits 0, so `bash evals/run.sh` stays green in CI. See
-`evals/suites/behavioral/README.md` for cost and details.
+Opt-in (costs tokens). Drives `claude -p` over `evals/fixtures/behavioral/triage-routing.jsonl`.
 
-## 1. Triage → direct-apply (clear + narrow)
+## 1. Direct-apply
 
-```bash
-mkdir /tmp/se-a && cd /tmp/se-a && git init -q
-# add a trivial file with a typo, then:
-claude --plugin-dir "$PLUGIN"
-```
+In a managed project with a typo in `README.md`: *"fix the typo in the README title"*.
 
-```
-fix the typo in the title of README.md
-```
+**Expect:** one sentence of self-classification, no mode question; `.se/.active` with `kind: direct` while the executor runs; one commit; the Stop hook runs the suite and clears `.active`. **Fail:** a plan for a typo; a mode question; `.active` left behind.
 
-**Expect:** triage announces a focused, direct fix (no mode question); executor edits one file, one atomic commit; if `.se/` exists, the Stop hook runs tests. **Fail:** asks the user to pick a mode; plans a whole phase for a typo; touches unrelated files.
+## 2. The edit gate
 
-## 2. Triage → light-plan (moderate)
+In a managed project, outside any flow, ask Claude to edit a source file "without triage" (or drive the hook by hand, see `docs/DEVELOPMENT.md`).
 
-```
-add a CSV export endpoint to the existing user API
-```
+**Expect:** the `PreToolUse` block names triage as the re-entry; `.se/`, `CLAUDE.md`, `.gitignore` stay editable. Then a direct task that grows past 3 files is blocked on the 4th and escalates to a plan.
 
-**Expect:** at most 1–2 critical questions; a short spec + plan written inline by the flow (no `→ planner` dispatch — this is an ad-hoc slice, not a numbered roadmap phase) and passing `plan-validate.sh`; `/risk` surfaces blast-radius/security before the executor; risk gates honored; execute → auto-QA. **Fail:** dives straight to code with no plan; asks a full requirements interview; dispatches the planner agent for a one-feature slice.
+## 3. Planned slice
 
-## 3. Triage → full-flow (fuzzy + broad)
+*"add a CSV export endpoint to the existing user API"*
 
-```
-I want to build a SaaS for clinic appointment booking
-```
+**Expect:** ≤2 questions; plan mode; `.se/plans/csv-export.md` in the template shape, `plan-validate.sh` green, committed `docs(se): plan csv-export`; `confirm: yes` risks put to you before anything runs; `→ executor`, then the suite via `test-digest.sh`, `verification/csv-export.json`, `→ verifier`, `csv-export.review.json`, a `chore(se): close csv-export` commit. **Fail:** code before the plan file; no verifier; artifacts left uncommitted.
 
-**Expect:** `clarify` runs a requirements dialogue (scale, auth, NFRs, **non-goals**) via `AskUserQuestion`; `spec` writes `.se/specs/<feature>.md` with non-goals + acceptance criteria; ADR-worthy decisions trigger `/adr`; planner produces a 3–7 phase roadmap; `.se/state.json` has `mode: from-scratch` and an `integrations` block. **Fail:** scaffolds before clarifying; spec missing non-goals; over-scaffolds (auth/CI/analytics not in MVP).
+## 4. Bug fix lock
 
-> Note: full-flow uses `AskUserQuestion` and is multi-turn — drive it interactively, not headless.
+Plan a bug fix. **Expect:** a `test(scope): reproduce …` commit first; `.se/.fixing` lists the test; an attempt to edit that test is blocked; the `fix(scope)` commit follows and `.fixing` is gone.
 
-## 4. Escape hatches
+## 5. Full flow
 
-```
-just quickly bump the lodash version, don't overthink it     → forces direct-apply
-fix the login button — but wait, let's talk through it first  → forces full-flow
-```
+*"I want to build a SaaS for clinic appointment booking"* (interactive — `AskUserQuestion`).
 
-**Expect:** the force-shallow phrase skips questions even if scope looks borderline; the force-deep phrase runs clarify even on a narrow ask.
+**Expect, in order and each committed:** `.se/intent/<slug>.md` with ≥2 non-goals; `.se/specs/<slug>.md` accepted; an ADR if a real fork appears; the roadmap confirmed; `.se/roadmap.md`, `.se/state.json` (schema 3, `integrations`), the whitelist block in `.gitignore`, `CLAUDE.md` with Commands / Verifying your work / Things Claude gets wrong; `chore(se): bootstrap`. Then "continue" runs phase 1 as §3 with `id = phase-1`. **Fail:** scaffolding before the intent; a spec without non-goals; auth/CI/analytics not in the spec.
 
-## 5. Auto-QA retry path
+## 6. Escape hatches
 
-Inside a `.se/`-initialized project, introduce a deliberate test failure, then ask triage for a change that runs the executor.
+*"just quickly bump lodash, don't overthink it"* → direct. *"fix the login button — but wait, let's talk first"* → full flow.
 
-**Expect:** executor finishes → touches `.se/.needs-verify`; Stop hook runs tests → fails → block decision → Claude auto-fixes; after at most 2 retries the hook gives up with a "report to user" message. `cat .se/.last-verify.log` shows output. **Fail:** infinite retry loop; hook passes despite failures; `.needs-verify` left behind after give-up.
+## 7. Auto-QA retry
 
-## 6. Detect & Defer (the ecosystem test)
+Break a test deliberately, then run any flow. **Expect:** the Stop hook blocks with the failing output; Claude fixes the code; after 2 retries it gives up with a "report to the user" message; `.se/.last-verify.log` has the output; markers cleared.
 
-Run the same full-flow project **with charter present** vs absent:
+## 8. Second mistake → CLAUDE.md
 
-```bash
-mkdir -p /tmp/se-b/.claude/knowledge/charter && cd /tmp/se-b && git init -q
-claude --plugin-dir "$PLUGIN"
-```
+Let the verifier see the same class of finding twice across slices. **Expect:** `repeated_findings[]` in the `.review.json`, and a new bullet under `## Things Claude gets wrong` in `CLAUDE.md`, committed with the close.
 
-**Expect with charter present:**
-- `.se/state.json` `integrations.charter == true` (written by the SessionStart hook).
-- An ADR-worthy decision writes to `.claude/knowledge/adr/` (charter template), **not** `.se/adr/`.
-- The verifier emits charter's **PASS/FAIL/PARTIAL** adversarial verdict, not the blocker/major/minor/nit severities.
-- The plugin adds **no** PreToolUse destructive-op guardrail (that's charter's).
+## 9. Detect & Defer
 
-**Standalone** (no charter dir): ADRs go to `.se/adr/NNNN-*.md`; verifier uses severity classification. Confirm `integrations.charter == false`.
+Same project with `.claude/knowledge/charter/` present: `integrations.charter == true`; ADRs land in `.claude/knowledge/adr/`; the verifier reports PASS/FAIL/PARTIAL; `git push --force` is not blocked by the plugin (charter's job). The edit gate still applies.
 
-Verify the persisted flag directly:
-```bash
-jq .integrations /tmp/se-b/.se/state.json
-```
+## 10. `/se-status`, `/se-diagnose`, SessionStart
 
-## 7. `/se-diagnose` health audit
+`/se-status` answers in one screen without agents. `/se-diagnose` runs Explore, every ❌ has `file:line`, writes `.se/diagnose.json`, and the footer routes by count. Restart the session and ask *"where am I?"* — answered from the injected block; ask *"what is 2+2?"* — no plugin state volunteered.
 
-```
-/se-diagnose
-```
+## 11. `jq` missing
 
-**Expect:** researcher runs; 📊 health report with Tests / Errors / Security; every ❌ has a `file:line`; `.se/diagnose.json` written; footer routes via triage (1–3 small → "ask for the fix"; 4+ → `/se-roadmap add`). `/se-diagnose security` → only the security section.
-
-## 8. `/se-status` + SessionStart injection
-
-```
-/se-status        → mode, progress bar (10-char ASCII), active phase, last commit, sub-second, no agent calls
-```
-
-Restart the session in the same project and ask `where am i?` — Claude should answer from injected context **without** calling `/se-status`. Then ask `what is 2+2?` — Claude must NOT volunteer plugin state. The injected block now describes the single triage entry, not the old command table.
-
-## 9. `/se-roadmap` CRUD
-
-```
-/se-roadmap                              → shows roadmap, footer says "say 'continue' to advance"
-/se-roadmap add "add E2E tests"          → proposes phase block, waits for confirm, bumps total_phases
-/se-roadmap remove 3                     → refuses if done; else archives phase dir, renumbers
-```
-
-## 10. Superpowers side-by-side
-
-With both plugins loaded: triage still runs; `/superpowers:brainstorming` still runs; neither SessionStart hook clobbers the other. For fuzzy *design* exploration the plugin should defer to `superpowers:brainstorming`; for *requirements* it uses its own `clarify`.
-
-## 11. `jq` missing — graceful degradation
-
-```bash
-mv "$(which jq)" /tmp/jq-backup
-```
-
-`/se-status` still works; the SessionStart hook no-ops the `integrations` write instead of crashing (guarded by `command -v jq`); auto-qa/state-tracker no-op. Restore: `mv /tmp/jq-backup "$(which jq)"`.
-
-## Cleanup
-
-```bash
-rm -rf /tmp/se-a /tmp/se-b
-```
-
----
-
-## Known gaps (deliberate)
-
-- No unit tests for bash scripts beyond `evals/` — small enough to eyeball; the checklist catches integration risks.
-- `MEMORY.md` curation deferred to the platform.
-- Marketplace distribution out of scope for now.
-- Interactive multi-turn flows (clarify's `AskUserQuestion`) can't be driven headless — routing classification can (see §0), the dialogue can't.
+`mv "$(which jq)" /tmp/jq-backup` — every hook fails open, `/se-status` still answers. Restore afterwards.
 
 ## When something fails
 
-1. `claude --debug-file /tmp/sea.log --plugin-dir "$PLUGIN"`
-2. Reproduce, then `tail -100 /tmp/sea.log` — look for `hook`, `skill`, `agent` events.
-3. Hook failures — pipe fake JSON manually:
-   ```bash
-   echo '{}' | CLAUDE_PLUGIN_ROOT="$PLUGIN" bash "$PLUGIN/hooks/auto-qa"; echo "exit=$?"
-   ```
-4. Agent failures — launch directly: `Use the planner agent to ...` with a minimal prompt.
+1. `claude --debug-file /tmp/sea.log --plugin-dir "$PLUGIN"`, reproduce, `tail -100 /tmp/sea.log`.
+2. Drive the hook by hand with fake JSON (`docs/DEVELOPMENT.md` → Debugging hooks).
+3. Launch an agent directly: *"Use the verifier agent on slice csv-export"*.

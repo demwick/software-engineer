@@ -7,8 +7,8 @@
 
 # software-engineer Plugin — Design Document
 
-**Status:** Accepted — superseded by `docs/specs/2026-04-15-scope-and-state-refactor.md` for v2.0.0, and by the v4.0.0 triage architecture (below)
-**Last updated:** 2026-04-14 (v1 body); 2026-06-03 (v4 note)
+**Status:** Accepted — superseded by `docs/specs/2026-04-15-scope-and-state-refactor.md` for v2.0.0, by the v4.0.0 triage architecture (below), and by the v5.0.0 playbook architecture (below, and in `docs/specs/2026-09-04-playbook-architecture.md`)
+**Last updated:** 2026-04-14 (v1 body); 2026-06-03 (v4 note); 2026-09-04 (v5 note)
 
 ---
 
@@ -23,6 +23,35 @@ The v1.0.0 content below is preserved as a historical record of the
 original intent — it is still accurate for what shipped in v1.0.0 and
 useful as context for "what the original plan was before the refactor".
 It is intentionally left unedited.
+
+### v5.0.0 — the playbook architecture (supersedes the v4 agent set and state model)
+
+Rebuilt around Anthropic's *AI-Native SDLC Playbook*, stages 1–4, for Opus 5
+and a solo developer. The full decision record is
+`docs/specs/2026-09-04-playbook-architecture.md`; the load-bearing changes:
+
+- **The artifact chain is committed.** `intent → spec → plan → diff + tests
+  → review` lives under `.se/` and goes into git through a whitelist
+  `.gitignore`; only runtime state (`state.json`, markers, logs) is ignored.
+  `git log .se/` is the audit trail.
+- **Structure over persuasion.** One marker, `.se/.active`, is the gate:
+  `pre-guard` blocks any code edit while it is absent, so a plan cannot be
+  skipped; `auto-qa` verifies on its presence. A second marker, `.se/.fixing`,
+  locks a reproduction test during a fix. What used to be prose ("write the
+  plan first", "don't edit the test") is now a hook.
+- **Two agents.** `planner` is replaced by plan mode; `researcher` by the
+  built-in Explore agent; `_common.md` and its SubagentStart injection are
+  gone. `executor` and `verifier` keep only what no model infers.
+- **TDD is a feedback loop, not a rule.** Red-proof replay, commit-order
+  forensics, the verification-strategy resolver and the typed exit envelope
+  are removed; "done" means the suite is green and the verifier reviewed it.
+- **`CLAUDE.md` in the user's project.** Created at bootstrap and fed by the
+  verifier's repeated findings — the playbook's "second mistake becomes a
+  rule".
+- Still true from v4: single entry via triage, round-up under doubt, Detect &
+  Defer, `model: inherit` with `effort`, two-tier verification.
+
+Where this note and anything below disagree, this note wins.
 
 ### v4.0.0 — triage architecture (supersedes the "three modes / three commands" model)
 
