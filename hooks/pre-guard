@@ -145,6 +145,38 @@ write_targets() {
     done
 }
 
+# Does this command run `git <subcommand>` anywhere in it?
+#
+# Matching the raw string with a regex cannot do this: git's global options
+# may carry their value in the NEXT token (`git -c key=val commit`,
+# `git -C path commit`), so any pattern built from single tokens loses the
+# subcommand and the whole gate silently stops applying. Walk the tokens
+# instead, skipping global options and their values, and compare the first
+# argument that is not a flag. Compound commands are handled by checking
+# every `git` in the string.
+git_has_subcommand() {
+    local want="$2" i j n
+    local toks
+    # shellcheck disable=SC2206 — deliberate word splitting; quotes in a
+    # subcommand position are not a thing, and the message body is matched
+    # separately by extract_commit_message.
+    toks=( $(printf '%s' "$1" | tr '\n;|&' '    ') )
+    n=${#toks[@]}
+    for ((i = 0; i < n; i++)); do
+        [ "${toks[$i]}" = "git" ] || continue
+        j=$((i + 1))
+        while [ $j -lt $n ]; do
+            case "${toks[$j]}" in
+                -c|-C|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix)
+                    j=$((j + 2)) ;;                       # flag plus its value
+                -*) j=$((j + 1)) ;;                       # self-contained flag
+                *)  [ "${toks[$j]}" = "$want" ] && return 0; break ;;
+            esac
+        done
+    done
+    return 1
+}
+
 case "$TOOL" in
     Bash)
         CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
@@ -157,17 +189,23 @@ case "$TOOL" in
 
         if [ "$CHARTER" = "false" ]; then
             REASON=""
-            if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+(--force-with-lease|--force|-f)\b'; then
+            if git_has_subcommand "$CMD" push \
+               && printf '%s' "$CMD" | grep -Eq '(--force-with-lease|--force)([[:space:]]|=|$)|[[:space:]]-f([[:space:]]|$)'; then
                 REASON="force-push rewrites published history"
-            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push([[:space:]]+[^|;&]*)?[[:space:]]+--delete\b'; then
+            elif git_has_subcommand "$CMD" push \
+                 && printf '%s' "$CMD" | grep -Eq '[[:space:]]--delete([[:space:]]|$)'; then
                 REASON="git push --delete removes a remote ref"
-            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+reset[[:space:]]+--hard'; then
+            elif git_has_subcommand "$CMD" reset \
+                 && printf '%s' "$CMD" | grep -Eq '[[:space:]]--hard([[:space:]]|$)'; then
                 REASON="git reset --hard discards uncommitted work"
-            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+clean[[:space:]]+-[a-z]*f'; then
+            elif git_has_subcommand "$CMD" clean \
+                 && printf '%s' "$CMD" | grep -Eq '[[:space:]]-[a-z]*f'; then
                 REASON="git clean -f deletes untracked files irreversibly"
-            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+branch[[:space:]]+(-D|--delete[[:space:]]+--force|-[a-zA-Z]*D)'; then
+            elif git_has_subcommand "$CMD" branch \
+                 && printf '%s' "$CMD" | grep -Eq '[[:space:]](-[a-zA-Z]*D|--delete[[:space:]]+--force)([[:space:]]|$)'; then
                 REASON="git branch -D force-deletes a branch"
-            elif printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+tag[[:space:]]+-d'; then
+            elif git_has_subcommand "$CMD" tag \
+                 && printf '%s' "$CMD" | grep -Eq '[[:space:]](-d|--delete)([[:space:]]|$)'; then
                 REASON="git tag -d deletes a tag"
             elif printf '%s' "$CMD" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
                 REASON="a destructive SQL statement (DROP/TRUNCATE) is irreversible"
@@ -184,10 +222,13 @@ case "$TOOL" in
         fi
 
         # 2. Commit gates. The staged set is computed once; two checks read it.
-        if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'; then
+        if git_has_subcommand "$CMD" commit; then
             STAGED=$(git diff --cached --name-only 2>/dev/null || true)
-            # -a may sit anywhere in a flag cluster (-am, -a, --all).
-            if printf '%s' "$CMD" | grep -Eq '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all'; then
+            # -a may sit anywhere in a flag cluster (-am, -a, --all). Both
+            # alternates need the trailing anchor: a bare `--all` also matches
+            # inside `--allow-empty`, and then an empty marker commit gets
+            # blocked over unstaged files it was never going to include.
+            if printf '%s' "$CMD" | grep -Eq '[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|$)|--all([[:space:]]|$)'; then
                 STAGED="${STAGED}
 $(git diff --name-only 2>/dev/null || true)"
             fi
@@ -215,7 +256,10 @@ EOF
             #     remediation. This is enforced rather than asked for because
             #     live testing caught the model collapsing the pair into one
             #     commit — the only rule in this plugin that had no backstop.
-            if printf '%s' "$CMD" | grep -Eq -- '-m[[:space:]]+["'"'"']?fix\('; then
+            #     git spells the message four ways — `-m VAL`, `-mVAL`,
+            #     `--message VAL`, `--message=VAL` — and a pattern that admits
+            #     only the first lets the other three collapse the pair.
+            if printf '%s' "$CMD" | grep -Eq -- '(-m|--message)[[:space:]=]*["'"'"']?fix\('; then
                 FIX_TESTS=""; FIX_SOURCES=""
                 while IFS= read -r f; do
                     [ -n "$f" ] || continue

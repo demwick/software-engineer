@@ -93,5 +93,41 @@ assert_eq 0 "$(rc 'git commit -m "feat(model): add streaks"')" "feat with tests 
 assert_eq 0 "$(rc 'git commit -m "refactor(model): extract helper"')" "refactor with tests allowed"
 assert_eq 0 "$(rc 'git commit -m "test(model): cover the boundary"')" "test commit allowed"
 
+# --- git's global options must not hide the subcommand ---
+# `-c key=val` and `-C path` carry their value in the NEXT token, so a regex
+# built from single tokens loses `commit` and the whole gate stops applying.
+# These are ordinary options (silence colors, work on another worktree), not
+# an adversarial shape.
 rm -f .se/.active
+git reset -q; printf '%s\n' "$(date +%s%N)" > src/app.js; git add src/app.js
+assert_eq 2 "$(rc 'git commit -m sneak')"                      "plain commit blocked"
+assert_eq 2 "$(rc 'git -c color.ui=never commit -m sneak')"    "-c key=value does not hide commit"
+assert_eq 2 "$(rc 'git -C . commit -m sneak')"                 "-C path does not hide commit"
+assert_eq 2 "$(rc 'git --no-pager commit -m sneak')"           "value-less global flag still gated"
+assert_eq 2 "$(rc 'npm test && git commit -m sneak')"          "commit in a compound command gated"
+
+# The same for Prove-It, which is nested inside the same detection.
+printf '{"kind":"planned","id":"bug","files":[]}' > .se/.active
+stage src/app.js tests/test_model.py
+assert_eq 2 "$(rc 'git -c core.autocrlf=false commit -m "fix(x): bug"')" \
+    "Prove-It survives a global git flag"
+
+# --- every spelling of the message flag ---
+for form in '-m "fix(x): bug"' '-m"fix(x): bug"' '--message "fix(x): bug"' '--message="fix(x): bug"' '-m fix(x):bug'; do
+    assert_eq 2 "$(rc "git commit $form")" "Prove-It sees: git commit $form"
+done
+# A non-fix subject is unaffected by any spelling.
+assert_eq 0 "$(rc 'git commit --message="feat(x): add"')" "feat with tests still allowed"
+
+# --- --all must not match inside --allow-empty ---
+rm -f .se/.active
+git reset -q; printf '%s\n' "$(date +%s%N)" > src/app.js   # modified, NOT staged
+assert_eq 0 "$(rc 'git commit --allow-empty -m "chore: marker"')" \
+    "--allow-empty is not --all"
+assert_eq 0 "$(rc 'git commit --allow-empty-message -m x')" \
+    "--allow-empty-message is not --all"
+assert_eq 2 "$(rc 'git commit --all -m x')" "--all still pulls in unstaged tracked files"
+assert_eq 2 "$(rc 'git commit -am x')"      "-am still pulls in unstaged tracked files"
+git checkout -q -- src/app.js
+
 echo "PASS: pre-guard commit gate"

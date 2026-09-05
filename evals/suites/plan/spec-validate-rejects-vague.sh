@@ -58,4 +58,31 @@ assert_eq "$(rc "$TMPDIR/vague.md")" 4 "vague criterion rejected"
 
 assert_eq "$(rc "$TMPDIR/missing.md")" 1 "missing file reports not-found"
 
+# Acceptance criteria as the final `## ` block — the counter must not drop the
+# last item, or a valid spec is rejected for having "too few" criteria.
+cat > "$TMPDIR/reordered.md" <<'EOF'
+# Spec: auth
+
+## What we're building
+JWT login.
+
+## Edge cases
+- empty password
+
+## Trade-offs
+- Chose JWT over sessions.
+
+## Non-goals
+- OAuth
+- Password reset
+
+## Acceptance criteria
+- [ ] POST /api/login returns 200 with a JWT
+- [ ] GET /api/protected returns 401 without a header
+- [ ] Tokens expire after 15 minutes
+EOF
+assert_eq "$(rc "$TMPDIR/reordered.md")" 0 "criteria section last is valid"
+assert_contains "$(bash "$SV" "$TMPDIR/reordered.md")" "3 criteria" \
+    "all three criteria counted when the section is last"
+
 echo "PASS: spec-validate enforces the feature-spec structure"

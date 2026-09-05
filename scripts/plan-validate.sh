@@ -48,7 +48,9 @@ if ! grep -qE '^### Task' "$PLAN"; then
     exit 2
 fi
 
-CRITERIA=$(sed -n '/^## [Aa]cceptance [Cc]riteria/,/^## /p' "$PLAN" | sed '1d;$d' | grep '^- ' || true)
+# EOF-safe: a sed range would swallow the last criterion when the section is
+# the final `## ` block (see the note in verify-phase.sh).
+CRITERIA=$(awk '/^## [Aa]cceptance [Cc]riteria/{f=1;next} /^## /{f=0} f && /^- /' "$PLAN" || true)
 COUNT=$(printf '%s\n' "$CRITERIA" | grep -c '^- ' || true)
 COUNT=${COUNT:-0}
 if [ "$COUNT" -lt 2 ]; then

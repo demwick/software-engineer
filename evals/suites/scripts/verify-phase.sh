@@ -54,6 +54,30 @@ cp "$WORKDIR/.se/plans/phase-2.md" "$WORKDIR/.se/plans/csv-export.md"
 bash "$VP" "$WORKDIR"
 assert_file_exists "$WORKDIR/.se/verification/csv-export.json" "id read from .active"
 
+# The criteria section may be the LAST `## ` block — plan-validate checks that
+# the five sections exist, not that they appear in template order. A sed range
+# runs to EOF there and silently eats the final criterion, shortening the list
+# Tier 2 reviews against.
+cat > "$WORKDIR/.se/plans/reordered.md" <<'EOF'
+# Plan: reordered
+## Files
+- src/x.ts
+## Tasks
+### Task 1: do it
+## Risks
+- none
+## Proof
+- tests
+## Acceptance criteria
+- [ ] crit A
+- [ ] crit B
+- [ ] crit C
+EOF
+bash "$VP" "$WORKDIR" reordered planned
+J="$(cat "$WORKDIR/.se/verification/reordered.json")"
+assert_jq "$J" '.criteria | length' '== 3' "criteria section last: all three recorded"
+assert_jq "$J" '.criteria[2]' '== "crit C"' "the final criterion survives"
+
 # Direct → writes nothing.
 rm -rf "$WORKDIR/.se/verification"
 bash "$VP" "$WORKDIR" typo direct

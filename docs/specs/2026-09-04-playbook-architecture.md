@@ -118,6 +118,13 @@ record, because there is no plan for a scaffold to be checked against.
   3. `git commit` — **exact, and the backstop**. A commit with any gated
      path staged is blocked while `.active` is absent, so whatever
      technique wrote the file, it cannot reach history without a plan.
+     "Exact" is load-bearing and was not free: an adversarial review
+     (2026-09-05) found the first version detecting the subcommand with a
+     regex over raw shell text, which `git -c key=val commit` and
+     `git -C path commit` walked straight through — global options carry
+     their value in the *next* token, and no single-token pattern can skip
+     it. The detector now walks the tokens, so the same fix closes the
+     destructive-op guard, the commit gate and Prove-It at once.
      Artifact-only commits (`.se/`, `CLAUDE.md`, `.gitignore`) stay open,
      which is what lets the flows commit the intent, the spec and the plan
      *before* they arm the gate.

@@ -30,6 +30,16 @@ assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git pus
 assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"rm -rf node_modules"}}')" 0 "rm -rf cache allowed"
 
 # Charter present → defer (exit 0).
+# git's global options carry their value in the next token, which a
+# single-token regex cannot skip — the subcommand goes missing and the guard
+# stops applying. Same class as the commit-gate bypass.
+assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git -c foo=bar push --force origin main"}}')" 2 "-c does not hide push --force"
+assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git -C /tmp reset --hard HEAD~1"}}')" 2 "-C does not hide reset --hard"
+assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git --no-pager clean -fd"}}')" 2 "global flag does not hide clean -fd"
+assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git -c x=y branch -D feat"}}')" 2 "-c does not hide branch -D"
+# A subcommand named in prose is not a subcommand.
+assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"echo \"never run git push --force\""}}')" 0 "quoted prose is not a push"
+
 mkdir -p "$WORKDIR/.claude/knowledge/charter"
 assert_eq "$(rc "$WORKDIR" '{"tool_name":"Bash","tool_input":{"command":"git push --force"}}')" 0 "defers to charter"
 rm -rf "$WORKDIR/.claude"

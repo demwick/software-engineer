@@ -60,4 +60,25 @@ assert_eq "$(rc "$WORKDIR/ask.md")" 3 "unresolved [[ ASK ]] halts"
 
 assert_eq "$(rc "$WORKDIR/nonexistent.md")" 1 "missing file reports not-found"
 
+# Section order is not enforced, so the criteria may be the last `## ` block.
+# The counter must not lose the final item there (a sed range would).
+cat > "$WORKDIR/reordered.md" <<'EOF'
+# Plan: reordered
+## Files
+- src/x.ts
+## Tasks
+### Task 1: do it
+## Risks
+- none
+## Proof
+- tests
+## Acceptance criteria
+- [ ] GET /x returns 200
+- [ ] GET /y returns 404
+- [ ] GET /z returns 500
+EOF
+assert_eq "$(rc "$WORKDIR/reordered.md")" 0 "criteria section last is valid"
+assert_contains "$(bash "$PV" "$WORKDIR/reordered.md")" "3 criteria" \
+    "all three criteria counted when the section is last"
+
 echo "PASS: plan-validate enforces the v5 plan structure"

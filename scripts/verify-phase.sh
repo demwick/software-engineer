@@ -56,7 +56,13 @@ if [ ! -f "$PLAN" ]; then
 fi
 
 # Criteria: "- " lines under "## Acceptance criteria" up to the next "## ".
-CRITERIA=$(sed -n '/^## [Aa]cceptance [Cc]riteria/,/^## /p' "$PLAN" | sed '1d;$d' | grep '^- ' | sed -E 's/^- (\[[ xX]\] )?//' || true)
+# awk, not `sed -n '/A/,/B/p' | sed '1d;$d'`: when the criteria section is the
+# LAST `## ` block, sed's range runs to EOF and `$d` eats the final criterion
+# instead of a trailing header — silently shortening the very list Tier 2
+# reviews against. plan-validate does not enforce section order, so a plan
+# that puts the criteria last is valid and used to lose one.
+CRITERIA=$(awk '/^## [Aa]cceptance [Cc]riteria/{f=1;next} /^## /{f=0} f && /^- /' "$PLAN" \
+    | sed -E 's/^- (\[[ xX]\] )?//' || true)
 CRITERIA_JSON=$(printf '%s\n' "$CRITERIA" | grep -v '^$' | jq -R . | jq -s . 2>/dev/null || echo '[]')
 COUNT=$(printf '%s' "$CRITERIA_JSON" | jq 'length')
 

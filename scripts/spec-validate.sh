@@ -36,7 +36,13 @@ done
 
 section_items() {
     # "- " lines between "## <header>" and the next "## ".
-    sed -n "/^## $1/I,/^## /p" "$SPEC" | sed '1d;$d' | grep '^- ' || true
+    # EOF-safe (see verify-phase.sh): a sed range drops the last item when the
+    # section is the final `## ` block.
+    awk -v h="$1" '
+        BEGIN { lh = tolower("## " h) }
+        substr(tolower($0), 1, length(lh)) == lh { f = 1; next }
+        /^## / { f = 0 }
+        f && /^- /' "$SPEC" || true
 }
 
 NONGOALS=$(section_items "Non-goals" | grep -c '^- ' || true); NONGOALS=${NONGOALS:-0}
