@@ -2,7 +2,7 @@
 name: triage
 description: The single entry point for ALL engineering work in a project this plugin manages or could manage — "fix this", "add X", "build me Y", "finish this project", "refactor Z", "clean this up", "continue", "add a phase to the roadmap". Reads the request, decides how deep it goes (direct / planned slice / full flow), produces the artifacts that depth needs (intent, spec, plan), arms the edit gate, runs the executor and the verifier. Not for read-only asks — "where am I" → /se-status, "audit / what's broken" → /se-diagnose.
 argument-hint: [the engineering request, in natural language]
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, EnterPlanMode, ExitPlanMode
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 ---
 
 <!--

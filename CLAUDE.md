@@ -18,7 +18,7 @@ A Claude Code native plugin that runs the AI-native SDLC for the projects it man
 ## Repo layout
 
 - `.claude-plugin/plugin.json` — manifest (name, version, license, author, repo)
-- `agents/executor.md`, `agents/verifier.md` — the two subagents. The executor is the only agent that writes code; the verifier reviews it and never fixes. Planning is Claude Code's plan mode; surveys use the built-in Explore agent.
+- `agents/executor.md`, `agents/verifier.md` — the two subagents. The executor is the only agent that writes code; the verifier reviews it and never fixes. The plan is a committed file the flow writes and `plan-validate.sh` lints; surveys use the built-in Explore agent.
 - `skills/triage/` — the single auto-invocable entry. `SKILL.md` classifies and routes; `references/flow-{direct,light,full}.md` are the three depths; `references/templates.md` holds the plan and roadmap shapes.
 - `skills/{intent,spec,adr}/` — the artifact writers, invoked by the flows. `skills/{se-status,se-diagnose}/` — read-only helpers.
 - `hooks/hooks.json` + `hooks/run-hook.cmd` (polyglot wrapper) + `hooks/{session-start,auto-qa,pre-guard}`. `pre-guard` (PreToolUse) is the edit gate, the direct tripwire, the `.fixing` lock and the destructive-op guard; `auto-qa` (Stop) is Tier-1 verification; `session-start` injects state and clears stale markers.
@@ -30,7 +30,7 @@ A Claude Code native plugin that runs the AI-native SDLC for the projects it man
 1. **Native APIs only.** Skills, subagents, hooks, and `.claude-plugin/plugin.json` — nothing else. No MCP servers, no custom runtime, no dependencies beyond `bash`, `jq`, and `git`.
 2. **Never pin a model; steer cost with `effort`.** Both agents are `model: inherit` with an explicit `effort` (`medium` for each). Pinning downgrades silently and inverts the review invariant: a `verifier` pinned below the model that wrote the code rubber-stamps it. `inherit` makes "reviewer >= author" structural. Read-only agents never get `Write` or `Edit`.
 3. **Zero configuration.** Never ask the user to edit a settings file, pick a model, or set a preference. Auto-detect everything.
-4. **Lean on platform built-ins.** Plan mode for plans, Explore for surveys, `memory: project` for cross-session memory, the `Stop` hook with `decision: "block"` for the feedback loop, `SessionStart` `additionalContext` for state injection. Never reinvent these.
+4. **Lean on platform built-ins.** Explore for surveys, `memory: project` for cross-session memory, the `Stop` hook with `decision: "block"` for the feedback loop, `SessionStart` `additionalContext` for state injection. Never reinvent these.
 5. **Single entry, depth chosen by triage.** The user never picks a mode. Irreversible steps still surface before they happen (risks marked `confirm: yes`, spec contradictions, ADR-worthy forks).
 6. **Structure over persuasion.** A step the plugin must never skip is enforced by a hook or a script, not by a sentence: the edit gate (`.se/.active`), the plan lint, the spec lint, the Tier-1 record, the `.fixing` lock. When a new "the model must always…" rule is proposed, the question is which deterministic check carries it.
 

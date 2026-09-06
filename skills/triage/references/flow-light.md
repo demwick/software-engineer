@@ -25,19 +25,19 @@ Full-flow enters at Step 2 with this already done.
 
 At most two questions whose answers change the implementation ("existing table or new one?"). More than two genuine unknowns → this is fuzzy: run `flow-full.md`.
 
-## Step 2: Plan, in plan mode
+## Step 2: Write the plan
 
-Enter plan mode. Read the spec if one applies (`.se/specs/<slug>.md`) and the intent behind it. Produce the plan in the shape of `templates.md` → *Plan*: files, ordered tasks each with a check and a commit message, testable acceptance criteria, risks with a `confirm: yes|no` flag, proof. Interrogate it before leaving plan mode: what could break, the riskiest step, whether someone else could implement from it alone.
+Read the spec if one applies (`.se/specs/<slug>.md`) and the intent behind it. Write `.se/plans/<id>.md` in the shape of `templates.md` → *Plan*: files, ordered tasks each with a check and a commit message, testable acceptance criteria, risks with a `confirm: yes|no` flag, proof. When a spec exists its criteria are feature-level; the plan restates only the ones this slice actually delivers, at task granularity.
 
-On acceptance, write it to `.se/plans/<id>.md` and lint it:
+Interrogate it before showing it: what could break, the riskiest step, whether someone else could implement from it alone. Then lint:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/plan-validate.sh" .se/plans/<id>.md
 ```
 
-Exit 3 → `[[ ASK ]]` markers remain: put them to the user, resolve, re-lint. Exit 2 or 4 → fix the plan's shape. Then commit: `git add .se/plans/<id>.md && git commit -m "docs(se): plan <id>"`.
+Exit 3 → `[[ ASK ]]` markers remain: put them to the user, resolve, re-lint. Exit 2 or 4 → fix the plan's shape.
 
-If plan mode is unavailable, write the plan file directly and get explicit acceptance with `AskUserQuestion` before Step 3.
+Show the plan and take acceptance with `AskUserQuestion`. The plan needs no read-only mode of its own: the edit gate stays unarmed until Step 4, so nothing reaches code before the answer. On acceptance, commit: `git add .se/plans/<id>.md && git commit -m "docs(se): plan <id>"`.
 
 ## Step 3: Confirm the risks
 

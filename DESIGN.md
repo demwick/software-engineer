@@ -39,7 +39,7 @@ and a solo developer. The full decision record is
   skipped; `auto-qa` verifies on its presence. A second marker, `.se/.fixing`,
   locks a reproduction test during a fix. What used to be prose ("write the
   plan first", "don't edit the test") is now a hook.
-- **Two agents.** `planner` is replaced by plan mode; `researcher` by the
+- **Two agents.** `planner` is replaced by the plan file the flow writes; `researcher` by the
   built-in Explore agent; `_common.md` and its SubagentStart injection are
   gone. `executor` and `verifier` keep only what no model infers.
 - **TDD is a feedback loop, not a rule.** Red-proof replay, commit-order

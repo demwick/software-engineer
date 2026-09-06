@@ -42,6 +42,16 @@ hooks="$(ls hooks | sort | tr '\n' ' ')"
 [ "$hooks" = "auto-qa hooks.json pre-guard run-hook.cmd session-start " ] || fail "hooks/ has unexpected entries: $hooks"
 for h in auto-qa pre-guard session-start; do [ -x "hooks/$h" ] || fail "hooks/$h not executable"; done
 
+# --- planning is the plan file, not plan mode ---
+# Plan mode's one safety property (a read-only design phase) is already the
+# edit gate's: nothing writes code until a flow arms .se/.active. Keeping both
+# meant two approval dialogs back to back for the same decision.
+grep -rqi 'plan mode' skills/ && fail "skills/ reintroduced plan mode; the plan file is the artifact, AskUserQuestion is the acceptance"
+for t in EnterPlanMode ExitPlanMode; do
+    grep -rqF "$t" skills/ && fail "skills/ must not grant $t"
+done
+grep -q 'plan-validate\.sh' skills/triage/references/flow-light.md || fail "flow-light must still lint the plan file"
+
 # --- instruction budget ---
 bytes=$(cat agents/*.md skills/*/SKILL.md skills/*/references/*.md 2>/dev/null | wc -c | tr -d ' ')
 [ "$bytes" -lt 49152 ] || fail "agents + skills instruction text is ${bytes} bytes; the v5 budget is 48 KB"

@@ -194,14 +194,28 @@ The flow's Act step calls it when the verifier reports a finding it has
 seen before (`repeated_findings[]`) — the playbook's "second mistake goes
 into `CLAUDE.md`".
 
-## Planning is plan mode
+## Planning is a file, not an agent and not a mode
 
-The `planner` agent is removed. A flow that needs a plan enters Claude
-Code's plan mode with the template from `skills/triage/references/templates.md`
-(Files / Tasks / Acceptance criteria / Risks / Proof), and on acceptance
-writes it to `.se/plans/<id>.md`, runs `plan-validate.sh`, commits it.
-Plan mode's own "no edits until accepted" is the gate the agent used to be
-asked to honor. The `researcher` agent is removed too: finish-existing and
+The `planner` agent is removed. A flow that needs a plan writes
+`.se/plans/<id>.md` from the template in
+`skills/triage/references/templates.md` (Files / Tasks / Acceptance criteria
+/ Risks / Proof), lints it with `plan-validate.sh`, takes acceptance with
+`AskUserQuestion`, and commits it.
+
+v5.0.0 routed that drafting through Claude Code's plan mode, for its "no
+edits until accepted" property. That property is now the edit gate's:
+`state-init.sh` makes every planned slice's project managed, and pre-guard
+blocks any write while `.se/.active` is unarmed — which it is until Step 4,
+after acceptance. Two mechanisms guarding one invariant cost two approval
+dialogs back to back (ExitPlanMode, then the Step 3 risk confirmation) and
+bought nothing, so plan mode is out; `EnterPlanMode`/`ExitPlanMode` are off
+triage's `allowed-tools` and `prompt-quality.sh` asserts they stay off.
+The plan file itself is load-bearing and stays: `plan-validate.sh` lints it,
+the executor commits one task from it at a time, `verify-phase.sh` extracts
+its acceptance criteria into the Tier-1 record, and the verifier reviews the
+commits against it.
+
+The `researcher` agent is removed too: finish-existing and
 `se-diagnose` use the built-in Explore agent with a fixed question list.
 
 ## What is deleted
