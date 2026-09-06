@@ -11,6 +11,16 @@ One cohesive change — a feature, a roadmap phase, a multi-file fix. The plan i
 
 `<id>` is `phase-N` for a roadmap phase, else a kebab-case slug for the change.
 
+## Step 0: Make the project managed
+
+`.se/state.json` absent means nothing is gated: pre-guard treats the project as unmanaged, `verify-phase.sh` writes no record, and Steps 4-7 arm a marker nothing reads. One idempotent call, before the plan:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-init.sh"
+```
+
+Full-flow enters at Step 2 with this already done.
+
 ## Step 1: Resolve the few critical unknowns
 
 At most two questions whose answers change the implementation ("existing table or new one?"). More than two genuine unknowns → this is fuzzy: run `flow-full.md`.

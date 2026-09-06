@@ -34,9 +34,13 @@ Draft the roadmap — 3–7 phases in the shape of `templates.md` → *Roadmap*,
 **State before code.** Write these first, in this order — the project becomes managed at step 2, and everything after it is gated:
 
 1. `.se/roadmap.md` — the confirmed phases.
-2. `.se/state.json` — the initial `Write` from `templates.md` → *State* (the one raw write allowed; every later change goes through `scripts/state-update.sh`).
-3. `.gitignore` — append the block from `templates.md` → *Gitignore*: artifacts are committed, runtime state is not.
-4. `CLAUDE.md` — `bash "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-init.sh"`. Then add to its Conventions the stack decisions the spec and ADRs settled, one line each.
+2. `.se/state.json` and the `.gitignore` block, in one call — every later state change goes through `scripts/state-update.sh`:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-init.sh" --mode <from-scratch|finish-existing> --total-phases <N>
+```
+
+3. `CLAUDE.md` — `bash "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-init.sh"`. Then add to its Conventions the stack decisions the spec and ADRs settled, one line each.
 
 Only then scaffold, and arm the gate for it — a scaffold is code, and the ordering above is what lets the guard see it:
 

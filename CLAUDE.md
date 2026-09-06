@@ -19,10 +19,10 @@ A Claude Code native plugin that runs the AI-native SDLC for the projects it man
 
 - `.claude-plugin/plugin.json` — manifest (name, version, license, author, repo)
 - `agents/executor.md`, `agents/verifier.md` — the two subagents. The executor is the only agent that writes code; the verifier reviews it and never fixes. Planning is Claude Code's plan mode; surveys use the built-in Explore agent.
-- `skills/triage/` — the single auto-invocable entry. `SKILL.md` classifies and routes; `references/flow-{direct,light,full}.md` are the three depths; `references/templates.md` holds the plan / roadmap / state / gitignore shapes.
+- `skills/triage/` — the single auto-invocable entry. `SKILL.md` classifies and routes; `references/flow-{direct,light,full}.md` are the three depths; `references/templates.md` holds the plan and roadmap shapes.
 - `skills/{intent,spec,adr}/` — the artifact writers, invoked by the flows. `skills/{se-status,se-diagnose}/` — read-only helpers.
 - `hooks/hooks.json` + `hooks/run-hook.cmd` (polyglot wrapper) + `hooks/{session-start,auto-qa,pre-guard}`. `pre-guard` (PreToolUse) is the edit gate, the direct tripwire, the `.fixing` lock and the destructive-op guard; `auto-qa` (Stop) is Tier-1 verification; `session-start` injects state and clears stale markers.
-- `scripts/` — `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
+- `scripts/` — `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-init.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
 - `docs/STATE.md` — the `.se/` layout; `examples/state/` — a populated sample; `TESTING.md` — the live checklist; `evals/` — the deterministic gate.
 
 ## Hard rules
@@ -69,7 +69,7 @@ The plugin drives **other** projects, not its own development. In this repo: do 
 - `session-start` builds its context inside `$( … )` with a heredoc: an apostrophe in that text breaks bash's parser.
 - A comment header in a JSON file silently breaks plugin loading.
 - Frontmatter starts on line 1 — no BOM, no comment before `---`.
-- Skills change `state.json` only through `scripts/state-update.sh`; the bootstrap `Write` in `flow-full.md` is the one raw write.
+- `scripts/state-init.sh` is the only thing that creates `state.json` (both bootstrap paths call it); `scripts/state-update.sh` is the only thing that changes it. No skill writes it raw.
 - Flows arm `.se/.active` **in the same turn** as the executor launch — the Stop hook clears it at turn end, and an unarmed edit is blocked.
 - `SKILL.md` stays under 500 lines; reference material goes one level down in `references/`.
 

@@ -62,32 +62,4 @@ One task = one commit. A bug fix is two tasks: `test(scope): reproduce …` then
 **Status:** pending
 ```
 
-## State — `.se/state.json` (initial write only)
-
-```json
-{
-  "schema_version": 3,
-  "mode": "from-scratch" | "finish-existing",
-  "created": "<ISO 8601 UTC>",
-  "current_phase": 1,
-  "total_phases": <N>,
-  "last_session": "<ISO 8601 UTC>",
-  "last_commit": null,
-  "current_step": "roadmap ready — phase 1 pending",
-  "integrations": { "charter": <bool>, "centaur": <bool> }
-}
-```
-
-## Gitignore — appended to the project's `.gitignore`
-
-```
-# software-engineer: artifacts are committed, runtime state is not
-.se/*
-!.se/intent/
-!.se/specs/
-!.se/plans/
-!.se/adr/
-!.se/verification/
-!.se/roadmap.md
-.se/plans/*.progress.json
-```
+`.se/state.json` and the `.gitignore` block are not templates — `scripts/state-init.sh` owns both shapes and writes them idempotently.
