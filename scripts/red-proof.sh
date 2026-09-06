@@ -52,7 +52,14 @@ if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; th
     exit 2
 fi
 
-BASE=$(git log --format='%H %s' 2>/dev/null | grep -m1 -F "docs(se): plan ${ID}" | cut -d' ' -f1)
+# Exact subject match, not substring: a fixed-string grep would let
+# "phase-1" match the subject "docs(se): plan phase-10" too, since
+# "phase-1" is a textual prefix of "phase-10" — resolving the wrong,
+# newer commit as BASE.
+BASE=""
+while IFS=' ' read -r sha subj; do
+    if [ "$subj" = "docs(se): plan ${ID}" ]; then BASE="$sha"; break; fi
+done < <(git log --format='%H %s' 2>/dev/null)
 if [ -z "$BASE" ]; then
     echo "red-proof: cannot resolve the plan commit for ${ID}" >&2
     exit 3

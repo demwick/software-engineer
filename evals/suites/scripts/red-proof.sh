@@ -54,6 +54,7 @@ cat > .se/plans/phase-1.md <<'PLAN'
 PLAN
 git add .se && git commit -qm "docs(se): plan phase-1"
 PLAN_SHA="$(git rev-parse HEAD)"
+PLAN1_BASE_SHORT="$(git rev-parse --short HEAD)"
 
 # --- the slice: task 1 is covered, task 2 is not ---
 mkdir -p src tests
@@ -93,5 +94,16 @@ assert_exit_code 1 bash "$RP" . phase-9
 cp .se/plans/phase-1.md .se/plans/phase-9.md
 git add .se && git commit -qm "chore: phase-9 plan copy"
 assert_exit_code 3 bash "$RP" . phase-9    # committed, but no "docs(se): plan phase-9"
+
+# --- id collision: an ID that is a textual prefix of another plan's ID must
+# not resolve to that other plan's commit. "phase-1" is a substring of the
+# subject "docs(se): plan phase-10", so a fixed-string grep match picks the
+# wrong (newer) commit; only an exact subject match picks phase-1's own. ---
+cp .se/plans/phase-1.md .se/plans/phase-10.md
+git add .se && git commit -qm "docs(se): plan phase-10"
+
+OUT="$(bash "$RP" . phase-1)"
+assert_contains "$OUT" "BASE: ${PLAN1_BASE_SHORT} " \
+    "phase-1 must resolve to its own plan commit, not phase-10's"
 
 echo "PASS: red-proof reverts source, spares tests, and restores the tree"
