@@ -32,7 +32,8 @@ cd "$PROJECT_DIR"
 if [ -f package.json ]; then
     if grep -q '"test"' package.json 2>/dev/null; then
         if [ -f bun.lockb ] || [ -f bun.lock ]; then
-            echo "bun test"
+            # `bun test` is Bun's own runner and ignores the script; `bun run test` runs it.
+            echo "bun run test"
             exit 0
         elif [ -f pnpm-lock.yaml ]; then
             echo "pnpm test"

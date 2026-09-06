@@ -54,7 +54,7 @@ if [ -f package.json ]; then
     # test
     if grep -q '"test"' package.json 2>/dev/null; then
         if [ "$PM" = "bun" ]; then
-            echo "test: bun test"
+            echo "test: bun run test"
         else
             echo "test: $PM test"
         fi
