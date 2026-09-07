@@ -42,9 +42,11 @@ and a solo developer. The full decision record is
 - **Two agents.** `planner` is replaced by the plan file the flow writes; `researcher` by the
   built-in Explore agent; `_common.md` and its SubagentStart injection are
   gone. `executor` and `verifier` keep only what no model infers.
-- **TDD is a feedback loop, not a rule.** Red-proof replay, commit-order
-  forensics, the verification-strategy resolver and the typed exit envelope
-  are removed; "done" means the suite is green and the verifier reviewed it.
+- **Test-first is a rule; its old machinery is not.** New behaviour starts
+  with a failing test, and `scripts/red-proof.sh` checks it after the fact
+  by reverting the slice's source and re-running each task's check.
+  Commit-order forensics, the verification-strategy resolver, the
+  `[[ NO-TEST ]]` marker and the typed exit envelope stay removed.
 - **`CLAUDE.md` in the user's project.** Created at bootstrap and fed by the
   verifier's repeated findings — the playbook's "second mistake becomes a
   rule".

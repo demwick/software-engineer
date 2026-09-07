@@ -30,7 +30,7 @@ grep -q 'blocker' agents/verifier.md || fail "verifier.md missing severity class
 
 # retired compensation blocks stay retired
 for f in agents/*.md; do
-    for needle in 'BOUNDARY:' 'UNDERSTOOD:' '_common.md' 'exit envelope' 'risk_gates' 'Allowed paths' 'red-proof' 'VERIFY:'; do
+    for needle in 'BOUNDARY:' 'UNDERSTOOD:' '_common.md' 'exit envelope' 'risk_gates' 'Allowed paths' 'VERIFY:'; do
         grep -qF "$needle" "$f" && fail "$f reintroduced '$needle'"
     done
 done
@@ -41,6 +41,13 @@ events="$(python3 -c "import json;print(' '.join(sorted(json.load(open('hooks/ho
 hooks="$(ls hooks | sort | tr '\n' ' ')"
 [ "$hooks" = "auto-qa hooks.json pre-guard run-hook.cmd session-start " ] || fail "hooks/ has unexpected entries: $hooks"
 for h in auto-qa pre-guard session-start; do [ -x "hooks/$h" ] || fail "hooks/$h not executable"; done
+
+# --- test-first is a rule with a check, not prose ---
+grep -q 'red-proof\.sh' agents/verifier.md || fail "verifier.md must run red-proof.sh"
+grep -q '^COVERAGE:' agents/verifier.md || fail "verifier.md missing the COVERAGE contract"
+grep -qi 'reached from a real entry point' agents/verifier.md || fail "verifier.md missing the liveness check"
+grep -qi 'watch it fail' agents/executor.md || fail "executor.md lost the test-first rule"
+grep -qF 'Stop hook parses' agents/verifier.md && fail "verifier.md names the wrong consumer for the {\"ok\"} line — the flow's Act step reads it"
 
 # --- planning is the plan file, not plan mode ---
 # Plan mode's one safety property (a read-only design phase) is already the

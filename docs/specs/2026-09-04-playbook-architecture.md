@@ -169,7 +169,10 @@ a fix". The executor removes it after the fix commit.
   `verification/<id>.review.json`; ends with `{"ok": bool, "reason": ...}`.
   Separation of duties: the executor never marks its own work done.
 
-TDD is no longer a rule. What stays is the playbook's feedback loop:
+Test-first was cut here as compensation. That was a misclassification, and
+`2026-09-07-red-proof.md` supersedes this paragraph: the ordering is a
+preference no model infers, and it is now checked by `red-proof.sh` rather
+than trusted. The rest of this paragraph still holds:
 "done" means the verification command is green and its summary is in the
 report; a bug fix starts from a failing test, the `.fixing` lock holds it,
 and the commit gate refuses a `fix(` commit that stages its own

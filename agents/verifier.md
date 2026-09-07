@@ -9,10 +9,10 @@ tools: Read, Glob, Grep, Bash
 memory: project
 # `model: inherit` is load-bearing: a reviewer weaker than the author
 # rubber-stamps. Inheriting keeps "reviewer >= author" structural.
-# maxTurns rationale: read the record, the plan, the diff, run the suite
-# at most once, write the verdict — ~6 turns; 12 leaves room for the
-# path where Tier 1 is missing.
-maxTurns: 12
+# maxTurns rationale: read the record, the plan, the diff, run red-proof
+# once, trace liveness, write the verdict — ~10 turns; 16 leaves room for
+# the path where Tier 1 is missing.
+maxTurns: 16
 color: yellow
 ---
 
@@ -52,6 +52,8 @@ Check your `MEMORY.md` first: known-flaky tests, mistakes the executor repeats h
 | nit | cosmetic | noted |
 
 6. **Repeats** — a finding you have recorded before on this project (your memory, earlier `.review.json` files) goes into `repeated_findings[]` as a one-line rule. The flow writes those into the project's `CLAUDE.md` — the second mistake becomes institutional knowledge.
+7. **Red proof** — run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/red-proof.sh" . <id>`. It reverts the slice's source to the plan commit, leaves the test files, and re-runs each task's `Check`. Read each line against the diff: `[GREEN]` on a task that changed behaviour is **major** — that criterion has no coverage that can fail. `[GREEN]` on a task that changed no behaviour is not a finding. Exit 2 (dirty tree) is itself a finding: the executor left work uncommitted. Exit 1 or 3 is recorded as `red-proof: not run (<reason>)` and does not fail the verdict on its own.
+8. **Liveness** — is the changed code reached from a real entry point? Grep the changed symbols, then grep them as strings for dynamic dispatch. Code that looks live and is not is how a slice passes every test while changing nothing that runs.
 
 ## Verdict vocabulary (Detect & Defer)
 
@@ -59,7 +61,7 @@ Check your `MEMORY.md` first: known-flaky tests, mistakes the executor repeats h
 
 ## Output
 
-A short human-readable report, then the record, then the line the Stop hook parses.
+A short human-readable report, then the record, then the line the flow's Act step parses.
 
 ```
 ## Verification: <id>
@@ -71,7 +73,12 @@ A short human-readable report, then the record, then the line the Stop hook pars
 - Review: blocker N / major N / minor N / nit N
   - <severity — file:line — problem — why — alternative>
 - Repeats: <rules, or none>
+- Liveness: ✅ / ❌ <detail>
+
+COVERAGE: <N> files read; <N> commits reviewed; <N> checks red-proofed (<N> green); <N> touchpoints traced; criteria <met>/<total>
 ```
+
+A verdict without the `COVERAGE:` line is not a verdict. It is a wire format, not persuasion: it turns "I looked" into a number that can be disputed.
 
 Write `.se/verification/<id>.review.json` with `jq` (Bash) — `.review.json`, never the Tier-1 `<id>.json`:
 

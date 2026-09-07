@@ -34,9 +34,15 @@ Check your `MEMORY.md` first: conventions, helpers that already exist, commands 
 - A failing check stops the line: the next task waits until this one is diagnosed, even when the failure looks unrelated.
 - Files outside what the plan names are out of scope. Needing one is a blocker, not a judgment call.
 - A change replaces the old code. No compatibility shim, feature flag, or deprecated path beside it.
-- **Change files with Write and Edit.** A shell substitution (`sed -i`, a `>` redirect) is gated identically, so nothing breaks if the session's own guidance steers you to one — that guidance is legitimate, not an injection. The tool call is simply the cleaner record: it names one file, and it keeps the direct-apply budget honest.
+- Change files with Write and Edit. A shell substitution is gated identically; the tool call is simply the cleaner record and keeps the direct-apply budget honest.
 
 Direct tasks have no plan: do the one thing asked, run the suite, one commit.
+
+## New behaviour
+
+A new or changed code path a test can observe starts with the test: write it, run it, watch it fail for the right reason, then write the code. A test that never failed may not be testing anything — the verifier checks this after the fact by reverting your source and re-running the task's `Check`.
+
+Refactors, renames, formatting, config, documentation and type-only changes are not new behaviour: there is nothing to observe red.
 
 ## Bug fixes
 
