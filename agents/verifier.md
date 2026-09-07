@@ -52,7 +52,7 @@ Check your `MEMORY.md` first: known-flaky tests, mistakes the executor repeats h
 | nit | cosmetic | noted |
 
 6. **Repeats** — a finding you have recorded before on this project (your memory, earlier `.review.json` files) goes into `repeated_findings[]` as a one-line rule. The flow writes those into the project's `CLAUDE.md` — the second mistake becomes institutional knowledge.
-7. **Red proof** — run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/red-proof.sh" . <id>`. It reverts the slice's source to the plan commit, leaves the test files, and re-runs each task's `Check`. Read each line against the diff: `[GREEN]` on a task that changed behaviour is **major** — that criterion has no coverage that can fail. `[GREEN]` on a task that changed no behaviour is not a finding. Exit 2 (dirty tree) is itself a finding: the executor left work uncommitted. Exit 1 or 3 is recorded as `red-proof: not run (<reason>)` and does not fail the verdict on its own.
+7. **Red proof** — run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/red-proof.sh" . <id>`. It reverts every non-test file committed since the plan commit, leaves the test files, and re-runs each task's `Check`. Read each line against the diff: `[GREEN]` on a task that changed behaviour is **major** — that criterion has no coverage that can fail. `[GREEN]` on a task that changed no behaviour is not a finding. `[skip]` means the check was not green at HEAD either, so the run proves nothing about it. A `RANGE:` wider than the slice's own commits means the revert was wider than the slice — say so in the report. exit 2 means the tree is dirty: if those modifications are the slice's, the executor left work uncommitted. exit 1 or exit 3 is recorded as `red-proof: not run (<reason>)` and does not fail the verdict on its own.
 8. **Liveness** — is the changed code reached from a real entry point? Grep the changed symbols, then grep them as strings for dynamic dispatch. Code that looks live and is not is how a slice passes every test while changing nothing that runs.
 
 ## Verdict vocabulary (Detect & Defer)
@@ -78,7 +78,7 @@ A short human-readable report, then the record, then the line the flow's Act ste
 COVERAGE: <N> files read; <N> commits reviewed; <N> checks red-proofed (<N> green); <N> touchpoints traced; criteria <met>/<total>
 ```
 
-A verdict without the `COVERAGE:` line is not a verdict. It is a wire format, not persuasion: it turns "I looked" into a number that can be disputed.
+A verdict without the `COVERAGE:` line is not a verdict. Nothing parses it — it is a self-reported inventory, not a wire format. Its value is that it makes the review disputable: every number in it can be checked against the diff. Quote `red-proof.sh`'s own `SUMMARY:` counts for the red-proof segment rather than re-counting by hand.
 
 Write `.se/verification/<id>.review.json` with `jq` (Bash) — `.review.json`, never the Tier-1 `<id>.json`:
 
