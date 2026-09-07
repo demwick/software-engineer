@@ -182,9 +182,11 @@ cause was an instruction collision, not model laziness: `flow-direct`
 briefed the executor with "one commit" while `executor.md` asked for two,
 and the nearer instruction won. Prove-It was the only rule in the plugin
 left to prose alone; it now has a backstop like the rest. Commit-order forensics, red-proof replay, the verification-strategy
-resolver and the typed exit envelope are removed — with Opus 5 they check
-behavior the model exhibits by default, and the Stop hook already runs the
-suite itself.
+resolver and the typed exit envelope are removed: the Stop hook already
+runs the suite itself. The "Opus 5 does it by default" half of that
+argument is the misclassification named above. `2026-09-07-red-proof.md`
+replaces replay with `scripts/red-proof.sh`, which reverts the slice's
+source and re-runs each check rather than reading commit order.
 
 ## `CLAUDE.md` in the user's project
 

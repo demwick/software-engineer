@@ -30,7 +30,7 @@ grep -q 'blocker' agents/verifier.md || fail "verifier.md missing severity class
 
 # retired compensation blocks stay retired
 for f in agents/*.md; do
-    for needle in 'BOUNDARY:' 'UNDERSTOOD:' '_common.md' 'exit envelope' 'risk_gates' 'Allowed paths' 'VERIFY:'; do
+    for needle in 'BOUNDARY:' 'UNDERSTOOD:' '_common.md' 'exit envelope' 'risk_gates' 'Allowed paths' 'verify-red-proof' 'VERIFY:'; do
         grep -qF "$needle" "$f" && fail "$f reintroduced '$needle'"
     done
 done
