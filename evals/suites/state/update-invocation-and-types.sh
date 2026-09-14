@@ -17,10 +17,10 @@ WORKDIR="$(fixture_repo empty)"
 fixture_state "$WORKDIR" planning
 trap 'rm -rf "$WORKDIR"' EXIT
 
-bash "$SU" --project-dir "$WORKDIR" current_phase=3 completed=true last_commit=a1b2c3d >/dev/null
+bash "$SU" --project-dir "$WORKDIR" total_phases=3 completed=false last_commit=a1b2c3d >/dev/null
 STATE="$(cat "$WORKDIR/.se/state.json")"
-assert_jq "$STATE" '.current_phase' '== 3'        "merged integer stays integer"
-assert_jq "$STATE" '.completed'     '== true'     "merged boolean stays boolean"
+assert_jq "$STATE" '.total_phases' '== 3'         "merged integer stays integer"
+assert_jq "$STATE" '.completed'     '== false'    "merged boolean stays boolean"
 assert_jq "$STATE" '.last_commit'   '== "a1b2c3d"' "merged string stays string"
 rm -rf "$WORKDIR"; trap - EXIT
 

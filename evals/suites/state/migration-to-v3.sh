@@ -23,7 +23,7 @@ for legacy in v1-legacy v2-legacy; do
     assert_jq "$S" '.last_commit' '== "abc1234"' "$legacy: caller merge applied"
     assert_jq "$S" 'has("last_edit")' '== false' "$legacy: last_edit dropped"
     assert_jq "$S" 'has("last_verification")' '== false' "$legacy: last_verification dropped"
-    bash "$SU" --project-dir "$W" current_phase=2 >/dev/null
+    bash "$SU" --project-dir "$W" last_commit=def5678 >/dev/null
     assert_jq "$(cat "$W/.se/state.json")" '.schema_version' '== 3' "$legacy: idempotent"
     rm -rf "$W"
 done
@@ -36,8 +36,8 @@ mkdir -p "$W/.se"
 printf '{"schema_version":"legacy","mode":"x","created":"t","current_phase":1,"total_phases":1,"last_edit":"t"}' \
     > "$W/.se/state.json"
 before="$(cat "$W/.se/state.json")"
-rc=0; bash "$SU" --project-dir "$W" current_phase=2 >/dev/null 2>&1 || rc=$?
-[ "$rc" -ne 0 ] || _fail "non-numeric schema_version must not exit 0"
+rc=0; bash "$SU" --project-dir "$W" last_commit=abc1234 >/dev/null 2>&1 || rc=$?
+assert_eq 4 "$rc" "non-numeric schema_version → exit 4 (schema validation), not a guard"
 assert_eq "$before" "$(cat "$W/.se/state.json")" "corrupt state is left untouched"
 rm -rf "$W"
 

@@ -76,7 +76,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-phase.sh" . <id> planned \
 
 ## Step 6: Tier 2 — the senior review
 
-Narrate `→ verifier: <id>` and launch the `verifier` agent with the id. It writes `.se/verification/<id>.review.json` and ends with `{"ok": …}`. A tooling failure (no file, no JSON) is noted as "review skipped (tooling)" — it does not block.
+Narrate `→ verifier: <id>` and launch the `verifier` agent with the id. It writes `.se/verification/<id>.review.json` through `write-review.sh` and ends with `{"ok": …}`. If the record never appears, or it says `review: incomplete`, the slice does not close — re-run the verifier. There is nothing to decide here: `--close-slice` refuses without a complete review.
 
 ## Step 7: Act
 
@@ -95,10 +95,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/claude-md-init.sh" --note "<rule>"
 Close: commit the artifacts, `git add .se CLAUDE.md && git commit -m "chore(se): close <id>"`, then for a roadmap phase set its `**Status:** done` in `.se/roadmap.md` and
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" current_phase=<N+1> current_step="phase <N+1> pending" last_commit=<sha>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" --close-slice <id> last_commit=<sha>
 ```
 
-(never past `total_phases`; the last phase sets `completed=true` and `current_step="all phases complete"`).
+It reads both verification records and advances only on evidence — a missing, stale or unfinished review, an unverified criterion or a `fail` refuses with the rule that fired. Do not work around a refusal: fix what it names. A `partial` the user has explicitly accepted closes with `--accept-risk "<their reason>"`, which records the accepted findings beside the review. Phase arithmetic is the script's: the last phase sets `completed=true` itself.
 
 > \<id\> done — \<one line on what shipped\>. Commits: \<range\>. Review: \<pass / partial with N follow-ups\>.
 

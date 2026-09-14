@@ -78,4 +78,18 @@ for f in docs/STATE.md examples/state/verification/phase-1.json \
         || fail "$f predates the record contract — no record_version"
 done
 
+# --- 6. closing runs through the evidence gate ---
+# docs/specs/2026-09-15-evidence-gated-closing.md. The flow used to advance
+# the phase with a generic key=value write and to treat a missing review as a
+# note rather than a refusal.
+grep -qF -- '--close-slice' "$REPO_ROOT/skills/triage/references/flow-light.md" \
+    || fail "flow-light must close through state-update.sh --close-slice"
+grep -qE 'state-update\.sh" \. current_phase=|state-update\.sh\" current_phase=' \
+    "$REPO_ROOT/skills/triage/references/flow-light.md" \
+    && fail "flow-light still advances current_phase through the generic path"
+grep -qiF 'it does not block' "$REPO_ROOT/skills/triage/references/flow-light.md" \
+    && fail "flow-light still says a missing review does not block; it refuses the close now"
+grep -qF 'accepted.json' "$REPO_ROOT/docs/STATE.md" \
+    || fail "docs/STATE.md does not document .se/verification/<id>.accepted.json"
+
 echo "PASS: the runtime docs match the code"
