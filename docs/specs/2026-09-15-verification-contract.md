@@ -115,6 +115,31 @@ acting on a mismatch belongs to Phase 2.
   that ran the command reports the result.
 - **New agents or roles.** Phases 4 and 5.
 
+## Where the suite runs
+
+Phase 1's mapping item, recorded rather than acted on: nothing here is removed
+yet, because removing a run is a closing-policy change and that is Phase 2.
+
+| # | Caller | When | What it does with the result |
+|---|---|---|---|
+| 1 | `agents/executor.md:33` | after each task, before its commit | gates the commit; not recorded |
+| 2 | `hooks/auto-qa:112` | every Stop with `.se/.active` armed | blocks on red (≤2 retries), writes the Tier-1 record on any terminal state |
+| 3 | `skills/triage/references/flow-light.md:65` | Act, Step 5 | the flow's own green check, then reports it to `verify-phase.sh` |
+| 4 | `agents/verifier.md:32` | only when the Tier-1 record is absent | recovers a missing record |
+
+A planned slice therefore runs the suite at least three times: the executor's
+last task, the Stop hook that fires when the executor's turn ends, and the
+flow's Step 5 — followed by the Stop hook again when that turn ends. Runs 1
+and 4 are recovery paths and cost nothing when the common path works; 2 and 3
+are the duplication.
+
+Reuse needs an identity the records can carry, which is why `source` lands in
+this spec: a result may stand in for another run only when `plan_blob` and
+`head_commit` match and no file has changed since. `head_commit` alone is not
+that test — an artifact-only commit moves HEAD without touching source, and
+uncommitted edits move source without touching HEAD. Phase 2 owns the
+predicate; Phase 1 only makes it expressible.
+
 ## Acceptance criteria
 
 - [ ] On a fixture repo with no test runner, the Tier-1 record has
