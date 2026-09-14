@@ -48,7 +48,7 @@ does not run the suite, and it does not judge criteria.
     "status": "passed | failed | not_run",
     "command": "npm test",
     "exit_code": 0,
-    "reason": "<why, when not_run>"
+    "reason": "<why, whenever the run was not an ordinary pass>"
   },
   "criteria": [ { "text": "GET /x returns 200", "status": "unverified" } ],
   "source": { "plan_blob": "<sha1>", "head_commit": "<sha>" },
