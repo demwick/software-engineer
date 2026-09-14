@@ -6,22 +6,36 @@
 # See LICENSE in the repository root for the full license text.
 #
 # verify-phase.sh — the Tier-1 verification record for a planned slice.
-# Called by hooks/auto-qa after the suite is green. Reads the slice's plan,
-# records its acceptance criteria into .se/verification/<id>.json for the
-# Tier-2 verifier and the flow's Act step, and marks the slice `fail` when
-# the plan file is missing — a planned slice cannot skip its plan.
 #
-# Direct-apply slices have no plan and write no record.
+# It records mechanical fact and nothing else: what the caller's test command
+# did, what the plan asks for, and which revision both were produced from. It
+# does NOT run the suite (the caller already did — running it here would make
+# this the third place that does) and it does NOT judge the criteria: every
+# one enters as `unverified` for the Tier-2 reviewer.
+#
+# `status` is derived, never free:
+#   fail        — the plan is missing or malformed, or the tests failed
+#   incomplete  — no test result was produced (no runner, or no caller report)
+#   pass        — the plan parsed and a real command exited 0
+#
+# Direct-apply and bootstrap slices have no plan and write no record.
+#
+# Contract: docs/specs/2026-09-15-verification-contract.md
 #
 # Usage:
-#   bash verify-phase.sh [project-dir] [id] [kind]
+#   bash verify-phase.sh [project-dir] [id] [kind] [tests-status] [command] [exit-code] [reason]
 #   id / kind default to .se/.active's "id" / "kind".
+#   tests-status is one of passed | failed | not_run. Anything else, or
+#   nothing at all, is not_run — a caller that reports no result never
+#   produces a pass.
 #
 # Exit codes:
 #   0 — done (record written, or nothing to write)
 #   1 — no state.json or jq missing (silently skip)
 
 set -uo pipefail
+
+RECORD_VERSION=1
 
 PROJECT_DIR="${1:-.}"
 STATE_DIR="$PROJECT_DIR/.se"
@@ -43,16 +57,71 @@ fi
 # `bootstrap` write no record — and must not be failed for the missing plan.
 [ "$KIND" = "planned" ] || exit 0
 
+TESTS_STATUS="${4:-}"
+TESTS_CMD="${5:-}"
+TESTS_RC="${6:-}"
+TESTS_REASON="${7:-}"
+
+case "$TESTS_STATUS" in
+    passed|failed) ;;
+    not_run)
+        [ -n "$TESTS_REASON" ] || TESTS_REASON="no test result reported"
+        ;;
+    *)
+        # An unrecognised or absent report is not a pass. The most common way
+        # to get here is a caller that has not been taught the contract.
+        TESTS_REASON="caller reported no test result (got: '${TESTS_STATUS}')"
+        TESTS_STATUS="not_run"
+        TESTS_CMD=""
+        TESTS_RC=""
+        ;;
+esac
+
+# exit_code and reason are null unless they carry something. jq needs real
+# JSON here, so build them as literals rather than strings.
+case "$TESTS_RC" in
+    ''|*[!0-9]*) RC_JSON="null" ;;
+    *)           RC_JSON="$TESTS_RC" ;;
+esac
+TESTS_JSON=$(jq -n --arg s "$TESTS_STATUS" --arg c "$TESTS_CMD" --argjson rc "$RC_JSON" \
+    --arg r "$TESTS_REASON" \
+    '{status: $s, command: (if $c == "" then null else $c end), exit_code: $rc,
+      reason: (if $r == "" then null else $r end)}')
+
 PLAN="$STATE_DIR/plans/${ID}.md"
 OUT="$STATE_DIR/verification/${ID}.json"
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 mkdir -p "$STATE_DIR/verification"
 
-if [ ! -f "$PLAN" ]; then
-    jq -n --arg id "$ID" --arg ts "$NOW" --arg p ".se/plans/${ID}.md" \
-        '{id: $id, status: "fail", reason: ("plan missing: " + $p + " — a planned slice needs its plan before it can be verified"), criteria: [], verified_at: $ts}' \
+# Revision binding. `git hash-object` needs no repository, so the plan's blob
+# id survives outside one; HEAD does not, and degrades to null rather than
+# failing the record — a project without git still gets verified.
+PLAN_BLOB="null"
+if [ -f "$PLAN" ]; then
+    B=$(git hash-object "$PLAN" 2>/dev/null || echo "")
+    [ -n "$B" ] && PLAN_BLOB="\"$B\""
+fi
+HEAD_COMMIT="null"
+H=$(cd "$PROJECT_DIR" 2>/dev/null && git rev-parse HEAD 2>/dev/null || echo "")
+[ -n "$H" ] && HEAD_COMMIT="\"$H\""
+SOURCE_JSON=$(jq -n --argjson b "$PLAN_BLOB" --argjson h "$HEAD_COMMIT" \
+    '{plan_blob: $b, head_commit: $h}')
+
+# write <status> <reason> <criteria-json>
+write_record() {
+    jq -n --argjson v "$RECORD_VERSION" --arg id "$ID" --arg st "$1" --arg rs "$2" \
+        --argjson t "$TESTS_JSON" --argjson c "$3" --argjson src "$SOURCE_JSON" \
+        --arg ts "$NOW" \
+        '{record_version: $v, id: $id, status: $st, reason: $rs, tests: $t,
+          criteria: $c, source: $src, verified_at: $ts}' \
         > "$OUT"
     exit 0
+}
+
+if [ ! -f "$PLAN" ]; then
+    write_record fail \
+        "plan missing: .se/plans/${ID}.md — a planned slice needs its plan before it can be verified" \
+        '[]'
 fi
 
 # Criteria: "- " lines under "## Acceptance criteria" up to the next "## ".
@@ -68,7 +137,8 @@ CRITERIA=$(awk '/^## [Aa]cceptance [Cc]riteria/{f=1;next} /^## /{f=0} f && /^- /
 # variable became "[]\n[]", --argjson rejected it, and the redirect left a
 # 0-byte verification file behind while the script still exited 0. Assign
 # first, then substitute a default only when nothing came back.
-CRITERIA_JSON=$(printf '%s\n' "$CRITERIA" | grep -v '^[[:space:]]*$' | jq -R . | jq -s . 2>/dev/null) \
+CRITERIA_JSON=$(printf '%s\n' "$CRITERIA" | grep -v '^[[:space:]]*$' \
+    | jq -R '{text: ., status: "unverified"}' | jq -s . 2>/dev/null) \
     || CRITERIA_JSON=""
 [ -n "$CRITERIA_JSON" ] || CRITERIA_JSON='[]'
 COUNT=$(printf '%s' "$CRITERIA_JSON" | jq 'length' 2>/dev/null) || COUNT=0
@@ -79,13 +149,24 @@ COUNT=$(printf '%s' "$CRITERIA_JSON" | jq 'length' 2>/dev/null) || COUNT=0
 # plan, or a future caller. Silence here would mean a slice recorded as passed
 # with nothing to review it against.
 if [ "$COUNT" -lt 2 ]; then
-    jq -n --arg id "$ID" --arg ts "$NOW" --arg p ".se/plans/${ID}.md" --argjson n "$COUNT" \
-        '{id: $id, status: "fail", reason: ("plan malformed: " + $p + " has " + ($n|tostring) + " acceptance criteria; at least 2 are required before a slice can be verified"), criteria: [], verified_at: $ts}' \
-        > "$OUT"
-    exit 0
+    write_record fail \
+        "plan malformed: .se/plans/${ID}.md has ${COUNT} acceptance criteria; at least 2 are required before a slice can be verified" \
+        '[]'
 fi
 
-jq -n --arg id "$ID" --arg ts "$NOW" --argjson c "$CRITERIA_JSON" --argjson n "$COUNT" \
-    '{id: $id, status: "pass", reason: ("tests passed; " + ($n|tostring) + " acceptance criteria recorded for review"), criteria: $c, verified_at: $ts}' \
-    > "$OUT"
-exit 0
+case "$TESTS_STATUS" in
+    failed)
+        write_record fail \
+            "tests failed (exit ${TESTS_RC:-?}); ${COUNT} acceptance criteria recorded for review" \
+            "$CRITERIA_JSON"
+        ;;
+    not_run)
+        write_record incomplete \
+            "tests not run: ${TESTS_REASON}; ${COUNT} acceptance criteria recorded for review" \
+            "$CRITERIA_JSON"
+        ;;
+esac
+
+write_record pass \
+    "tests passed (${TESTS_CMD}); ${COUNT} acceptance criteria recorded for review" \
+    "$CRITERIA_JSON"

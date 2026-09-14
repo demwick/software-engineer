@@ -75,17 +75,24 @@ run_guarded() {
 }
 
 # Tier-1 record for a planned slice (verify-phase skips direct-apply).
-record_and_clear() {
+# This hook is the caller that ran the command, so it reports the outcome:
+# verify-phase.sh derives `status` from it and never invents a result.
+#   record <passed|failed|not_run> <command> <exit-code> <reason>
+record() {
     local vp="${CLAUDE_PLUGIN_ROOT:-}/scripts/verify-phase.sh"
     if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$vp" ]; then
-        bash "$vp" . "$ID" "$KIND" 2>/dev/null || true
+        bash "$vp" . "$ID" "$KIND" "$1" "$2" "$3" "$4" 2>/dev/null || true
     fi
+}
+record_and_clear() {
+    record "$@"
     clear_markers
     exit 0
 }
 
 # Loop protection: the runtime is already looping and we are out of retries.
 if [ "$STOP_ACTIVE" = "true" ] && [ "$ATTEMPTS" -ge "$MAX_RETRIES" ]; then
+    record failed "" "" "loop protection tripped after ${MAX_RETRIES} retries"
     clear_markers
     block "Auto-QA loop-protection tripped after ${MAX_RETRIES} retries — tests are still failing. Review ${TEST_LOG} and report the situation to the user. Do not keep retrying."
 fi
@@ -96,14 +103,16 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$DETECT" ]; then
     TEST_CMD=$(bash "$DETECT" . 2>/dev/null || true)
 fi
 
-# No runner: nothing to run, but a planned slice still gets its record.
-[ -n "$TEST_CMD" ] || record_and_clear
+# No runner: nothing to run, but a planned slice still gets its record —
+# as not_run, which verify-phase.sh turns into `incomplete`.
+[ -n "$TEST_CMD" ] || record_and_clear not_run "" "" "no test runner detected in this project"
 
 mkdir -p "$STATE_DIR"
 TEST_RC=0
 run_guarded "$TEST_CMD" "$TEST_LOG" || TEST_RC=$?
 
 if [ "$TEST_RC" -eq 124 ]; then
+    record failed "$TEST_CMD" 124 "timed out after ${TEST_TIMEOUT}s and was killed"
     clear_markers
     TAIL=$(tail -"$TEST_TAIL_LINES" "$TEST_LOG" 2>/dev/null || echo "")
     block "Auto-QA: test command timed out after ${TEST_TIMEOUT}s and was killed — it likely hangs (watch mode, a prompt on stdin, a blocking network call). Command: ${TEST_CMD}
@@ -121,16 +130,18 @@ if [ "$TEST_RC" -eq 0 ]; then
         COMPAT_OUT=$(bash "$COMPAT" . 2>/dev/null) && COMPAT_RC=0 || COMPAT_RC=$?
         if [ "$COMPAT_RC" = "10" ] && [ -n "$COMPAT_OUT" ]; then
             printf '\n\n=== host-compat warning ===\n%s\n' "$COMPAT_OUT" >> "$TEST_LOG"
+            record passed "$TEST_CMD" 0 "host-compat check failed after a green suite"
             clear_markers
             block "Tests passed but host-compat check failed: ${COMPAT_OUT} Fix the packaging metadata and re-run tests — this blocks install on the user's host."
         fi
     fi
-    record_and_clear
+    record_and_clear passed "$TEST_CMD" 0 ""
 fi
 
 # Tests failed.
 NEXT=$((ATTEMPTS + 1))
 if [ "$NEXT" -gt "$MAX_RETRIES" ]; then
+    record failed "$TEST_CMD" "$TEST_RC" "gave up after ${MAX_RETRIES} retries"
     clear_markers
     block "Auto-QA gave up after ${MAX_RETRIES} retries — tests are still failing. Review ${TEST_LOG} and report the situation to the user. Do not keep retrying."
 fi
