@@ -90,7 +90,7 @@ jq -n --arg id "$ID" --arg status "<pass|partial|fail>" --arg reason "<one sente
   > ".se/verification/${ID}.review.json"
 ```
 
-End with exactly one JSON object on its own line — the hook reads it:
+End with exactly one JSON object on its own line — the flow's Act step reads it:
 
 ```json
 {"ok": true, "reason": "short summary of what passed"}

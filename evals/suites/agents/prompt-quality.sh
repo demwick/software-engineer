@@ -47,7 +47,11 @@ grep -q 'red-proof\.sh' agents/verifier.md || fail "verifier.md must run red-pro
 grep -q '^COVERAGE:' agents/verifier.md || fail "verifier.md missing the COVERAGE contract"
 grep -qi 'reached from a real entry point' agents/verifier.md || fail "verifier.md missing the liveness check"
 grep -qi 'watch it fail' agents/executor.md || fail "executor.md lost the test-first rule"
-grep -qF 'Stop hook parses' agents/verifier.md && fail "verifier.md names the wrong consumer for the {\"ok\"} line — the flow's Act step reads it"
+# No hook reads the verifier: auto-qa is Tier 1 and runs before the agent, and
+# nothing in hooks/ opens its output. Naming one sends a reader to the wrong
+# module, so the needle is the word itself — an exact phrase gets reworded
+# around, as "the Stop hook parses" once became "the hook reads it".
+grep -qi 'hook' agents/verifier.md && fail "verifier.md names a hook as the consumer of its output — no hook reads the verifier; the flow's Act step does"
 
 # --- planning is the plan file, not plan mode ---
 # Plan mode's one safety property (a read-only design phase) is already the
