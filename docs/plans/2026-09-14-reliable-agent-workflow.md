@@ -8,7 +8,8 @@
 # Güvenilir Agent Akışı — Geliştirme Planı
 
 **Tarih:** 2026-09-14
-**Durum:** Taslak — uygulama başlamadı; mimari öneriler henüz kabul edilmiş spec değildir.
+**Durum:** Faz 1 tamamlandı; Faz 2'nin kapanış kararı tamamlandı (2026-09-15). Faz 2'nin `.active` doğrulaması, idempotency, resume ve taban kontrolü (A1) maddeleri açık. Faz 3–6 için uygulama başlamadı; o fazların mimari önerileri henüz kabul edilmiş spec değildir.
+**Kabul edilmiş spec'ler:** `docs/specs/2026-09-15-verification-contract.md` (Faz 1), `docs/specs/2026-09-15-evidence-gated-closing.md` (Faz 2, kapanış kararı).
 **Amaç:** v5'in sade omurgasını koruyarak eksik doğrulamayla kapanışı önlemek; plan eleştirmeni ve tester rollerini gerçek iş sonuçları üzerinden değerlendirmek; paralel uygulamayı ancak izolasyon hazır olduğunda açmak.
 **Temel karar:** Önce güvenilir sonuç ve kapanış sözleşmesi, sonra yeni roller, en son paralellik. v4'e toplu dönüş yok.
 **Kapsam:** Plugin'in geliştirilmesi. Bu repoda `triage` çalıştırılmaz, `.se/` oluşturulmaz. Bu belge plan üretir; uygulama veya commit yetkisi vermez.
@@ -91,21 +92,21 @@ Kapanış politikası:
 
 ### İşler
 
-- [ ] Ortak sözleşmeyi ve v5 kayıtlardan geçişi `docs/specs/` altında kısa bir değişiklik spec'iyle kabul ettir. Tarihsel kayıtlar silinmez; yeni kapanış için yeterli kanıt taşımayan eski kayıtlar yeniden doğrulama ister.
-- [ ] Test komutunun gerçek sonucunu kayıt yazıcısına aktar. Yazıcı, yalnızca plan dosyası var diye `tests passed` üretmesin; serbestçe verilen başarı etiketi yerine yürütme kanıtını kullansın.
-- [ ] `test-digest`, flow ve Stop hook'un aynı kaynağı tekrar doğrulama davranışını haritala. İlk doğruluk geçişinde mevcut güvenceyi kaldırma; yeniden kullanım ancak aynı kaynak/plan revizyonuna bağlı sonuçla mümkün olsun.
-- [ ] Tier-1 kriter envanteri ile Tier-2 kriter değerlendirmesini ayır. Genel `status: pass` ifadesinin hangi boyuta ait olduğunu belirsiz bırakma.
-- [ ] Verifier kayıtlarını eksik inceleme, çalıştırılamayan kontroller ve incelenmeyen kapsamı ifade edecek şekilde geçir. JSON dosyası ile son mesaj çelişirse dosyanın doğrulanmış sözleşmesi karar kaynağı olsun.
-- [ ] Tier-2 kaydına bir yazıcı ver. Şekli bugün `agents/verifier.md` içindeki bir jq bloğu; dosyayı hiçbir şey doğrulamıyor, dolayısıyla sözleşmeye uymayan kayıt sessizce kabul ediliyor.
-- [ ] Bütün tüketicileri tek geçişte güncelle; eski alanları okuyan gizli ikinci karar yolu bırakma.
+- [x] Ortak sözleşmeyi ve v5 kayıtlardan geçişi `docs/specs/` altında kısa bir değişiklik spec'iyle kabul ettir. Tarihsel kayıtlar silinmez; yeni kapanış için yeterli kanıt taşımayan eski kayıtlar yeniden doğrulama ister.
+- [x] Test komutunun gerçek sonucunu kayıt yazıcısına aktar. Yazıcı, yalnızca plan dosyası var diye `tests passed` üretmesin; serbestçe verilen başarı etiketi yerine yürütme kanıtını kullansın.
+- [x] `test-digest`, flow ve Stop hook'un aynı kaynağı tekrar doğrulama davranışını haritala. İlk doğruluk geçişinde mevcut güvenceyi kaldırma; yeniden kullanım ancak aynı kaynak/plan revizyonuna bağlı sonuçla mümkün olsun.
+- [x] Tier-1 kriter envanteri ile Tier-2 kriter değerlendirmesini ayır. Genel `status: pass` ifadesinin hangi boyuta ait olduğunu belirsiz bırakma.
+- [x] Verifier kayıtlarını eksik inceleme, çalıştırılamayan kontroller ve incelenmeyen kapsamı ifade edecek şekilde geçir. JSON dosyası ile son mesaj çelişirse dosyanın doğrulanmış sözleşmesi karar kaynağı olsun.
+- [x] Tier-2 kaydına bir yazıcı ver. Şekli bugün `agents/verifier.md` içindeki bir jq bloğu; dosyayı hiçbir şey doğrulamıyor, dolayısıyla sözleşmeye uymayan kayıt sessizce kabul ediliyor.
+- [x] Bütün tüketicileri tek geçişte güncelle; eski alanları okuyan gizli ikinci karar yolu bırakma.
 
 ### Kabul ve kanıt
 
-- [ ] Runner olmayan fixture `not_run` kaydeder; hiçbir çıktı testlerin geçtiğini söylemez.
-- [ ] Gerçek komutun sıfır/sıfır-dışı çıkışı doğru kaydedilir; timeout başarı sayılmaz.
-- [ ] Plan bulunmaması, bozuk kayıt, eksik kriter kanıtı başarıya dönüşmez.
-- [ ] Başka slice/revizyona ait sonuç kabul edilmez; artifact-only commit gereksiz geçersizleştirme yaratmaz.
-- [ ] Mevcut `verify-phase`, `test-digest`, `auto-qa` eval'leri yeni anlamlarla çalışır. Yeni regresyonlar bu davranışları fixture repo üzerinde sınar, prompt kelimelerini değil.
+- [x] Runner olmayan fixture `not_run` kaydeder; hiçbir çıktı testlerin geçtiğini söylemez.
+- [x] Gerçek komutun sıfır/sıfır-dışı çıkışı doğru kaydedilir; timeout başarı sayılmaz.
+- [x] Plan bulunmaması, bozuk kayıt, eksik kriter kanıtı başarıya dönüşmez.
+- [x] Başka slice/revizyona ait sonuç kabul edilmez; artifact-only commit gereksiz geçersizleştirme yaratmaz.
+- [x] Mevcut `verify-phase`, `test-digest`, `auto-qa` eval'leri yeni anlamlarla çalışır. Yeni regresyonlar bu davranışları fixture repo üzerinde sınar, prompt kelimelerini değil.
 
 **Teslimat:** Doğru olguları bildiren Tier-1/Tier-2 kayıtları; henüz yeni agent yok.
 
@@ -117,22 +118,22 @@ Kapanış politikası:
 
 ### İşler
 
-- [ ] `state-update.sh` içinde slice kapanışı için açık bir işlem tanımla; önerilen arayüz `--close-slice <id>`. Doğrulama kayıtlarını okuyup karar vermeden faz ilerletmesin. Roadmap olmayan planned slice için de çalışsın.
-- [ ] Genel key=value çağrısıyla `completed=true` veya ileri `current_phase` yazarak aynı kontrolün atlanmasını engelle. Bootstrap, roadmap genişletme ve tamamlanmış projeye milestone ekleme meşru geçişlerini ayrı ele al.
+- [x] `state-update.sh` içinde slice kapanışı için açık bir işlem tanımla; önerilen arayüz `--close-slice <id>`. Doğrulama kayıtlarını okuyup karar vermeden faz ilerletmesin. Roadmap olmayan planned slice için de çalışsın.
+- [x] Genel key=value çağrısıyla `completed=true` veya ileri `current_phase` yazarak aynı kontrolün atlanmasını engelle. Bootstrap, roadmap genişletme ve tamamlanmış projeye milestone ekleme meşru geçişlerini ayrı ele al.
 - [ ] Roadmap, kapanış artifact'ı ve state arasındaki işlem sırasını idempotent tasarla. Çok dosyalı yazımı atomik ilan etme; her kesinti noktasından tekrar çağrı güvenli biçimde tamamlasın veya önceki durumu korusun.
 - [ ] `.active` biçimi/kind/id doğrulamasını ekle. Planned marker geçerli plan ve plan revizyonuna bağlı olsun; direct/bootstrap yolları kendi sözleşmeleriyle devam etsin.
 - [ ] `.se/` yazımı, Bash üzerinden state değişimi ve git commit dahil kapanışa ulaşan yolları listele. Kapanış artifact'ı/roadmap-done commit'ine mevcut commit backstop üzerinden uygulanabilir tutarlılık kontrolü koy. Doğrudan yerel dosya yazabilen aktöre karşı mutlak güvenlik iddiasında bulunma.
-- [ ] `review skipped (tooling)` yolunu `incomplete` yap. Fail-open hook politikasıyla çelişkiyi açıkça çöz: bir hook host oturumunu kilitlemeyebilir, fakat eksik kanıt hiçbir kapanış işleminde başarıya çevrilmez.
-- [ ] Kullanıcı risk kabulünü belirli bulgu ve revizyona bağla. Sessiz `partial → done` kalksın. Kabulün yerel kaydını insan kimlik doğrulaması gibi sunma.
+- [x] `review skipped (tooling)` yolunu `incomplete` yap. Fail-open hook politikasıyla çelişkiyi açıkça çöz: bir hook host oturumunu kilitlemeyebilir, fakat eksik kanıt hiçbir kapanış işleminde başarıya çevrilmez.
+- [x] Kullanıcı risk kabulünü belirli bulgu ve revizyona bağla. Sessiz `partial → done` kalksın. Kabulün yerel kaydını insan kimlik doğrulaması gibi sunma.
 - [ ] Resume sırasında izin marker'ını temizlemek ile tamamlanmamış işin ilerleme kaydını kaybetmeyi ayır. Kullanıcı kaldığı görevi ve eksik kontrolü görebilsin.
 - [ ] Yeşile nasıl gelindiğini slice diff'i üzerinde denetleyen taban kontrolü ekle; önerilen `scripts/floor-guard.sh`, `hooks/auto-qa`'nın yeşil yolundan çağrılır. Aradığı beş hamle: eklenen suppression/ignore yorumu, eklenen atlama işareti (`.skip`, `xit`, `t.Skip` ve dengi), hayatta kalan test dosyalarından çıkarılan assertion, yeni boş `catch`/`pass`/stub gövdesi, gevşetilen eşik. Bulgu blocker'dır; kapanış politikasının mevcut blocker satırına düşer, sonuç sözleşmesine yeni boyut eklemez.
 - [ ] Kontrolü diff üzerine kur, dil başına kural motoru yazma. Meşru durumlar (mevcut atlamanın taşınması, testin dosyasıyla birlikte silinmesi, spec gereği değişen eşik) Faz 2'nin açık risk kabulü yolundan geçsin; ikinci bir muafiyet mekanizması açma.
 
 ### Kabul ve kanıt
 
-- [ ] Review yok/bozuk/eski olduğunda doğrudan state-update, normal flow ve kapanış commit'i başarı üretmez.
+- [x] Review yok/bozuk/eski olduğunda doğrudan state-update, normal flow ve kapanış commit'i başarı üretmez.
 - [ ] Reviewer yarıda kesildiğinde slice `incomplete` kalır; devam ettirilip doğru kayıt üretildiğinde kapanabilir.
-- [ ] `partial` açık risk kabulü olmadan ilerlemez; kabul sonrası eksik bulgu görünür kalır.
+- [x] `partial` açık risk kabulü olmadan ilerlemez; kabul sonrası eksik bulgu görünür kalır.
 - [ ] Son fazın tamamlanması, ad-hoc planned slice, yeni milestone ve direct görev doğru çalışır.
 - [ ] İşlem ortasında kesilip yeniden çağrıldığında faz iki kez ilerlemez; çelişkili roadmap/state sessizce korunmaz.
 - [ ] `.active` bozukluğu veya jq/tooling eksikliği onaysız başarı kaydı yaratmaz; hata kullanıcıya gösterilir.
