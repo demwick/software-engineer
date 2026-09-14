@@ -12,11 +12,11 @@
 # Tier-1 record for a planned slice, then clears every marker.
 #
 # Markers (all cleared on every terminal state):
-#   .se/.active           {"kind": "direct"|"planned", "id": ..., "files": [...]}
+#   .se/.active           {"kind": "direct"|"planned"|"bootstrap", "id": ..., "files": [...]}
 #   .se/.verify-attempts  {"attempts": N}  — owned by this hook
 #   .se/.fixing           reproduction-test paths locked by pre-guard
 
-set -euo pipefail
+set -uo pipefail
 
 # Two retries: one attempt rarely finds the root cause, three turns the
 # hook into a brute-force loop.

@@ -132,7 +132,7 @@ write_targets() {
         # token that names something on disk, or a new file in a directory
         # that exists. The existence test is what separates a real target
         # from a sed script (`s/a/b/`) or a regex that merely looks like one.
-        if printf '%s\n' "$seg" | grep -qE '(^|[[:space:]])(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|install|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
+        if printf '%s\n' "$seg" | grep -qE '(^|[[:space:]])(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
             printf '%s\n' "$seg" | tr -s " \t\"'" '\n\n\n\n' \
                 | grep -vE '^-|^$' 2>/dev/null | grep -E '/|\.' 2>/dev/null \
                 | grep -vE '[${}!*()]|/$' 2>/dev/null \

@@ -57,6 +57,15 @@ assert_eq 0 "$(rc "echo x >> .gitignore")"                      ".gitignore writ
 assert_eq 0 "$(rc "npm test > /dev/null 2>&1")"                 "/dev/null redirect open"
 assert_eq 0 "$(rc "npm test > /tmp/out.log")"                   "outside-project redirect open"
 
+# --- unarmed: a package manager is not a file writer ---
+# `install` once sat in the in-place-editor regex, so every `<pm> install`
+# whose argument looked like a path (`.`, `./...`, `requirements.txt`) was
+# read as a write target and denied in a managed-but-unarmed project.
+assert_eq 0 "$(rc "pip install -e .")"                          "pip install -e . open"
+assert_eq 0 "$(rc "uv pip install -r requirements.txt")"        "pip install -r open"
+assert_eq 0 "$(rc "go install ./...")"                          "go install ./... open"
+assert_eq 0 "$(rc "cargo install --path .")"                    "cargo install --path . open"
+
 # --- armed: the same writes go through ---
 printf '{"kind":"planned","id":"x","files":[]}' > "$W/.se/.active"
 assert_eq 0 "$(rc "sed -i '' 's/Hello/Hi/' src/app.js")"         "armed: sed -i allowed"

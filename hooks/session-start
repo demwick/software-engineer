@@ -10,7 +10,7 @@
 # block via hookSpecificOutput. Clears gate markers an interrupted turn
 # left behind — a new session never inherits an armed gate.
 
-set -euo pipefail
+set -uo pipefail
 
 STATE_DIR=".se"
 
