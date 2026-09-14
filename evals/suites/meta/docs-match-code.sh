@@ -26,8 +26,8 @@ done
 # --- 2. the verification record names come from the code that writes them ---
 grep -q 'verification/\${ID}\.json' "$REPO_ROOT/scripts/verify-phase.sh" \
     || fail "verify-phase.sh no longer writes .se/verification/\${ID}.json — update this suite and the docs"
-grep -q 'verification/\${ID}\.review\.json' "$REPO_ROOT/agents/verifier.md" \
-    || fail "verifier.md no longer writes .se/verification/\${ID}.review.json — update this suite and the docs"
+grep -q 'verification/\${ID}\.review\.json' "$REPO_ROOT/scripts/write-review.sh" \
+    || fail "write-review.sh no longer writes .se/verification/\${ID}.review.json — update this suite and the docs"
 for doc in DESIGN.md docs/STATE.md docs/DEVELOPMENT.md; do
     grep -qF 'phase-<id>.json' "$REPO_ROOT/$doc" \
         && fail "$doc names phase-<id>.json; the Tier-1 record is .se/verification/<id>.json"
@@ -51,5 +51,31 @@ printf '%s\n' "$tracked" | while IFS= read -r s; do
     grep -qF "$name" "$REPO_ROOT/docs/DEVELOPMENT.md" \
         || fail "docs/DEVELOPMENT.md's script list is missing $name"
 done || exit 1
+
+# --- 5. the verification contract has one shape, in one place ---
+# docs/specs/2026-09-15-verification-contract.md. unmet_criteria[] was
+# derivable from criteria[], and two copies of one fact drift: the flow acted
+# on one while the reviewer filled in the other.
+for f in agents/verifier.md skills/triage/references/flow-light.md \
+         skills/se-status/SKILL.md docs/STATE.md; do
+    grep -qF 'unmet_criteria' "$REPO_ROOT/$f" \
+        && fail "$f still reads unmet_criteria[]; per-criterion status lives in criteria[]"
+done
+grep -rqF 'unmet_criteria' "$REPO_ROOT/examples/state" \
+    && fail "examples/state still carries unmet_criteria[]"
+
+# The reviewer writes through the validating writer, never straight to disk:
+# a jq redirect is exactly what shipped an unvalidated record before.
+grep -q 'write-review\.sh' "$REPO_ROOT/agents/verifier.md" \
+    || fail "verifier.md must write the Tier-2 record through scripts/write-review.sh"
+grep -qE '>[[:space:]]*"?\.se/verification/' "$REPO_ROOT/agents/verifier.md" \
+    && fail "verifier.md redirects into .se/verification/ — write through write-review.sh"
+
+# Every record the docs describe carries the envelope the writers stamp.
+for f in docs/STATE.md examples/state/verification/phase-1.json \
+         examples/state/verification/phase-1.review.json; do
+    grep -qF 'record_version' "$REPO_ROOT/$f" \
+        || fail "$f predates the record contract — no record_version"
+done
 
 echo "PASS: the runtime docs match the code"

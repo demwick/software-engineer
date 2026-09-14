@@ -65,13 +65,14 @@ Narrate `→ executor: <id>` and launch the `executor` agent with the plan path,
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"
 ```
 
-Red → fix the code (relaunch the executor for a real defect), rerun until green. Then record:
+Red → fix the code (relaunch the executor for a real defect), rerun until green. Then record the run you just did — you ran it, so you report it:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-phase.sh" . <id> planned
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-phase.sh" . <id> planned \
+  <passed|failed|not_run> "<the command>" <exit code> "<reason, when not_run>"
 ```
 
-`.se/verification/<id>.json` now carries the plan's criteria; `status: fail` there means the plan file is missing — go back to Step 2.
+`.se/verification/<id>.json` now carries the plan's criteria, all `unverified` for Tier 2. Its `status` is derived: `fail` means the plan is missing or the suite was red — go back to Step 2; `incomplete` means nothing ran.
 
 ## Step 6: Tier 2 — the senior review
 
@@ -82,7 +83,7 @@ Narrate `→ verifier: <id>` and launch the `verifier` agent with the id. It wri
 Worst verdict wins:
 
 - **pass** (Tier 1 pass, no blocker/major) → close.
-- **partial** (a major, or unmet criteria) → show `unmet_criteria[]` and the findings; offer to fix now or record follow-ups in the roadmap; then close.
+- **partial** (a major, or unmet criteria) → show the `criteria[]` entries that are not `met` and the findings; offer to fix now or record follow-ups in the roadmap; then close.
 - **fail** (Tier 1 fail, or a blocker) → show the finding (`severity — file:line — problem — fix`); stop. Never auto-loop the reviewer.
 
 `repeated_findings[]` become institutional knowledge — one call per rule:

@@ -1,11 +1,31 @@
 {
+  "record_version": 1,
   "id": "phase-1",
   "status": "pass",
-  "reason": "tests passed; 3 acceptance criteria recorded for review",
+  "reason": "tests passed (npm test); 3 acceptance criteria recorded for review",
+  "tests": {
+    "status": "passed",
+    "command": "npm test",
+    "exit_code": 0,
+    "reason": null
+  },
   "criteria": [
-    "`npm run dev` serves `/` with HTTP 200",
-    "`npm test` runs the todos suite green: create / read / update / delete",
-    "`src/lib/todos.ts` exposes `list`, `get`, `create`, `update`, `remove`"
+    {
+      "text": "`npm run dev` serves `/` with HTTP 200",
+      "status": "unverified"
+    },
+    {
+      "text": "`npm test` runs the todos suite green: create / read / update / delete",
+      "status": "unverified"
+    },
+    {
+      "text": "`src/lib/todos.ts` exposes `list`, `get`, `create`, `update`, `remove`",
+      "status": "unverified"
+    }
   ],
+  "source": {
+    "plan_blob": "9f2a1c4e8b7d6a5c3f0e9d8c7b6a5f4e3d2c1b0a",
+    "head_commit": "4c1d9e2f8a3b7c6d5e4f3a2b1c0d9e8f7a6b5c4d"
+  },
   "verified_at": "2026-04-14T02:10:41Z"
 }

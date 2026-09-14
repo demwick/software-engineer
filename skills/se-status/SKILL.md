@@ -21,7 +21,7 @@ Announce: **"Using the status skill."** Read, format, done — no writes, no age
 - `.se/state.json` — `mode`, `current_phase`, `total_phases`, `last_session`, `last_commit`, `current_step`. Absent → *"No project state. Describe your goal and triage will bootstrap it."* and stop.
 - `.se/roadmap.md` — phases by status (`done` / `in-progress` / `pending`).
 - `.se/plans/phase-<current>.md` — exists or not; `.progress.json` beside it → in-flight task.
-- `.se/verification/phase-<current>.json` and `.review.json` — `status`, `reason`, findings count.
+- `.se/verification/<id>.json` and `<id>.review.json` for the current phase — `status` (Tier 1 also `tests.status`; Tier 2 also `review`), `reason`, findings count. A record with no `record_version` predates the contract: report it as unverified rather than reading its fields.
 - `.se/diagnose.json` — `generated`, if present.
 - `git log --oneline -3`, `git status --short` — fail silently outside a repo.
 

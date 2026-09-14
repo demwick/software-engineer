@@ -1,11 +1,39 @@
 {
+  "record_version": 1,
   "id": "phase-1",
   "status": "pass",
+  "review": "complete",
   "reason": "all criteria met; one minor naming note",
-  "unmet_criteria": [],
+  "criteria": [
+    {
+      "text": "`npm run dev` serves `/` with HTTP 200",
+      "status": "met",
+      "evidence": "curl -s -o /dev/null -w '%{http_code}' localhost:3000 \u2192 200"
+    },
+    {
+      "text": "`npm test` runs the todos suite green: create / read / update / delete",
+      "status": "met",
+      "evidence": "tests/todos.test.ts, 4 cases green"
+    },
+    {
+      "text": "`src/lib/todos.ts` exposes `list`, `get`, `create`, `update`, `remove`",
+      "status": "met",
+      "evidence": "src/lib/todos.ts:8-61"
+    }
+  ],
   "findings": [
-    "minor — src/lib/todos.ts:12 — `remove` returns undefined on a missing id — callers cannot tell miss from success — return boolean and add a test for the missing-id case"
+    {
+      "severity": "minor",
+      "file": "src/lib/todos.ts:12",
+      "problem": "`remove` returns undefined on a missing id, so callers cannot tell a miss from a success",
+      "fix": "return a boolean and add a test for the missing-id case"
+    }
   ],
   "repeated_findings": [],
+  "out_of_scope": [],
+  "source": {
+    "plan_blob": "9f2a1c4e8b7d6a5c3f0e9d8c7b6a5f4e3d2c1b0a",
+    "head_commit": "4c1d9e2f8a3b7c6d5e4f3a2b1c0d9e8f7a6b5c4d"
+  },
   "verified_at": "2026-04-14T02:14:03Z"
 }

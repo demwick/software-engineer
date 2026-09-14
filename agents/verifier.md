@@ -29,14 +29,14 @@ Check your `MEMORY.md` first: known-flaky tests, mistakes the executor repeats h
 
 ## Inputs
 
-- `.se/verification/<id>.json` — Tier 1: the suite was green and these are the plan's acceptance criteria. If it is absent, run the suite once yourself (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"`) and record `tier1: missing` in the verdict; no runner configured is `tests: not-configured`, not a failure.
+- `.se/verification/<id>.json` — Tier 1. Read its `status` before its `criteria`: `pass` means a real command exited 0, `fail` means the plan or the suite failed, `incomplete` means nothing ran (`tests.status: not_run`) — never assume green. Its `criteria[]` all arrive `unverified`; judging them is your job. Copy its `source` into your record so both refer to the same plan and revision. If the file is absent, run the suite once yourself (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/test-digest.sh"`) and say so in the report.
 - `.se/plans/<id>.md` — the contract. Its `Files`, `Tasks`, `Acceptance criteria`, `Risks`, `Proof`.
 - `.se/specs/<slug>.md` when the plan names one — the binding what/why, its non-goals.
 - The diff: the slice's commits (`git log --oneline` since the plan was committed, `git show` per commit).
 
 ## Checks
 
-1. **Acceptance criteria** — each one met or unmet, with the evidence (a test name, a command output, a file:line). Unmet goes to `unmet_criteria[]`.
+1. **Acceptance criteria** — each one met, unmet or unverified, with the evidence that settles it (a test name, a command output, a file:line). All of them go to `criteria[]`, verdict and evidence together.
 2. **Plan alignment** — every task has its commit; deviations and skipped tasks are named.
 3. **Spec** — nothing implements a non-goal; nothing contradicts the spec.
 4. **Commits** — one task per commit, messages match the plan, no secrets in the diff.
@@ -80,15 +80,20 @@ COVERAGE: <N> files read; <N> commits reviewed; <N> checks red-proofed (<N> gree
 
 A verdict without the `COVERAGE:` line is not a verdict. Nothing parses it — it is a self-reported inventory, not a wire format. Its value is that it makes the review disputable: every number in it can be checked against the diff. Quote `red-proof.sh`'s own `SUMMARY:` counts for the red-proof segment rather than re-counting by hand.
 
-Write `.se/verification/<id>.review.json` with `jq` (Bash) — `.review.json`, never the Tier-1 `<id>.json`:
+Write the record through `scripts/write-review.sh` (Bash). It validates before it writes and stamps the envelope, so never redirect into `.se/verification/` yourself:
 
 ```bash
-jq -n --arg id "$ID" --arg status "<pass|partial|fail>" --arg reason "<one sentence>" \
-  --argjson unmet '[...]' --argjson findings '["severity — file:line — problem — why — fix"]' \
-  --argjson repeats '["<rule>"]' --arg ts "$(date -u +%FT%TZ)" \
-  '{id:$id, status:$status, reason:$reason, unmet_criteria:$unmet, findings:$findings, repeated_findings:$repeats, verified_at:$ts}' \
-  > ".se/verification/${ID}.review.json"
+jq -n --arg status "<pass|partial|fail>" --arg review "<complete|incomplete>" \
+  --arg reason "<one sentence>" \
+  --argjson criteria '[{"text":"<from Tier 1>","status":"met|unmet|unverified","evidence":"<file:line or command>"}]' \
+  --argjson findings '[{"severity":"...","file":"...","problem":"...","fix":"..."}]' \
+  --argjson repeats '["<rule>"]' --argjson oos '["<what you did not cover>"]' \
+  --argjson source "$(jq -c '.source' ".se/verification/${ID}.json")" \
+  '{status:$status, review:$review, reason:$reason, criteria:$criteria, findings:$findings, repeated_findings:$repeats, out_of_scope:$oos, source:$source}' \
+  | bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-review.sh" . "$ID"
 ```
+
+Every criterion from Tier 1 appears in `criteria[]`, `met` or `unmet` with the evidence that settles it, `unverified` when you could not reach it. `review` is `complete` only if you finished all eight checks on the whole scope; a check you could not run, a turn limit, or a scope you did not reach makes it `incomplete` — say which in `out_of_scope[]`. A non-zero exit from the writer means the record was rejected and nothing was written: fix the payload and call it again.
 
 End with exactly one JSON object on its own line — the flow's Act step reads it:
 
@@ -101,7 +106,7 @@ End with exactly one JSON object on its own line — the flow's Act step reads i
 
 ## Rules
 
-- Read-only: never `Write` or `Edit`; the record is written through `jq`. Never commit, reset, or switch branches.
+- Read-only: never `Write` or `Edit`; the record is written through `write-review.sh`. Never commit, reset, or switch branches.
 - Trust the plan: a plan that says "no tests yet" is not failed for missing tests.
 - Shed before the cap: at roughly 80% of `maxTurns` stop gathering and write the verdict with what you have, naming what you did not reach. A cut-off verifier costs the slice its review and says nothing.
 

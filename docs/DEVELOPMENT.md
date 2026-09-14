@@ -32,7 +32,7 @@ Both are `model: inherit` with `memory: project`. Planning is Claude Code's plan
 - `PreToolUse` (`Bash|Write|Edit`) → `pre-guard`: the destructive-op guard, the `.active` edit gate, the direct tripwire, the `.fixing` lock.
 - `Stop` → `auto-qa`: on `.active`, runs the suite (block on failure, ≤2 retries), writes the Tier-1 record via `verify-phase.sh`, clears markers.
 
-**Scripts** (`scripts/`): `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `red-proof.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-init.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
+**Scripts** (`scripts/`): `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `write-review.sh`, `red-proof.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-init.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
 
 **State**: [`STATE.md`](STATE.md). Samples: [`../examples/state/`](../examples/state/).
 

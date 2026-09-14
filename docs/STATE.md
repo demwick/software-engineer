@@ -28,8 +28,8 @@ Every file the plugin writes inside a managed project, split by lifetime. The sp
 | `specs/<slug>.md` | `spec` skill | plan mode, `verifier` | `## What we're building`, `## Non-goals` (≥2), `## Acceptance criteria` (≥3, testable), Edge cases, Trade-offs; `**Status:** draft → accepted`. Linted by `scripts/spec-validate.sh` |
 | `plans/<id>.md` | plan mode via the flows | `executor`, `verifier`, `verify-phase.sh` | `## Files`, `## Tasks` (≥1 `### Task`), `## Acceptance criteria` (≥2, testable), `## Risks` (`confirm: yes|no`), `## Proof`. Linted by `scripts/plan-validate.sh`. `<id>` is `phase-N` or a slug |
 | `adr/NNNN-<slug>.md` | `adr` skill (standalone only — charter's dir when present) | humans | charter's template: Context, Decision, Consequences, Alternatives, References |
-| `verification/<id>.json` | `scripts/verify-phase.sh` (Tier 1) | Act step, `verifier`, `se-status` | `{id, status: pass|fail, reason, criteria[], verified_at}`; `fail` when the plan is missing |
-| `verification/<id>.review.json` | `verifier` agent (Tier 2) | Act step, `se-status` | `{id, status: pass|partial|fail, reason, unmet_criteria[], findings[], repeated_findings[], verified_at}` |
+| `verification/<id>.json` | `scripts/verify-phase.sh` (Tier 1) | Act step, `verifier`, `se-status` | `{record_version, id, status: pass|fail|incomplete, reason, tests{status: passed|failed|not_run, command, exit_code, reason}, criteria[{text, status: unverified}], source{plan_blob, head_commit}, verified_at}`. `status` is derived: `fail` on a missing or malformed plan or a red suite, `incomplete` when nothing ran, `pass` only for a real command that exited 0. The caller reports the test result — this writer never runs the suite |
+| `verification/<id>.review.json` | `scripts/write-review.sh`, called by the `verifier` agent (Tier 2) | Act step, `se-status` | `{record_version, id, status: pass|partial|fail, review: complete|incomplete, reason, criteria[{text, status: met|unmet|unverified, evidence}], findings[], repeated_findings[], out_of_scope[], source{plan_blob, head_commit}, verified_at}`. The writer validates and rejects an incomplete record rather than writing it; `review: incomplete` is how a reviewer reports it could not finish |
 | `roadmap.md` | full-flow | `session-start`, `se-status`, the phase loop | `### Phase N: <name>` blocks with Goal, Scope, Deliverable, Depends on, `**Status:** pending|in-progress|done` |
 
 Each planned slice ends with `chore(se): close <id>` committing its plan, verification files and any `CLAUDE.md` notes. Direct-apply commits no artifacts.
@@ -58,4 +58,5 @@ Each planned slice ends with `chore(se): close <id>` committing its plan, verifi
 1. `state.json.current_phase ≤ total_phases`; the last phase sets `completed: true`.
 2. `roadmap.md` is the authoritative phase list; `total_phases` mirrors its `### Phase` count.
 3. A `verification/<id>.json` with `status: fail` never has a matching `.review.json` — the Act step stops before Tier 2.
+4. A record with no `record_version` predates `docs/specs/2026-09-15-verification-contract.md`. Readers treat it as unverified and ask for re-verification; nothing rewrites records already committed.
 4. No hook or skill edits `state.json` except through `scripts/state-update.sh` (the bootstrap `Write` is the one exception).

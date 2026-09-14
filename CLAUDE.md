@@ -22,7 +22,7 @@ A Claude Code native plugin that runs the AI-native SDLC for the projects it man
 - `skills/triage/` — the single auto-invocable entry. `SKILL.md` classifies and routes; `references/flow-{direct,light,full}.md` are the three depths; `references/templates.md` holds the plan and roadmap shapes.
 - `skills/{intent,spec,adr}/` — the artifact writers, invoked by the flows. `skills/{se-status,se-diagnose}/` — read-only helpers.
 - `hooks/hooks.json` + `hooks/run-hook.cmd` (polyglot wrapper) + `hooks/{session-start,auto-qa,pre-guard}`. `pre-guard` (PreToolUse) is the edit gate, the direct tripwire, the `.fixing` lock and the destructive-op guard; `auto-qa` (Stop) is Tier-1 verification; `session-start` injects state and clears stale markers.
-- `scripts/` — `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `red-proof.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-init.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
+- `scripts/` — `detect-test.sh`, `detect-quality.sh`, `test-digest.sh`, `verify-phase.sh`, `write-review.sh`, `red-proof.sh`, `plan-validate.sh`, `spec-validate.sh`, `state-init.sh`, `state-update.sh`, `claude-md-init.sh`, `check-host-compat.sh`, `validate-commit-msg.sh`, `archive-state.sh`.
 - `docs/STATE.md` — the `.se/` layout; `examples/state/` — a populated sample; `TESTING.md` — the live checklist; `evals/` — the deterministic gate.
 
 ## Hard rules
