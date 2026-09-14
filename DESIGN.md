@@ -170,7 +170,7 @@ the same move away from a hard Haiku pin to inheritance.
 agent's adversarial senior review (correctness traps, edge cases, regressions
 behind green tests), invoked by the flow's Act step **once per planned phase**,
 only after Tier 1 passes, never in the Stop loop, never for direct-apply. The
-tiers write separate files (`phase-<id>.json`, `review-<id>.json`); the Act step
+tiers write separate files (`<id>.json`, `<id>.review.json`); the Act step
 takes the worst verdict.
 
 ## Directory Layout
@@ -238,12 +238,12 @@ Executor finishes work (Stop event fires)
 Tier 1 — hooks/auto-qa (deterministic, no agent):
   run the suite → fail: block, Claude retries (≤2)
                 → pass: scripts/verify-phase.sh writes
-                        .se/verification/phase-<id>.json
+                        .se/verification/<id>.json
                         (criteria + TDD commit order + red-proof)
   ↓
 Tier 2 — Act step launches the verifier agent, once per planned phase:
-  reads phase-<id>.json + the diff → adversarial senior review
-  → writes .se/verification/review-<id>.json
+  reads <id>.json + the diff → adversarial senior review
+  → writes .se/verification/<id>.review.json
   ↓
 Act decision (worst of the two tiers wins):
   pass    → mark phase done, advance
@@ -294,6 +294,13 @@ Adopt a two-layer cycle:
 - Backward compatible: pre-v3.1.0 phases without specs or verification files degrade gracefully with warnings.
 
 ### Amendment (2026-06-19): TDD generalized into a verification-strategy resolver
+
+> **Superseded in v5.0.0.** The resolver, the `.se/.verify-strategy` marker,
+> `scripts/resolve-verify-strategy.sh` and the `[[ VERIFY ]]` / `[[ NO-TEST ]]`
+> markers were all cut — `[[ NO-TEST ]]` had become an escape hatch a task could
+> use to declare itself exempt. Test-first for new behaviour is a rule again,
+> proved by `scripts/red-proof.sh`. See `docs/specs/2026-09-07-red-proof.md`.
+> The paragraph below records what was decided in June 2026.
 
 The "inner loop" above is now the `test` *strategy* of a per-task resolver, not
 a universal rule. The original `[[ NO-TEST ]]` skip-path was too coarse: it
