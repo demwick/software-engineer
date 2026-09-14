@@ -12,6 +12,7 @@
 **Amaç:** v5'in sade omurgasını koruyarak eksik doğrulamayla kapanışı önlemek; plan eleştirmeni ve tester rollerini gerçek iş sonuçları üzerinden değerlendirmek; paralel uygulamayı ancak izolasyon hazır olduğunda açmak.
 **Temel karar:** Önce güvenilir sonuç ve kapanış sözleşmesi, sonra yeni roller, en son paralellik. v4'e toplu dönüş yok.
 **Kapsam:** Plugin'in geliştirilmesi. Bu repoda `triage` çalıştırılmaz, `.se/` oluşturulmaz. Bu belge plan üretir; uygulama veya commit yetkisi vermez.
+**Biçim:** Yol haritası, tek slice planı değil — `scripts/plan-validate.sh` bunu denetlemez; o linter executor'a verilen `.se/plans/<id>.md` içindir. Fazlar uygulanırken slice planları ayrıca yazılır ve linter'dan geçer.
 
 ## Başlangıç durumu ve kanıt sınırı
 
@@ -95,6 +96,7 @@ Kapanış politikası:
 - [ ] `test-digest`, flow ve Stop hook'un aynı kaynağı tekrar doğrulama davranışını haritala. İlk doğruluk geçişinde mevcut güvenceyi kaldırma; yeniden kullanım ancak aynı kaynak/plan revizyonuna bağlı sonuçla mümkün olsun.
 - [ ] Tier-1 kriter envanteri ile Tier-2 kriter değerlendirmesini ayır. Genel `status: pass` ifadesinin hangi boyuta ait olduğunu belirsiz bırakma.
 - [ ] Verifier kayıtlarını eksik inceleme, çalıştırılamayan kontroller ve incelenmeyen kapsamı ifade edecek şekilde geçir. JSON dosyası ile son mesaj çelişirse dosyanın doğrulanmış sözleşmesi karar kaynağı olsun.
+- [ ] Tier-2 kaydına bir yazıcı ver. Şekli bugün `agents/verifier.md` içindeki bir jq bloğu; dosyayı hiçbir şey doğrulamıyor, dolayısıyla sözleşmeye uymayan kayıt sessizce kabul ediliyor.
 - [ ] Bütün tüketicileri tek geçişte güncelle; eski alanları okuyan gizli ikinci karar yolu bırakma.
 
 ### Kabul ve kanıt
@@ -177,6 +179,7 @@ Kapanış politikası:
 - [ ] Düzeltilmiş iki-agent akışını baseline yap. Aynı görevleri baseline + bağımsız plan eleştirisi ve baseline + davranış tester'ı ile karşılaştır; her koşul temiz aynı başlangıç revizyonunu alsın.
 - [ ] Başlangıçta rol talimatlarını deney fixture'ında tut; sırf denemek için production agents listesine ekleme.
 - [ ] Her koşulu en az üç kez çalıştır; model kimliği, effort, Claude Code sürümü, başlangıç commit'i, senaryo ve ham sonuçları kaydet. Eksik kullanım verisini sıfır diye raporlama.
+- [ ] Ölçümün maliyetini önden yaz: altı görev × üç koşul × üç tekrar, agent koşusu başına gerçek token/süre. Bütçe kabul edilmeden deney başlamaz; sığmıyorsa koşu sayısı değil görev seti daraltılır, çünkü tek koşu gürültüyü ölçemez.
 - [ ] Gizli kabul kontrolleri ve önceden belirlenmiş kusurları ölçümde kullan. Agent'in kendi “başardım” açıklamasını başarı skoru sayma.
 - [ ] Yanlış done, atlanan kriter, uygulamadan önce bulunan yanlış varsayım, kaçan hata, yanlış pozitif bulgu, kullanıcı müdahalesi, gereksiz soru, süre ve kullanım değerlerini ayrı raporla.
 
@@ -237,6 +240,17 @@ Kapanış politikası:
 
 **Teslimat:** Aynı güvenilir kapanış sözleşmesini kullanan, dar kapsamlı paralellik. İhtiyaç gösterilemiyorsa bu faz uygulanmaz; iki-agent sürüm bunun yüzünden beklemez.
 
+## Riskler
+
+Biçim repo'nun plan şablonundan: `<risk> — <karşılık> — confirm: yes|no`. `confirm: yes`, uygulamadan önce kullanıcıya açıkça sorulur.
+
+- **Sonuç sözleşmesi tek geçişte değişir; yarım kalan geçiş eski ve yeni alanı birlikte okuyan iki karar yolu bırakır.** Faz 1 tek revert'le geri alınabilen tek dilim olarak yürütülür; eski alan adlarını okuyan kod kalmadığı eval'le sabitlenir — confirm: no
+- **Faz 3 izolasyonu, D5'in kaçındığı bağımlılık sorununu geri getirir.** Kurulu bağımlılığı olmayan worktree'de Check yanlış kırmızı verir ve reviewer var olmayan bir kapsam boşluğu bildirir. Ayrılamayan durumda sonuç `inconclusive`; bağımlılık hazırlanamıyorsa red-proof kendini devre dışı bırakır ve bunu kayda geçer, sessizce geçmez — confirm: yes (D5'in tersine çevrilmesi)
+- **Kapanış sıkılaşınca test runner'ı olmayan meşru proje hiç kapanamaz hale gelir.** Prompt ve doküman repoları bu plugin'in gerçek kullanıcısı. `not_run` + reviewer değerlendirmesi yolu runner'sız fixture üzerinde sınanır; o yol kapanışı mümkün kılmıyorsa Faz 2 kabul edilmez — confirm: no
+- **Faz 4 küçük örneklemde gürültüye boğulur ve karar üretmez.** Sonuçsuzluk da karardır: rol kalıcılaşmaz. Koşu sayısını artırmak yerine görev seti daraltılır — confirm: no
+- **Faz 5 mevcut talimat bütçesine sığmıyor.** Ölçüldü: `agents/` + `skills/` = 45819 / 49152 byte, 3333 byte boş; mevcut iki agent 5404 ve 7200 byte. İki yeni rol en iyimser tahminle 8 KB ister, üstüne triage ve flow eklemeleri gelir. Faz 5'e girmeden önce üçünden biri açıkça seçilir — bütçeyi yükselt (sayı bizim), mevcut prompt'lardan kes, ya da rolü agent yerine skill olarak yaz — confirm: yes
+- **Altı faz, v5'in sade omurgasını büyütür.** Hard Rule 9 sınavından geçmeden eklenen her talimat bir sonraki model yükseltmesinde çift iş çıkarır. Her prompt eklemesi compensation/preference olarak sınıflandırılır; compensation olan, kendi davranışsal eval fixture'ıyla birlikte gelir — confirm: no
+
 ## Uygulama ve doğrulama düzeni
 
 1. Her fazda hedef kaynakları ve ilgili eval'leri yeniden oku; önemli kararları uygulamadan önce ilgili spec'e bağla. Bu plan mevcut accepted spec'leri sessizce geçersiz kılmaz.
@@ -257,7 +271,26 @@ Kapanış politikası:
 | Seçici uzmanlaşma | 5 | Yalnızca faydası gösterilen roller, risk temelli çağrı. |
 | Paralel uygulama | 6 | İzole dilimler ve entegre revizyon üzerinden kapanış. |
 
-**İlk uygulanacak iş:** Faz 1'in sonuç sözleşmesini spec'e bağlamak; runner-yok ve eksik-review fixture'larını baseline olarak hazırlamak. Yeni planner/tester dosyası açmak değil.
+### Açık adayların dağılımı
+
+Mimari review'ın dokuz adayı (C1–C9) ve dış survey'in üç fikri (A1–A3) bu fazlara dağılır. Kapsam dışı olanlar unutulmuş değil, ayrı iş.
+
+| Aday | Nerede |
+|---|---|
+| C1 — `.se/.active`'e yazıcı modülü | Faz 2, `.active` biçim/kind doğrulaması |
+| C2 — plan formatı için tek parser | Faz 1, `verify-phase.sh` elden geçerken |
+| C3 — slice base'ini veri olarak kaydet | Faz 1, plan blob kimliği ve kaynak commit aralığı |
+| C5 — "managed" için tek predicate | Faz 2, state ve `pre-guard` yolları |
+| C6 — `write_targets`'ı adreslenebilir yap | Faz 2, kapanışa ulaşan yolların listesi |
+| C7 — Tier-1 kaydının sahibini netleştir | Faz 1 |
+| C8 — Tier-2 kaydına yazıcı | Faz 1 |
+| C9 — eval gate'ini flow'lara yönelt | Faz 1, davranışı sına maddesi |
+| A1 — taban kontrolü (floor guard) | Faz 2 |
+| A3 — arm öncesi temiz baseline | Faz 3, izolasyon bu sorunu yeniden tanımlıyor |
+| C4 — `detect-quality` test komutunu `detect-test`'ten alsın | **Kapsam dışı.** Bağımsız defect: Makefile-only projede `CLAUDE.md` "test komutu yok" derken `auto-qa` `make test` çalıştırıp blokluyor. Bu planı beklemez. |
+| A2 — mevcut ADR konvansiyonunu tespit et | **Kapsam dışı.** `skills/adr` yalnızca charter ile `.se/adr/` arasında dallanıyor; `docs/adr/` olan projede paralel şema açıyor. Bu planın hiçbir fazına dokunmuyor. |
+
+**İlk uygulanacak iş:** Faz 1'in sonuç sözleşmesini spec'e bağlamak; runner-yok ve eksik-review baseline'ını kurmak. Runner-yok tarafı sıfırdan yazılmaz — `evals/fixtures/repos/no-tests/` mevcut ve bugünkü yanlış `pass` kaydı onun üzerinde üretilebiliyor. Yeni planner/tester dosyası açmak değil.
 
 ## Kaynaklar
 
