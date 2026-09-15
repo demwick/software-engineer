@@ -472,7 +472,23 @@ number spellings; unicode, `$`, backslash and quote in criteria; a project
 directory with a space; filenames with spaces and newlines; nine malformed
 markers; and bash 3.2 compatibility across all ten changed scripts.
 
-## 7. Limits and what was not run
+## 7. Where the evidence is
+
+- **The sample project** — `/tmp/se-e2e/todo-app`, left intact: a git repo
+  with the full `.se/` chain (intent, spec, roadmap, two plans, six
+  verification records including both `.closed.json` and the
+  `phase-2.accepted.json`), and the product itself (`todo`, `test.sh`).
+- **A copy of the artifacts and the commit log** — `/tmp/se-e2e/evidence/`.
+- **The driver** — `/tmp/se-e2e/drive.sh`. Its tmux session is stopped; no
+  worktrees were left registered in either repo (`git worktree list` shows one
+  entry each, the checkout itself).
+- **This repository** — every fix is a commit from `9f2bdc7` forward, each
+  naming the finding it closes and how it was reproduced.
+
+Nothing in the sample project or the logs carries a credential; the git
+identity used there is `tester@example.invalid`.
+
+## 8. Limits and what was not run
 
 - **The behavioural eval suites were not enabled.** `SE_BEHAVIORAL_EVALS` is
   opt-in and stayed off; the two skips in every gate run are those. Nothing
