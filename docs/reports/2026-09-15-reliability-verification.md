@@ -213,8 +213,26 @@ state-update.sh current_phase=3         → "moving current_phase forward is dec
    payload handed to a shell, interpreter or database client keeps its raw
    text — `bash -c "rm -rf /x"` and `psql -c 'DROP TABLE users'` still close.
 
+5. **The gate blocked the flow writing its own plan.** A regression from fix 2,
+   caught one step later in the same run. The flow wrote Phase 2's plan with
+   `cat > .se/plans/phase-2.md <<'EOF'`, and stripping quoted spans merged the
+   heredoc's markdown: a stray backtick became a redirect target, then
+   `-> expect` in a `Check:` line read as a redirect to a file named `expect`.
+   `dirname` of any bare word is `.`, which exists, so both passed the test
+   that is meant to separate a real target from a fragment. Fixed by dropping
+   heredoc bodies before scanning (keeping the opening line, whose `> path` is
+   real), not treating `->` as a redirect, and requiring a target to contain a
+   letter or digit.
+
 None of these is reachable from a fixture: each needed a real agent doing real
-work in a real project.
+work in a real project. Three of the five are the same mistake in different
+places — the heuristic reading text the command *carries* as text the command
+*executes* — and one of those three was introduced by the fix for another. The
+eval now pins all three shapes.
+
+Because hooks and scripts are read from disk on each invocation, fixes 2, 3
+and 5 were live for the running session: the flow hit the block, the fix
+landed, and the flow got past it without a restart.
 
 ### Scenario 2 — a documentation project with no test runner
 
