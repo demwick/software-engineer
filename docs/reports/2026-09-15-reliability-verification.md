@@ -497,8 +497,6 @@ identity used there is `tester@example.invalid`.
   `state.json` and the records can be written with `sed` or by hand. The honest
   claim is narrower: the honest path is the only easy one. An exact backstop
   belongs with the commit gate and is not built.
-- **`--accept-risk` was exercised through fixtures, not the live flow.** The
-  live run chose to fix its findings rather than accept them.
 - **`shfmt` is not installed on this host**, so one acceptance criterion of the
   sample project's Phase 3 could not be checked. The verifier reported that
   rather than passing it.
