@@ -368,10 +368,32 @@ ran mutation tests against the product and reported a silent failure:
 > first field matches — a hand-added `5<TAB>open` — passes validation, changes
 > nothing, and exits 0.
 
-At the time of writing Phase 2 was still in its fix-and-reverify loop:
-`current_phase` is 2 and there is no `phase-2.closed.json`. Reported as it
-stands rather than waited out — Phase 1 already exercised every part of the
-closing machinery, and Phase 2 repeats that path rather than adding to it.
+It returned four findings — three `major`, one `minor` — including `todo rm 1e0`
+deleting item 1, because awk compares a strnum to a number. The flow put them
+to the user, who chose to defer all four to Phase 3, and the flow said the data
+-loss risk out loud before accepting.
+
+**This is the live `--accept-risk` path**, which fixtures had covered and the
+real flow had not:
+
+```json
+// phase-2.accepted.json — written beside the review
+{ "record_version": 1, "id": "phase-2", "review_status": "partial",
+  "findings": ["major","major","major","minor"],
+  "reason": "…F4 awk strnum ile yanlış madde silme… F4'ün veri kaybı riski
+             kendisine açıkça bildirildi.",
+  "accepted_at": "2026-09-15T10:40:10Z" }
+
+// phase-2.closed.json
+{ "slice_kind": "roadmap", "from_phase": 2, "to_phase": 3,
+  "completed": false, "accepted_risk": "…" }
+```
+
+`phase-2.review.json` is byte-identical afterwards — still `partial`, still
+four findings. A human decision did not rewrite a reviewer's finding; it was
+recorded next to it, with the reason and the standing findings. Re-running the
+close prints `phase-2 is already closed; nothing to do` and leaves
+`current_phase` at 3.
 
 ## 5. What the runtime actually grants a subagent
 
