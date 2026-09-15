@@ -52,6 +52,8 @@ probe printed.
 | F2 | Every non-zero Check counted as behaviour evidence | — | `[inconclusive]` class |
 | F3 | The tool claimed to prove historical test-first ordering | — | renamed to change sensitivity |
 | G1 | A shell project with a green `./test.sh` recorded `not_run` | found live in the E2E run | `scripts/detect-test.sh` rung 9 |
+| G2 | `pre-guard` blocked a reviewer for *describing* a `mv`, then an `rm -rf`, then for writing its own plan through a heredoc | found live, three times | `hooks/pre-guard` |
+| S1–S15 | Fifteen more, from an adversarial review — see section 6 | each reproduced before the fix | `state-update.sh`, `record-check.sh`, `pre-guard`, `plan-validate.sh`, `write-review.sh`, `verify-phase.sh`, `session-start` |
 
 ## 2. Policy and spec changes
 
@@ -76,7 +78,7 @@ probe printed.
 
 ## 3. Deterministic commands and results
 
-Run at plugin revision `fbf2391`, working tree clean.
+Run at the final revision, working tree clean.
 
 ```
 bash evals/run.sh                 →  51 passed, 0 failed, 2 skipped
@@ -399,7 +401,56 @@ open by design because the flows write there constantly.
 states the limit as behavioural rather than implying a sandbox, and no longer
 depends on a `Grep` tool that may not be granted.
 
-## 6. Limits and what was not run
+## 6. Independent adversarial review
+
+After the implementation was complete, a separate agent was asked to break it,
+with instructions not to fix anything — findings come back, patches do not. It
+built fixtures and ran the real scripts rather than reading them, and returned
+fifteen findings, every one reproduced. All fifteen are fixed; each was
+re-reproduced before the fix and re-run after.
+
+| # | Finding | Severity |
+|---|---|---|
+| S1 | `--close-slice phase-1 completed=true current_phase=5` — the guard lived in the close branch's `else`, so the close laundered the keys it guards. A five-phase project jumped to finished. flow-light *prescribes* appending `last_commit=` to that call | HIGH |
+| S2 | A roadmap heading the regex missed downgraded a phase close to ad-hoc — exit 0, no advance — and the close record then made every retry a no-op. The project could never advance again by any route | HIGH |
+| S3 | git reports repo-root-relative paths; the artifact test matched project-relative ones, so a monorepo package read its own `.se/` files as source drift and could never close | HIGH |
+| S4 | `current_phase="4"` is a string, not a number; every reader coerced it back to 4. `completed=1` and `completed="true"` merged the same way | MEDIUM |
+| S5 | `severity` had no enum, so a finding marked `critical` was invisible to the verdict rules and closed a slice a correctly-spelled `blocker` would have stopped | MEDIUM |
+| S6 | Anchoring a write verb at segment start missed ten real vectors — `find -exec sed -i`, `FOO=1 cp`, `env cp`, `timeout 5 cp`, `sudo -u x cp`, brace groups, subshells, `then`/`do` bodies — plus `awk`/`bq`/`duckdb` payloads, and `git` matched as a literal token so `/usr/bin/git push --force` walked past every git gate | MEDIUM |
+| S7 | `total_phases` was the unguarded denominator: shrink it and a legitimate close declares an unfinished project complete | MEDIUM-LOW |
+| S8 | Quoted spans were stripped *after* the `;|&` split, so a commit message containing `&` resurrected the prose false positive | LOW |
+| S9 | `1>` and `>|` are redirects and were not matched | LOW |
+| S10 | `session-start` read the marker's slice id and never used it, and was silent on the commonest interrupt — reviewed but not closed | LOW |
+| S11 | `git rev-parse HEAD` prints the literal `HEAD` on an unborn branch, so the record named a revision no close could accept | LOW |
+| S12 | `git stash` and `.gitignore` launder source drift | LOW |
+| S13 | A plan listing the same criterion twice cleared the "at least 2" floor at every gate while the review judged one | LOW |
+| S14 | `write-review.sh` failed open when `record-check.sh` was absent while the close failed closed | LOW |
+| S15 | Four doc/code contradictions | NIT |
+
+S12 is the one not fixed: `git stash` empties the tree so a refused close
+succeeds, and a source file added to `.gitignore` is never reported as drift.
+Both are ordinary git, neither has a cheap fix, and both are now written into
+the spec as ceilings. What did follow is a wording change — where the plugin
+tells a model the tree is dirty it says commit it, never stash it, because
+that sentence sat one association away from the laundering.
+
+Three of the fifteen (S6, S8, S9) were regressions from this work's own
+earlier fixes, which is the same pattern the E2E found: each narrowing of the
+guard to stop reading prose as shell opened a way to hide shell in prose.
+
+**What the reviewer could not break**, each actually run: Tier-1 `fail` beating
+a `pass` review; `tests_assessment: insufficient`; a correctly-spelled blocker
+beside a `pass`; `review: incomplete`; an `unverified` criterion; a subset
+review; another slice's records; `record_version` ≠ 1; every `--accept-risk`
+rescue attempt; `criteria: null`/object/missing, `status` as an array,
+`source: null`, a 200 KB evidence string — with nothing partial ever landing on
+disk; an interrupt forced by `chmod 555 .se` between the close record and the
+state write, which resumed and advanced exactly once; every drift shape; seven
+number spellings; unicode, `$`, backslash and quote in criteria; a project
+directory with a space; filenames with spaces and newlines; nine malformed
+markers; and bash 3.2 compatibility across all ten changed scripts.
+
+## 7. Limits and what was not run
 
 - **The behavioural eval suites were not enabled.** `SE_BEHAVIORAL_EVALS` is
   opt-in and stayed off; the two skips in every gate run are those. Nothing
