@@ -49,7 +49,6 @@ NONSE="$(mktemp -d)"
 assert_eq "$(rc "$NONSE" '{"tool_name":"Bash","tool_input":{"command":"git push --force"}}')" 0 "non-SE dir skipped"
 rm -rf "$NONSE"
 
-echo "PASS: pre-guard destructive-op guard"
 
 # --- describing a destructive command is not running one --------------------
 # Observed live, twice: a reviewer put `rm -rf` into a finding and the guard

@@ -213,6 +213,19 @@ case "$TOOL" in
 
         if [ "$CHARTER" = "false" ]; then
             REASON=""
+            # A reviewer that reports "the installer runs rm -rf /opt/foo" is
+            # describing a defect, not running one — and a guard that blocks
+            # the sentence rewrites the review. Observed live: the reviewer
+            # spent turns rewording findings to get past this. So the scan runs
+            # on the command with quoted spans removed.
+            #
+            # A quoted payload handed to a shell or an interpreter is not
+            # prose, so those keep their raw text: `bash -c "rm -rf /x"` is a
+            # destructive command wearing quotes.
+            DESTRUCTIVE_SCAN=$(printf '%s' "$CMD" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
+            if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]|;&(])(bash|sh|zsh|ksh|dash|eval|xargs|python3?|perl|ruby|node|psql|mysql|sqlite3)([[:space:]]|$)'; then
+                DESTRUCTIVE_SCAN="$CMD"
+            fi
             if git_has_subcommand "$CMD" push \
                && printf '%s' "$CMD" | grep -Eq '(--force-with-lease|--force)([[:space:]]|=|$)|[[:space:]]-f([[:space:]]|$)'; then
                 REASON="force-push rewrites published history"
@@ -231,9 +244,9 @@ case "$TOOL" in
             elif git_has_subcommand "$CMD" tag \
                  && printf '%s' "$CMD" | grep -Eq '[[:space:]](-d|--delete)([[:space:]]|$)'; then
                 REASON="git tag -d deletes a tag"
-            elif printf '%s' "$CMD" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
+            elif printf '%s' "$DESTRUCTIVE_SCAN" | grep -Eiq '\b(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA)|TRUNCATE[[:space:]]+TABLE)\b'; then
                 REASON="a destructive SQL statement (DROP/TRUNCATE) is irreversible"
-            elif printf '%s' "$CMD" | grep -Eq 'rm[[:space:]]+-[a-z]*r[a-z]*f|rm[[:space:]]+-[a-z]*f[a-z]*r'; then
+            elif printf '%s' "$DESTRUCTIVE_SCAN" | grep -Eq 'rm[[:space:]]+-[a-z]*r[a-z]*f|rm[[:space:]]+-[a-z]*f[a-z]*r'; then
                 if printf '%s' "$CMD" | grep -Evq 'node_modules|/dist|/build|/target|\.venv|__pycache__|\.pytest_cache|/coverage|\.next|\.turbo'; then
                     REASON="rm -rf on a non-cache path can destroy work"
                 fi
