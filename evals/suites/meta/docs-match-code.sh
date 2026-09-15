@@ -108,4 +108,16 @@ SPEC_CALLS=$(grep -c 'Invoke `/spec`' "$REPO_ROOT/skills/triage/references/flow-
 grep -qF 'roadmap.md' "$REPO_ROOT/skills/triage/references/flow-full.md" \
     || fail "flow-full Step 0 must test for roadmap.md, not merely .se/"
 
+# --- 8. one definition of which paths are the flow's own --------------------
+# pre-guard decides what an agent may write without a plan; record-check
+# decides what invalidates a plan's evidence. Those have to be the same set,
+# or an agent writes a path the gate allows and the close then calls its own
+# evidence stale — which is what a live run did with .claude/agent-memory/.
+pg_set="$(sed -n 's/^ *\(\.se|.*\)) return 0 ;;$/\1/p' "$REPO_ROOT/hooks/pre-guard" | head -1)"
+rc_set="$(sed -n 's/^ *\(\.se|.*\)) return 0 ;;$/\1/p' "$REPO_ROOT/scripts/record-check.sh" | head -1)"
+[ -n "$pg_set" ] || fail "could not read pre-guard's open-path set"
+[ "$pg_set" = "$rc_set" ] || fail "pre-guard and record-check disagree on the flow-owned paths:
+  pre-guard:     $pg_set
+  record-check:  $rc_set"
+
 echo "PASS: the runtime docs match the code"

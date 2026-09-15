@@ -151,9 +151,15 @@ check_same_source() {  # <tier1> <tier2>
 # cannot change what a test exercised, so they never stale the evidence —
 # which is what keeps an artifact-only close commit from invalidating the
 # very records it is committing.
+# This list is `pre-guard`'s is_open() — the paths the flow and its agents
+# write while working. They are the same set for the same reason: a path the
+# gate lets an agent write without a plan cannot be a path whose change
+# invalidates a plan's evidence. Observed live: a reviewer wrote its own
+# .claude/agent-memory/ notes while reviewing, and the close then refused its
+# own review as stale.
 is_artifact_path() {
     case "$1" in
-        .se|.se/*|CLAUDE.md) return 0 ;;
+        .se|.se/*|CLAUDE.md|.gitignore|.claude|.claude/*) return 0 ;;
         *) return 1 ;;
     esac
 }
