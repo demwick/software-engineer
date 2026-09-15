@@ -137,15 +137,26 @@ write_targets() {
     # which for a single-command string is the whole command.
     printf '%s\n' "$1" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
         [ -n "$seg" ] || continue
-        # Output redirection: `> path`, `>> path`. Skip fd dups (2>&1, >&2).
-        printf '%s\n' "$seg" \
+        # A `>` inside quotes is prose, not a redirect — a review finding that
+        # says "writes its log with > path" named a file it never touched, and
+        # the gate blocked the reviewer for describing the bug. Scan the
+        # segment with quoted spans removed. Interpreter one-liners keep their
+        # own detection below, which reads the unstripped segment, so a write
+        # hidden inside `python3 -c "..."` is still caught.
+        unquoted=$(printf '%s\n' "$seg" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
+        printf '%s\n' "$unquoted" \
             | grep -oE '(^|[^0-9<>&])>>?[[:space:]]*[^[:space:]<>&|;]+' 2>/dev/null \
             | sed -E 's/.*>>?[[:space:]]*//'
         # In-place editors, copiers, interpreter one-liners: every non-flag
         # token that names something on disk, or a new file in a directory
         # that exists. The existence test is what separates a real target
         # from a sed script (`s/a/b/`) or a regex that merely looks like one.
-        if printf '%s\n' "$seg" | grep -qE '(^|[[:space:]])(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
+        #
+        # The verb has to be in command position. Matching it anywhere meant
+        # any sentence containing "mv <path>" — a commit message, a jq --arg,
+        # an echoed note — read as a write to that path. Segments are already
+        # split on ; | &, so command position is the start of one.
+        if printf '%s\n' "$seg" | grep -qE '^[[:space:]]*(sudo[[:space:]]+)?(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
             printf '%s\n' "$seg" | tr -s " \t\"'" '\n\n\n\n' \
                 | grep -vE '^-|^$' 2>/dev/null | grep -E '/|\.' 2>/dev/null \
                 | grep -vE '[${}!*()]|/$' 2>/dev/null \

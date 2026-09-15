@@ -66,6 +66,27 @@ assert_eq 0 "$(rc "uv pip install -r requirements.txt")"        "pip install -r 
 assert_eq 0 "$(rc "go install ./...")"                          "go install ./... open"
 assert_eq 0 "$(rc "cargo install --path .")"                    "cargo install --path . open"
 
+# --- a command that talks about writing is not a command that writes ---
+# Observed live: the verifier found a bug about a non-atomic `mv`, put that
+# sentence in a jq --arg, and pre-guard read the word `mv` inside the quoted
+# string as a write to the file the sentence named. The reviewer spent its
+# turns rewording findings to get past the gate instead of reviewing. A write
+# verb counts only in command position, and a `>` inside quotes is prose.
+assert_eq 0 "$(rc "jq -n --arg p \"replace_file uses mv src/app.js to swap the file, which is not atomic\" '{p:\$p}'")" \
+    "a finding that mentions mv <path> is not a write"
+assert_eq 0 "$(rc "jq -n --arg p \"the handler writes its log with > src/app.js and truncates it\" '{p:\$p}'")" \
+    "a finding that mentions a redirect is not a write"
+assert_eq 0 "$(rc "echo 'run cp src/app.js elsewhere to back it up'")" \
+    "an echoed instruction is not a write"
+assert_eq 0 "$(rc "git commit -m 'fix: stop using tee src/app.js in the installer'")" \
+    "a commit message that names a write verb is not a write"
+
+# The real vectors still close, including the ones that live in quotes.
+assert_eq 2 "$(rc "npm test && cp /tmp/x src/app.js")"          "still blocked: cp after &&"
+assert_eq 2 "$(rc "echo x | tee src/app.js")"                   "still blocked: tee after a pipe"
+assert_eq 2 "$(rc "python3 -c \"open('src/app.js','w').write('x')\"")" \
+    "still blocked: an interpreter one-liner whose write lives inside quotes"
+
 # --- armed: the same writes go through ---
 printf '{"kind":"planned","id":"x","files":[]}' > "$W/.se/.active"
 assert_eq 0 "$(rc "sed -i '' 's/Hello/Hi/' src/app.js")"         "armed: sed -i allowed"
