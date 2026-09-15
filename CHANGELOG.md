@@ -13,6 +13,58 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Verification is evidence-based
+
+A slice closes because its evidence says so, or it does not close.
+Specs: `docs/specs/2026-09-15-verification-contract.md`,
+`docs/specs/2026-09-15-evidence-gated-closing.md` (+ amendment),
+`docs/specs/2026-09-15-marker-and-resume.md`.
+Verification report: `docs/reports/2026-09-15-reliability-verification.md`.
+
+**Added**
+
+- `scripts/record-check.sh` — the one place that decides whether verification
+  evidence is usable. `write-review.sh` and `--close-slice` both call it.
+- `scripts/write-review.sh` — the Tier-2 record's writer; validates before it
+  writes, so a rejected review leaves no file.
+- `scripts/arm-gate.sh` — the single writer and validator of `.se/.active`.
+- `state-update.sh --close-slice <id> [--accept-risk "<reason>"]` — the only
+  forward path through a phase, and idempotent.
+- `detect-test.sh` rung 9: an executable `./test.sh` or `./run-tests.sh`.
+
+**Changed**
+
+- Tier-1 and Tier-2 records carry `record_version`, a `tests` block, per-criterion
+  status with evidence, and a `source` binding to the plan blob and commit.
+  `unmet_criteria[]` is gone — it duplicated `criteria[]`.
+- A test report that contradicts itself (`passed` with a non-zero exit, with no
+  command, `failed` with exit 0) records `not_run` and reads `incomplete`.
+- `completed` and any forward `current_phase` are refused through the generic
+  `KEY=VALUE` path, compared as parsed numbers so `2e0` and `1.5` cannot slip
+  through.
+- A malformed `.se/.active` reads as no marker.
+- `session-start` reports the unfinished slice and any unclosed verification
+  instead of clearing the markers silently.
+- Full-flow Step 0 distinguishes a finished bootstrap from an interrupted one;
+  `/spec` has one invoker.
+- `red-proof.sh` measures in an isolated worktree, separates infrastructure
+  failures as `[inconclusive]`, and is named for what it measures — change
+  sensitivity, not when a test was written.
+- `pre-guard`: a write verb counts only in command position, and `rm -rf`,
+  `DROP TABLE` and `>` inside quotes are prose. Both were blocking a reviewer
+  from *describing* a defect.
+- Instruction budget 48 KB → 56 KB, rationale in
+  `evals/suites/agents/prompt-quality.sh`.
+
+**Fixed**
+
+- A project with no test runner recorded `tests passed`.
+- A `pass` review carrying a blocker, evidence-free `met` criteria, empty or
+  invented criteria, and reviews that did not cover the plan all closed slices.
+- Evidence produced before the source changed still closed the slice.
+- Closing the same slice twice advanced the phase twice.
+- A shell project with a green `./test.sh` recorded `not_run`.
+
 ## [5.0.0] — 2026-09-04
 
 Rebuilt around Anthropic's *AI-Native SDLC Playbook* (stages 1–4) for Opus 5.

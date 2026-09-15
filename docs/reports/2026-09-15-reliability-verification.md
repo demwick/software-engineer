@@ -155,7 +155,33 @@ mid-slice. The flow noticed, read the progress file, and continued from task 4
 rather than restarting — the resume path exercised by the runtime rather than
 by a fixture.
 
-### Three defects the E2E found that the eval suite could not
+| Gate | `record-check` refused the close: `the review verdict is partial` (exit 7) |
+| Fix round | the flow fixed the findings, re-ran the verifier, and the second pass returned one `major` |
+| Second gate | refused again (exit 7) until that major was fixed too |
+| Close | `phase-1.closed.json` written, `current_phase` 1 → 2, `accepted_risk: null` |
+
+**The close record the live flow produced:**
+
+```json
+{ "record_version": 1, "id": "phase-1", "slice_kind": "roadmap",
+  "from_phase": 1, "to_phase": 2, "completed": false,
+  "source": { "plan_blob": "797ebce…", "head_commit": "5c2c4e8…" },
+  "accepted_risk": null, "closed_at": "2026-09-15T10:11:55Z" }
+```
+
+Final review: `status: pass`, `review: complete`, 8/8 criteria `met`, findings
+down to two `minor` and a `nit`.
+
+**Closing twice and the guarded key, against that live project:**
+
+```
+state-update.sh --close-slice phase-1   → "phase-1 is already closed; nothing to do"
+                                          current_phase still 2
+state-update.sh current_phase=3         → "moving current_phase forward is decided
+                                           by the evidence" ; current_phase still 2
+```
+
+### Four defects the E2E found that the eval suite could not
 
 1. **A green project recorded `not_run`.** The todo CLI had 27 passing
    assertions in `./test.sh` and `detect-test.sh` returned nothing, so the
@@ -178,6 +204,14 @@ by a fixture.
    because `.claude/` is on its always-open list — and `record-check.sh`
    counted those files as changed source. Two definitions of one idea had
    drifted. Fixed, and an eval now compares the two case statements directly.
+
+4. **The destructive-op guard blocked the reviewer too.** Later in the same
+   run the verifier reported that an installer runs `rm -rf`, and the guard
+   matched those words inside the quoted argument: *"Rewording rm -rf in
+   findings payload"*. Same class as defect 2, a different guard. The `rm -rf`
+   and SQL scans now run on the command with quoted spans removed, while a
+   payload handed to a shell, interpreter or database client keeps its raw
+   text — `bash -c "rm -rf /x"` and `psql -c 'DROP TABLE users'` still close.
 
 None of these is reachable from a fixture: each needed a real agent doing real
 work in a real project.

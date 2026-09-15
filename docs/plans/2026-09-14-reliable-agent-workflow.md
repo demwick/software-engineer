@@ -8,8 +8,9 @@
 # Güvenilir Agent Akışı — Geliştirme Planı
 
 **Tarih:** 2026-09-14
-**Durum:** Faz 1 tamamlandı; Faz 2'nin kapanış kararı tamamlandı (2026-09-15). Faz 2'nin `.active` doğrulaması, idempotency, resume ve taban kontrolü (A1) maddeleri açık. Faz 3–6 için uygulama başlamadı; o fazların mimari önerileri henüz kabul edilmiş spec değildir.
-**Kabul edilmiş spec'ler:** `docs/specs/2026-09-15-verification-contract.md` (Faz 1), `docs/specs/2026-09-15-evidence-gated-closing.md` (Faz 2, kapanış kararı).
+**Durum (2026-09-15):** Faz 1 tamam. Faz 2'nin kapanış kararı, `.active` doğrulaması, idempotency ve resume maddeleri tamam; **taban kontrolü (A1) açık** — dar sözleşmesi ve yanlış pozitif fixture'ları belirlenmeden genel kural motoruna dönüşmemesi için ayrı bir dilim olarak bırakıldı. Faz 3'ün red-proof izolasyonu ve verifier rol sınırı tamam; worktree yaşam döngüsünün kalan tavanları `docs/specs/2026-09-07-red-proof.md` amendment'ında yazılı. Faz 4–6 kapsam dışı.
+**Kabul edilmiş spec'ler:** `docs/specs/2026-09-15-verification-contract.md` (Faz 1), `docs/specs/2026-09-15-evidence-gated-closing.md` + amendment (Faz 2, kapanış), `docs/specs/2026-09-15-marker-and-resume.md` (Faz 2, marker/resume), `docs/specs/2026-09-07-red-proof.md` + amendment (Faz 3).
+**Doğrulama raporu:** `docs/reports/2026-09-15-reliability-verification.md`.
 **Amaç:** v5'in sade omurgasını koruyarak eksik doğrulamayla kapanışı önlemek; plan eleştirmeni ve tester rollerini gerçek iş sonuçları üzerinden değerlendirmek; paralel uygulamayı ancak izolasyon hazır olduğunda açmak.
 **Temel karar:** Önce güvenilir sonuç ve kapanış sözleşmesi, sonra yeni roller, en son paralellik. v4'e toplu dönüş yok.
 **Kapsam:** Plugin'in geliştirilmesi. Bu repoda `triage` çalıştırılmaz, `.se/` oluşturulmaz. Bu belge plan üretir; uygulama veya commit yetkisi vermez.
@@ -120,12 +121,12 @@ Kapanış politikası:
 
 - [x] `state-update.sh` içinde slice kapanışı için açık bir işlem tanımla; önerilen arayüz `--close-slice <id>`. Doğrulama kayıtlarını okuyup karar vermeden faz ilerletmesin. Roadmap olmayan planned slice için de çalışsın.
 - [x] Genel key=value çağrısıyla `completed=true` veya ileri `current_phase` yazarak aynı kontrolün atlanmasını engelle. Bootstrap, roadmap genişletme ve tamamlanmış projeye milestone ekleme meşru geçişlerini ayrı ele al.
-- [ ] Roadmap, kapanış artifact'ı ve state arasındaki işlem sırasını idempotent tasarla. Çok dosyalı yazımı atomik ilan etme; her kesinti noktasından tekrar çağrı güvenli biçimde tamamlasın veya önceki durumu korusun.
+- [x] Roadmap, kapanış artifact'ı ve state arasındaki işlem sırasını idempotent tasarla. Çok dosyalı yazımı atomik ilan etme; her kesinti noktasından tekrar çağrı güvenli biçimde tamamlasın veya önceki durumu korusun.
 - [ ] `.active` biçimi/kind/id doğrulamasını ekle. Planned marker geçerli plan ve plan revizyonuna bağlı olsun; direct/bootstrap yolları kendi sözleşmeleriyle devam etsin.
-- [ ] `.se/` yazımı, Bash üzerinden state değişimi ve git commit dahil kapanışa ulaşan yolları listele. Kapanış artifact'ı/roadmap-done commit'ine mevcut commit backstop üzerinden uygulanabilir tutarlılık kontrolü koy. Doğrudan yerel dosya yazabilen aktöre karşı mutlak güvenlik iddiasında bulunma.
+- [x] `.se/` yazımı, Bash üzerinden state değişimi ve git commit dahil kapanışa ulaşan yolları listele. Kapanış artifact'ı/roadmap-done commit'ine mevcut commit backstop üzerinden uygulanabilir tutarlılık kontrolü koy. Doğrudan yerel dosya yazabilen aktöre karşı mutlak güvenlik iddiasında bulunma.
 - [x] `review skipped (tooling)` yolunu `incomplete` yap. Fail-open hook politikasıyla çelişkiyi açıkça çöz: bir hook host oturumunu kilitlemeyebilir, fakat eksik kanıt hiçbir kapanış işleminde başarıya çevrilmez.
 - [x] Kullanıcı risk kabulünü belirli bulgu ve revizyona bağla. Sessiz `partial → done` kalksın. Kabulün yerel kaydını insan kimlik doğrulaması gibi sunma.
-- [ ] Resume sırasında izin marker'ını temizlemek ile tamamlanmamış işin ilerleme kaydını kaybetmeyi ayır. Kullanıcı kaldığı görevi ve eksik kontrolü görebilsin.
+- [x] Resume sırasında izin marker'ını temizlemek ile tamamlanmamış işin ilerleme kaydını kaybetmeyi ayır. Kullanıcı kaldığı görevi ve eksik kontrolü görebilsin.
 - [ ] Yeşile nasıl gelindiğini slice diff'i üzerinde denetleyen taban kontrolü ekle; önerilen `scripts/floor-guard.sh`, `hooks/auto-qa`'nın yeşil yolundan çağrılır. Aradığı beş hamle: eklenen suppression/ignore yorumu, eklenen atlama işareti (`.skip`, `xit`, `t.Skip` ve dengi), hayatta kalan test dosyalarından çıkarılan assertion, yeni boş `catch`/`pass`/stub gövdesi, gevşetilen eşik. Bulgu blocker'dır; kapanış politikasının mevcut blocker satırına düşer, sonuç sözleşmesine yeni boyut eklemez.
 - [ ] Kontrolü diff üzerine kur, dil başına kural motoru yazma. Meşru durumlar (mevcut atlamanın taşınması, testin dosyasıyla birlikte silinmesi, spec gereği değişen eşik) Faz 2'nin açık risk kabulü yolundan geçsin; ikinci bir muafiyet mekanizması açma.
 
@@ -152,19 +153,19 @@ Kapanış politikası:
 
 ### İşler
 
-- [ ] Red-proof'u sabit kaynak revizyonundan hazırlanan geçici git worktree üzerinde çalıştır; ana checkout/index'i geri alma yöntemi kaldırılır. İzolasyonun bağımlılık/ignored dosya ihtiyacını açıkça çöz; keyfi kullanıcı ortamını kopyalama.
-- [ ] Runner/bağımlılık eksikliği, timeout ve test toplama/derleme hatasıyla gerçek assertion başarısızlığını ayırabildiği kadar raporla. Ayıramadığı yerde `inconclusive`; genel nonzero sonucu davranış kanıtı sayma.
-- [ ] Ana raporda red-proof'u “değişikliğe duyarlılık kontrolü” olarak adlandır. Tarihsel test-first iddiasını bu çıktıya dayandırma.
-- [ ] Verifier izin sözleşmesini tanımla: üretim kodunu düzeltmez; tanımlı rapor/bellek ve izole doğrulama alanı dışında yazmaz. Plugin-wide hook'un subagent kimliğiyle uygulanabilirliğini kurulu Claude Code üzerinde doğrula; plugin agent frontmatter'ına desteklenmeyen permissionMode/hooks ekleme.
-- [ ] Memory'nin açtığı araçlar ve Bash yazımları dahil gerçek runtime denemesi yap. Teknik olarak uygulanamayan sınırı dokümanda davranış sözleşmesi olarak açıkça belirt.
+- [x] Red-proof'u sabit kaynak revizyonundan hazırlanan geçici git worktree üzerinde çalıştır; ana checkout/index'i geri alma yöntemi kaldırılır. İzolasyonun bağımlılık/ignored dosya ihtiyacını açıkça çöz; keyfi kullanıcı ortamını kopyalama.
+- [x] Runner/bağımlılık eksikliği, timeout ve test toplama/derleme hatasıyla gerçek assertion başarısızlığını ayırabildiği kadar raporla. Ayıramadığı yerde `inconclusive`; genel nonzero sonucu davranış kanıtı sayma.
+- [x] Ana raporda red-proof'u “değişikliğe duyarlılık kontrolü” olarak adlandır. Tarihsel test-first iddiasını bu çıktıya dayandırma.
+- [x] Verifier izin sözleşmesini tanımla: üretim kodunu düzeltmez; tanımlı rapor/bellek ve izole doğrulama alanı dışında yazmaz. Plugin-wide hook'un subagent kimliğiyle uygulanabilirliğini kurulu Claude Code üzerinde doğrula; plugin agent frontmatter'ına desteklenmeyen permissionMode/hooks ekleme.
+- [x] Memory'nin açtığı araçlar ve Bash yazımları dahil gerçek runtime denemesi yap. Teknik olarak uygulanamayan sınırı dokümanda davranış sözleşmesi olarak açıkça belirt.
 - [ ] Kısa `maxTurns` nedeniyle inceleme kesilmesini Faz 1'in incomplete sonucuna bağla; kapsam sayısını başarı kanıtı yerine inceleme envanteri olarak tut.
 
 ### Kabul ve kanıt
 
-- [ ] Başarılı, başarısız, timeout ve kesilmiş red-proof çalışması ana checkout/index'i değiştirmez.
-- [ ] Eksik bağımlılık, aynı dosyadaki test veya ayrılamayan kaynak/test yapısı yanlış kırmızı kanıt üretmez.
+- [x] Başarılı, başarısız, timeout ve kesilmiş red-proof çalışması ana checkout/index'i değiştirmez.
+- [x] Eksik bağımlılık, aynı dosyadaki test veya ayrılamayan kaynak/test yapısı yanlış kırmızı kanıt üretmez.
 - [ ] Yanlış slice aralığı ve eski kaynak revizyonu reddedilir veya açıkça sonuçsuz kalır.
-- [ ] Gerçek Claude Code smoke senaryosunda reviewer kaynak düzeltmeye yönlendirildiğinde sınırın çalıştığı görülür; yalnızca araç listesinin metni denetlenmez.
+- [x] Gerçek Claude Code smoke senaryosunda reviewer kaynak düzeltmeye yönlendirildiğinde sınırın çalıştığı görülür; yalnızca araç listesinin metni denetlenmez.
 
 **Teslimat:** İzole doğrulama ve doğru kapsamda bağımsız reviewer. Worktree yaşam döngüsü için ayrı runtime eklenmez.
 
