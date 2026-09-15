@@ -329,6 +329,15 @@ review phase-1 '.tests_assessment = {status:"insufficient", reason:"the HTTP beh
 assert_eq 7 "$(rc phase-1)" "an insufficient assessment does not close"
 assert_eq 1 "$(phase)" "and does not advance"
 
+# ============== the caller's own keys survive the close ======================
+# The flow passes last_commit alongside --close-slice. An implementation that
+# rebuilds the argument list instead of prepending to it drops that silently.
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+( cd "$W" && git add -A && git commit -qm "chore(se): artifacts" ) >/dev/null
+assert_eq 0 "$(rc phase-1 last_commit=deadbeef)" "the close accepts extra key=value pairs"
+assert_jq "$(cat "$W/.se/state.json")" '.last_commit' '== "deadbeef"'     "the caller's last_commit reaches the state file"
+assert_jq "$(cat "$W/.se/state.json")" '.current_phase' '== 2' "and the phase still advanced"
+
 # ================================ the guarded keys ===========================
 g()    { local c=0; bash "$SU" --project-dir "$W" "$@" >/dev/null 2>&1 || c=$?; echo "$c"; }
 gmsg() { bash "$SU" --project-dir "$W" "$@" 2>&1 >/dev/null || true; }

@@ -49,7 +49,7 @@ bash evals/suites/hooks/pre-guard-active-gate.sh         # one suite
 SE_BEHAVIORAL_EVALS=1 bash evals/suites/behavioral/instruction-noop.sh   # model-upgrade gate, opt-in
 ```
 
-`evals/suites/agents/prompt-quality.sh` asserts the prompt surface: exactly the v5 agents, hooks, contracts, none of the retired blocks, and the instruction budget (48 KB across `agents/` + `skills/`). An `ABSORBED` verdict from the behavioral gate names a block to cut; retire its fixture with it.
+`evals/suites/agents/prompt-quality.sh` asserts the prompt surface: exactly the v5 agents, hooks, contracts, none of the retired blocks, and the instruction budget (56 KB across `agents/` + `skills/`; raised from 48 KB on 2026-09-15 for the record and marker contracts — the rationale is in the suite, and moving it without one turns the gate into a rubber stamp). An `ABSORBED` verdict from the behavioral gate names a block to cut; retire its fixture with it.
 
 Live testing: `claude --plugin-dir "$(pwd)"`, then `TESTING.md`. `--debug-file /tmp/sea.log` when hooks misbehave.
 

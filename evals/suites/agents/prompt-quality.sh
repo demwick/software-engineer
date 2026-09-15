@@ -65,6 +65,14 @@ grep -q 'plan-validate\.sh' skills/triage/references/flow-light.md || fail "flow
 
 # --- instruction budget ---
 bytes=$(cat agents/*.md skills/*/SKILL.md skills/*/references/*.md 2>/dev/null | wc -c | tr -d ' ')
-[ "$bytes" -lt 49152 ] || fail "agents + skills instruction text is ${bytes} bytes; the v5 budget is 48 KB"
+# Raised 48 KB -> 56 KB on 2026-09-15. The 48 KB figure was set for a surface
+# with no shared record contracts; Phase 1 and 2 added the ones a model cannot
+# infer — the Tier-1/Tier-2 shapes, tests_assessment, the marker's writer, the
+# measured subagent tool surface. Those are preference under Hard Rule 9 and
+# do not expire on a model upgrade. The gate exists to catch sprawl, not to
+# force live contracts out; it moves with a reason recorded here, which is the
+# only thing keeping it from becoming a rubber stamp. A no-op pass ran first:
+# prose restating rules record-check.sh already enforces was cut.
+[ "$bytes" -lt 57344 ] || fail "agents + skills instruction text is ${bytes} bytes; the budget is 56 KB"
 
 echo "PASS: v5 prompt surface is intact (${bytes} bytes of instruction)"
