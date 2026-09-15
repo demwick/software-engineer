@@ -87,6 +87,29 @@ assert_eq 2 "$(rc "echo x | tee src/app.js")"                   "still blocked: 
 assert_eq 2 "$(rc "python3 -c \"open('src/app.js','w').write('x')\"")" \
     "still blocked: an interpreter one-liner whose write lives inside quotes"
 
+# --- a heredoc body is data, not command syntax ---------------------------
+# Regression from the quote-stripping fix above: stripping quoted spans across
+# a multi-line heredoc merged its prose, and a stray `>` in markdown followed
+# by a backtick was extracted as a write target of "`". dirname of any bare
+# word is ".", which exists, so the gate blocked a flow writing its own plan.
+# Observed live: "no active SE work — writing ` is gated".
+PLAN_HEREDOC="cat > .se/plans/phase-2.md <<'EOF'
+# Plan: phase 2
+## Tasks
+### Task 1: do it
+- Check: \`bash tests/t.sh\` -> expect \`0 failed\`
+- Note: pipe it with a > b if you must
+EOF"
+assert_eq 0 "$(rc "$PLAN_HEREDOC")" "a flow writing its own plan through a heredoc is not gated"
+
+# A target has to look like one: punctuation alone is not a path.
+assert_eq 0 "$(rc "echo 'see \`x\` -> \`y\`' > .se/notes.md")" "backticks in prose do not become targets"
+
+# And a heredoc that really does write project code is still blocked.
+assert_eq 2 "$(rc "cat > src/app.js <<'EOF'
+const x = 1;
+EOF")"                                                          "still blocked: a heredoc into project code"
+
 # --- armed: the same writes go through ---
 printf '{"kind":"planned","id":"x","files":[]}' > "$W/.se/.active"
 assert_eq 0 "$(rc "sed -i '' 's/Hello/Hi/' src/app.js")"         "armed: sed -i allowed"

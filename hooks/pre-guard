@@ -133,9 +133,22 @@ gate_path() {
 # already reaching for project code while nothing was armed, which is the
 # case this gate exists for.
 write_targets() {
+    # A heredoc body is data the command carries, not syntax it executes.
+    # Scanning it reads prose as shell: a plan written with `cat > plan.md
+    # <<EOF` is markdown, and `-> expect` in it became a write to "expect".
+    # Keep the line that opens the heredoc — its `> path` is a real redirect —
+    # and drop the body up to the delimiter.
+    stripped=$(printf '%s\n' "$1" | awk '
+        d != "" { if ($0 == d) { d = "" } ; next }
+        { if (match($0, /<<-?[ \t]*[\x27"]?[A-Za-z_][A-Za-z0-9_]*[\x27"]?/)) {
+              t = substr($0, RSTART, RLENGTH)
+              gsub(/^<<-?[ \t]*/, "", t); gsub(/[\x27"]/, "", t)
+              d = t
+          }
+          print }')
     # The trailing newline matters: without it `read` drops the last segment,
     # which for a single-command string is the whole command.
-    printf '%s\n' "$1" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
+    printf '%s\n' "$stripped" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
         [ -n "$seg" ] || continue
         # A `>` inside quotes is prose, not a redirect — a review finding that
         # says "writes its log with > path" named a file it never touched, and
@@ -144,9 +157,16 @@ write_targets() {
         # own detection below, which reads the unstripped segment, so a write
         # hidden inside `python3 -c "..."` is still caught.
         unquoted=$(printf '%s\n' "$seg" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
+        # A redirect target is a path. Excluding backticks, quotes and parens
+        # from the capture, and requiring a letter or digit in what is left,
+        # is what keeps prose out: stripping quotes across a heredoc body
+        # merges its markdown, and a stray `>` before a backtick used to be
+        # extracted as a write to "`" — dirname of any bare word is ".", which
+        # exists, so the gate blocked a flow writing its own plan.
         printf '%s\n' "$unquoted" \
-            | grep -oE '(^|[^0-9<>&])>>?[[:space:]]*[^[:space:]<>&|;]+' 2>/dev/null \
-            | sed -E 's/.*>>?[[:space:]]*//'
+            | grep -oE '(^|[^0-9<>&])>>?[[:space:]]*[^[:space:]<>&|;`'"'"'"()]+' 2>/dev/null \
+            | sed -E 's/.*>>?[[:space:]]*//' \
+            | grep -E '[[:alnum:]]' 2>/dev/null
         # In-place editors, copiers, interpreter one-liners: every non-flag
         # token that names something on disk, or a new file in a directory
         # that exists. The existence test is what separates a real target
