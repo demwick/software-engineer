@@ -22,6 +22,7 @@
 #   6. Gemfile mentioning rspec              → bundle exec rspec
 #   7. mix.exs                               → mix test
 #   8. deno.json / deno.jsonc                → deno test
+#   9. an executable ./test.sh or ./run-tests.sh  → bash <script>
 
 set -euo pipefail
 
@@ -98,6 +99,17 @@ if [ -f deno.json ] || [ -f deno.jsonc ]; then
     echo "deno test"
     exit 0
 fi
+
+# 9. A shell project tests with a script, not a manifest. Last rung on
+# purpose: a manifest is the project's own declared entry point and outranks a
+# script that happens to sit beside it. The executable bit (or a shebang) is
+# what separates a runner from a file called test.sh that is prose.
+for s in test.sh run-tests.sh; do
+    if [ -f "$s" ] && { [ -x "$s" ] || head -1 "$s" 2>/dev/null | grep -q '^#!'; }; then
+        echo "bash $s"
+        exit 0
+    fi
+done
 
 # Nothing matched
 exit 1
