@@ -82,3 +82,18 @@ assert_contains "$(bash "$PV" "$WORKDIR/reordered.md")" "3 criteria" \
     "all three criteria counted when the section is last"
 
 echo "PASS: plan-validate enforces the v5 plan structure"
+
+# --- two criteria means two distinct outcomes -------------------------------
+# The floor is "at least 2". plan-validate counted lines, verify-phase counted
+# array entries, and record-check compares as sets — so a plan with the same
+# criterion twice cleared every gate while the review only had to judge one.
+DUP="$(mktemp)"
+printf '# Plan: dup\n## Files\n- a.ts\n## Tasks\n### Task 1: x\n## Acceptance criteria\n- [ ] GET /x returns 200\n- [ ] GET /x returns 200\n## Risks\n- none\n## Proof\n- t\n' > "$DUP"
+rc=0; bash "$PV" "$DUP" >/dev/null 2>&1 || rc=$?
+assert_eq 4 "$rc" "a repeated acceptance criterion is rejected"
+printf '# Plan: dup\n## Files\n- a.ts\n## Tasks\n### Task 1: x\n## Acceptance criteria\n- [ ] GET /x returns 200\n- [ ]   GET /x returns 200  \n## Risks\n- none\n## Proof\n- t\n' > "$DUP"
+rc=0; bash "$PV" "$DUP" >/dev/null 2>&1 || rc=$?
+assert_eq 4 "$rc" "whitespace does not make it a different criterion"
+rm -f "$DUP"
+
+echo "PASS: plan-validate enforces the plan's shape"

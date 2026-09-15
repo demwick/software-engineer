@@ -45,6 +45,12 @@ command -v jq >/dev/null 2>&1 || emit_empty
 
 # What is half-done, from the artifacts rather than from a marker: progress the
 # executor recorded per task, and verification that never reached a close.
+# The marker named the slice the last turn was armed for. Reading it before
+# clearing it is the whole point; saying so is what makes the clear visible.
+MARKER_LINE=""
+[ -n "$INTERRUPTED" ] && MARKER_LINE="
+- The last session ended with slice ${INTERRUPTED} still armed. Its gate marker was cleared; arming comes first if you resume it"
+
 RESUME_LINES=""
 for pf in "${STATE_DIR}"/plans/*.progress.json; do
     [ -f "$pf" ] || continue
@@ -63,9 +69,17 @@ for vf in "${STATE_DIR}"/verification/*.json; do
     [ -n "$vid" ] || continue
     [ -f "${STATE_DIR}/verification/${vid}.closed.json" ] && continue
     case "$vst" in
-        pass) [ -f "${STATE_DIR}/verification/${vid}.review.json" ] \
-                || RESUME_LINES="${RESUME_LINES}
-- Slice ${vid} passed Tier 1 and has no review yet. Run the verifier, then close it" ;;
+        pass)
+            if [ -f "${STATE_DIR}/verification/${vid}.review.json" ]; then
+                # The commonest interrupt: reviewed, and the turn ended before
+                # the close ran.
+                RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} is verified and reviewed but never closed. Run state-update.sh --close-slice ${vid}"
+            else
+                RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} passed Tier 1 and has no review yet. Run the verifier, then close it"
+            fi
+            ;;
         fail|incomplete) RESUME_LINES="${RESUME_LINES}
 - Slice ${vid} is recorded ${vst} and is not closed. Re-run its checks before anything else" ;;
     esac
@@ -107,7 +121,7 @@ Current state:
 - Active phase: ${PHASE_NAME}
 - Last session: ${LAST_SESSION}
 - Last commit: ${LAST_COMMIT}${STEP_LINE}
-- Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}${RESUME_LINES}
+- Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}${MARKER_LINE}${RESUME_LINES}
 
 Every engineering request goes through the triage skill: it decides the
 depth (direct / planned slice / full flow), writes the artifacts under

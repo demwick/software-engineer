@@ -58,6 +58,18 @@ if [ "$COUNT" -lt 2 ]; then
     exit 4
 fi
 
+# Two criteria means two distinct outcomes. Counting lines let the same
+# criterion appear twice and clear the floor at every gate downstream:
+# verify-phase counts array entries, and record-check compares coverage as
+# sets, so the review only had to judge one of them.
+NORM=$(printf '%s\n' "$CRITERIA" | sed -E 's/^- (\[[ xX]\] )?//; s/[[:space:]]+/ /g; s/^ //; s/ $//')
+DUPES=$(printf '%s\n' "$NORM" | grep -v '^$' | sort | uniq -d || true)
+if [ -n "$DUPES" ]; then
+    echo "plan-validate: an acceptance criterion is repeated — two criteria means two distinct outcomes:" >&2
+    printf '%s\n' "$DUPES" >&2
+    exit 4
+fi
+
 BANNED="works correctly|functions properly|is implemented|should work|behaves as expected|works well"
 VAGUE=$(printf '%s\n' "$CRITERIA" | grep -iE "$BANNED" || true)
 if [ -n "$VAGUE" ]; then

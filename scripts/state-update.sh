@@ -22,8 +22,12 @@
 # qa_gave_up). One-way and idempotent.
 #
 # Examples:
-#   bash state-update.sh current_phase=3 last_commit=a1b2c3d
-#   bash state-update.sh --project-dir /tmp/proj completed=true
+#   bash state-update.sh last_commit=a1b2c3d current_step="phase 3 pending"
+#   bash state-update.sh --project-dir /tmp/proj total_phases=5
+#   bash state-update.sh --close-slice phase-2 last_commit=a1b2c3d
+#
+# `completed` and a forward `current_phase` are not writable here — they are
+# the close's decision. See --close-slice.
 #
 # --close-slice is the only forward path through a phase: it reads the slice's
 # verification records and advances only on evidence. `completed` and any

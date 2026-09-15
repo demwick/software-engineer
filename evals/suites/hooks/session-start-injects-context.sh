@@ -59,4 +59,23 @@ ctx3="$(printf '%s' "$out3" | jq -r '.hookSpecificOutput.additionalContext')"
 case "$ctx3" in *"half-done"*) _fail "a closed slice is still being reported as unfinished" ;; esac
 case "$ctx3" in *"csv-export"*) _fail "a finished slice is still being reported as unfinished" ;; esac
 
+# The commonest interrupt is between the review and the close: Tier 1 passed,
+# the review landed, and the turn ended before --close-slice ran. That state
+# was the one case the report did not mention.
+printf '{"record_version":1,"id":"reviewed","status":"pass","tests":{"status":"passed"},"criteria":[],"source":{}}' \
+    > "$WORKDIR/.se/verification/reviewed.json"
+printf '{"record_version":1,"id":"reviewed","status":"pass","review":"complete","criteria":[],"source":{}}' \
+    > "$WORKDIR/.se/verification/reviewed.review.json"
+out4="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
+ctx4="$(printf '%s' "$out4" | jq -r '.hookSpecificOutput.additionalContext')"
+assert_contains "$ctx4" "reviewed" "a reviewed but unclosed slice is reported"
+assert_contains "$ctx4" "close"    "and the report says what it needs"
+
+# The marker names the slice the last turn was armed for; saying so is the
+# point of reading it before clearing it.
+printf '{"kind":"planned","id":"armed-slice","files":[]}' > "$WORKDIR/.se/.active"
+out5="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
+ctx5="$(printf '%s' "$out5" | jq -r '.hookSpecificOutput.additionalContext')"
+assert_contains "$ctx5" "armed-slice" "the slice the cleared marker was armed for is named"
+
 echo "PASS: session-start injects state and surfaces unfinished work"

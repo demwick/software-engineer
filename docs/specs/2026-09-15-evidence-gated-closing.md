@@ -44,9 +44,9 @@ design, so provenance is not evidence.
 | 2 | Tier-1 `status` is `fail` | 5 |
 | 3 | Tier-1 `status` is `incomplete` for any reason other than `tests.status: not_run` | 5 |
 | 4 | the plan is gone, or no longer satisfies `plan-validate.sh` | 5 |
-| 5 | either record names a different slice, or a roadmap phase other than the current one | 5 |
+| 5 | Tier 1 names a different slice, or the id is a roadmap phase other than the current one | 5 |
 | 6 | the evidence no longer describes the tree: `plan_blob` moved, or source drifted | 5 |
-| 7 | no Tier-2 record, it is malformed, or `record_version` is not 1 | 6 |
+| 7 | no Tier-2 record, it is malformed, `record_version` is not 1, or it names a different slice | 6 |
 | 8 | Tier-2 `review` is `incomplete` | 6 |
 | 9 | Tier-2 `source` differs from Tier-1 `source` — the review read other material | 6 |
 | 10 | Tier-2 does not judge exactly the criteria Tier 1 inventoried | 6 |
@@ -201,6 +201,16 @@ This supersedes rule 2 of the accepted spec above, which is why it is written
 here rather than applied silently.
 
 ## Trade-offs
+
+**Two ways to launder source drift, both left open.** `git stash` removes a
+change from the working tree, so a close that refused a moment ago succeeds;
+`git stash pop` brings it back afterwards. And a new source file added to
+`.gitignore` is invisible to the drift check, because ignored paths are not
+reported. Neither is hand-writing a record — both are ordinary git — and
+neither has a cheap fix: the drift check reads the tree, and these change what
+the tree says. What follows from it is a wording rule rather than a mechanism:
+where the plugin tells a model a tree is dirty, it says commit it, never stash
+it.
 
 **A guarded key is a gate a model can still route around** — by editing
 `state.json` with `sed`, or by hand. `pre-guard` treats `.se/` as always open,

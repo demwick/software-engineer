@@ -63,8 +63,11 @@ enters Tier 1 as `unverified` — Tier 1 inventories them for the reviewer.
 
 The caller owns the test result, because the caller is what ran it:
 `verify-phase.sh <dir> <id> <kind> <tests-status> [command] [exit-code]`. A
-caller that passes nothing gets `not_run` with the reason `caller reported no
-test result`, never a pass.
+caller that passes nothing gets `not_run`, never a pass. So does a caller
+whose report contradicts itself — `passed` with a non-zero exit, `passed` with
+no command, `failed` with exit 0 — because a contradicted report is evidence
+of nothing rather than evidence of failure. The reason field names which case
+fired.
 
 ### Tier 2 — `.se/verification/<id>.review.json`
 
