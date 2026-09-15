@@ -97,6 +97,58 @@ refuse() {  # refuse <rule> <what would satisfy it> <exit>
     exit "$3"
 }
 
+# The guarded keys, checked on the caller's own arguments before any branch.
+# Living in the close branch's `else` meant --close-slice accepted exactly the
+# keys the generic path refuses — and flow-light prescribes appending
+# `last_commit=<sha>` to that call, so a tail is expected there.
+#
+# The check is on shape as well as value: `current_phase="4"` is a string that
+# every reader normalises back to 4, and `completed=1` is truthy to a reader
+# that tests for "true". Neither is a number or a boolean, so neither is a
+# legitimate value for the field at all.
+for pair in "$@"; do
+    gkey="${pair%%=*}"
+    gval="${pair#*=}"
+    case "$gkey" in
+        completed)
+            GTYPE=$(printf '%s' "$gval" | jq -r 'type' 2>/dev/null || echo invalid)
+            [ "$GTYPE" = "boolean" ] || refuse "completed must be true or false, got ${gval}" \
+                "a value a reader has to coerce is not a verdict" 8
+            [ "$gval" != "true" ] || refuse "completed=true is decided by the evidence, not by a caller" \
+                "use: state-update.sh --close-slice <id>" 8
+            ;;
+        current_phase)
+            GOK=$(printf '%s' "$gval" | jq -r \
+                'if type == "number" and (. | floor) == . and . >= 0 then "ok" else "bad" end' \
+                2>/dev/null || echo bad)
+            [ "$GOK" = "ok" ] || refuse "current_phase must be a whole number, got ${gval}" \
+                "a string or a fraction matches no roadmap entry, and readers coerce it back into one" 8
+            [ "$(printf '%s' "$gval" | jq -r --argjson c "$CUR" 'if . > $c then "fwd" else "ok" end')" = "ok" ] || \
+                refuse "moving current_phase forward is decided by the evidence" \
+                    "use: state-update.sh --close-slice <id>" 8
+            ;;
+        total_phases)
+            GOK=$(printf '%s' "$gval" | jq -r \
+                'if type == "number" and (. | floor) == . and . >= 0 then "ok" else "bad" end' \
+                2>/dev/null || echo bad)
+            [ "$GOK" = "ok" ] || refuse "total_phases must be a whole number, got ${gval}" "" 8
+            # It is the denominator of the completed decision: shrink it and a
+            # legitimate close declares a five-phase project finished on phase
+            # one. Growing it is how a roadmap is extended, so only shrinking
+            # below what exists is refused.
+            RM_COUNT=0
+            if [ -f "$PROJECT_DIR/.se/roadmap.md" ]; then
+                RM_COUNT=$(grep -cE '^### Phase [0-9]+' "$PROJECT_DIR/.se/roadmap.md" 2>/dev/null || echo 0)
+                case "$RM_COUNT" in ''|*[!0-9]*) RM_COUNT=0 ;; esac
+            fi
+            FLOOR="$CUR"; [ "$RM_COUNT" -gt "$FLOOR" ] && FLOOR="$RM_COUNT"
+            [ "$(printf '%s' "$gval" | jq -r --argjson f "$FLOOR" 'if . < $f then "low" else "ok" end')" = "ok" ] || \
+                refuse "total_phases ${gval} is below the ${FLOOR} phases this project already has" \
+                    "shrinking the denominator is how a close declares an unfinished project complete" 8
+            ;;
+    esac
+done
+
 if [ -n "$CLOSE_ID" ]; then
     case "$CLOSE_ID" in
         *[!A-Za-z0-9._-]*|.*) refuse "invalid slice id '${CLOSE_ID}'" \
@@ -142,11 +194,22 @@ if [ -n "$CLOSE_ID" ]; then
                     ''|*[!0-9]*) ;;
                     *)
                         if [ -f "$PROJECT_DIR/.se/roadmap.md" ] && \
-                           grep -qE "^### Phase ${N}:" "$PROJECT_DIR/.se/roadmap.md" 2>/dev/null; then
+                           grep -qE "^### Phase ${N}[:.)[:space:]-]" "$PROJECT_DIR/.se/roadmap.md" 2>/dev/null; then
                             SLICE_KIND="roadmap"
                             [ "$N" -eq "$CUR" ] || refuse \
                                 "slice ${CLOSE_ID} is roadmap phase ${N}, but the project is on phase ${CUR}" \
                                 "closing a phase other than the current one would skip or repeat work" 5
+                        elif [ "$N" -eq "$CUR" ] && [ -f "$PROJECT_DIR/.se/roadmap.md" ]; then
+                            # Named like the current roadmap phase, but the
+                            # roadmap has no heading that matches. Falling
+                            # through to `adhoc` used to close with exit 0 and
+                            # no advance, and the close record then made every
+                            # retry a no-op — the project could never advance
+                            # again by any route. roadmap.md is model-written
+                            # markdown with no validator, so this is a typo
+                            # away, not an attack.
+                            refuse "no roadmap heading matches phase ${N}" \
+                                "close names the current phase but .se/roadmap.md has no '### Phase ${N}' heading; fix the heading, or use a slice id that is not phase-<N>" 5
                         fi
                         ;;
                 esac
@@ -219,33 +282,6 @@ if [ -n "$CLOSE_ID" ]; then
             set -- "current_step=${CLOSE_ID} closed" "$@"
         fi
     fi
-else
-    # The same decision must not be reachable through the generic path. The
-    # comparison happens on the parsed value, not the string: `2e0` and `1.5`
-    # are not decimal integers but jq stores them as numbers all the same, and
-    # a string-shaped guard waves both past.
-    for pair in "$@"; do
-        gkey="${pair%%=*}"
-        gval="${pair#*=}"
-        case "$gkey" in
-            completed)
-                [ "$(printf '%s' "$gval" | jq -r 'if . == true then "y" else "n" end' 2>/dev/null || echo n)" = "n" ] || \
-                    refuse "completed=true is decided by the evidence, not by a caller" \
-                        "use: state-update.sh --close-slice <id>" 8
-                ;;
-            current_phase)
-                PARSED=$(printf '%s' "$gval" | jq -r 'if type == "number" then . else empty end' 2>/dev/null || echo "")
-                if [ -n "$PARSED" ]; then
-                    [ "$(printf '%s' "$gval" | jq -r --argjson c "$CUR" 'if . > $c then "fwd" else "ok" end' 2>/dev/null || echo ok)" = "ok" ] || \
-                        refuse "moving current_phase forward is decided by the evidence" \
-                            "use: state-update.sh --close-slice <id>" 8
-                    [ "$(printf '%s' "$gval" | jq -r 'if (. | floor) == . and . >= 0 then "ok" else "bad" end' 2>/dev/null || echo bad)" = "ok" ] || \
-                        refuse "current_phase must be a whole number, got ${gval}" \
-                            "a fractional phase matches no roadmap entry" 8
-                fi
-                ;;
-        esac
-    done
 fi
 
 # Build a jq merge expression from the KEY=VALUE args. Each value is
