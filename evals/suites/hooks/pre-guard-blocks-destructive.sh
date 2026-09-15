@@ -74,4 +74,23 @@ assert_eq "$(rc "$WORKDIR" "$(j "bash -c 'rm -rf /some/project/dir'")")" 2  "sti
 assert_eq "$(rc "$WORKDIR" "$(j 'sh -c "rm -rf /some/project/dir"')")" 2    "still blocked: rm -rf inside sh -c"
 assert_eq "$(rc "$WORKDIR" "$(j "psql -c 'DROP TABLE users'")")" 2          "still blocked: DROP TABLE in a client payload"
 
+# Interpreters and database clients hand their payload on in quotes, so their
+# quoted text is not prose. The list has to cover the ones that actually run
+# SQL or shell, not just the obvious three.
+assert_eq "$(rc "$WORKDIR" "$(j 'awk "BEGIN{system(\"rm -rf src\")}"')")" 2 "awk system() payload scanned"
+assert_eq "$(rc "$WORKDIR" "$(j "bq query 'DROP TABLE users'")")" 2          "bq payload scanned"
+assert_eq "$(rc "$WORKDIR" "$(j "duckdb d.db 'DROP TABLE users'")")" 2       "duckdb payload scanned"
+assert_eq "$(rc "$WORKDIR" "$(j "mongosh --eval 'db.x.drop()' ; rm -rf /srv/data")")" 2 "a real rm -rf beside a client call"
+
+# Quoted prose is still prose, even when it contains a separator.
+assert_eq "$(rc "$WORKDIR" "$(j "git commit -m 'chore: stop running rm -rf & document why'")")" 0 \
+    "an ampersand in the message does not resurrect the destructive match"
+
+# git was matched as the literal token `git`, so an absolute path walked past
+# every git gate — including the commit backstop the edit gate leans on when
+# it tells the model "the commit gate blocks the result either way".
+assert_eq "$(rc "$WORKDIR" "$(j '/usr/bin/git push --force origin main')")" 2 "an absolute git path does not hide push --force"
+assert_eq "$(rc "$WORKDIR" "$(j '/usr/bin/git reset --hard HEAD~1')")" 2     "…nor reset --hard"
+assert_eq "$(rc "$WORKDIR" "$(j '/opt/homebrew/bin/git branch -D feat')")" 2 "…nor branch -D"
+
 echo "PASS: the destructive guard blocks commands, not descriptions"

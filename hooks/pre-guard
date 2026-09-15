@@ -133,12 +133,20 @@ gate_path() {
 # already reaching for project code while nothing was armed, which is the
 # case this gate exists for.
 write_targets() {
-    # A heredoc body is data the command carries, not syntax it executes.
-    # Scanning it reads prose as shell: a plan written with `cat > plan.md
-    # <<EOF` is markdown, and `-> expect` in it became a write to "expect".
-    # Keep the line that opens the heredoc — its `> path` is a real redirect —
-    # and drop the body up to the delimiter.
-    local stripped
+    # Three passes, in this order, because each one removes noise the next
+    # would otherwise read as syntax.
+    #
+    # 1. A heredoc body is data the command carries, not shell it executes. A
+    #    plan written with `cat > plan.md <<EOF` is markdown, and `-> expect`
+    #    inside it became a write to a file called "expect". The line that
+    #    opens the heredoc is kept — its `> path` is a real redirect.
+    # 2. Quoted spans become a space, BEFORE the split. Splitting first broke
+    #    quote pairing whenever the quoted text held a `;`, `|` or `&`, and a
+    #    commit message with an ampersand blocked the commit.
+    # 3. Shell punctuation that starts a new command — `{ ( ) } then do else`
+    #    and find's `-exec` — becomes a separator too, so "command position"
+    #    means what it says rather than "first word of the whole line".
+    local stripped unquoted raw_tokens
     stripped=$(printf '%s\n' "$1" | awk '
         d != "" { if ($0 == d) { d = "" } ; next }
         { if (match($0, /<<-?[ \t]*[\x27"]?[A-Za-z_][A-Za-z0-9_]*[\x27"]?/)) {
@@ -147,42 +155,46 @@ write_targets() {
               d = t
           }
           print }')
+    unquoted=$(printf '%s\n' "$stripped" \
+        | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g' -e 's/>|/> /g' \
+        | sed -E 's/(^|[[:space:]])(then|do|else)([[:space:]]|$)/\1\
+\3/g; s/-exec([[:space:]])/\
+\1/g' \
+        | tr '{}()' '\n\n\n\n')
+
+    # Every token of the original command that names something on disk. Used
+    # for the interpreter case, whose target lives inside the quotes the scan
+    # above removed: `python3 -c "open('src/app.js','w')"`.
+    raw_tokens=$(printf '%s\n' "$stripped" | tr -s " \t\"'" '\n\n\n\n' \
+        | grep -vE '^-|^$' 2>/dev/null | grep -E '/|\.' 2>/dev/null \
+        | grep -vE '[${}!*()]|/$' 2>/dev/null || true)
+
     # The trailing newline matters: without it `read` drops the last segment,
     # which for a single-command string is the whole command.
-    printf '%s\n' "$stripped" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
+    printf '%s\n' "$unquoted" | tr ';|&' '\n\n\n' | while IFS= read -r seg; do
         [ -n "$seg" ] || continue
-        # A `>` inside quotes is prose, not a redirect — a review finding that
-        # says "writes its log with > path" named a file it never touched, and
-        # the gate blocked the reviewer for describing the bug. Scan the
-        # segment with quoted spans removed. Interpreter one-liners keep their
-        # own detection below, which reads the unstripped segment, so a write
-        # hidden inside `python3 -c "..."` is still caught.
-        local unquoted
-        unquoted=$(printf '%s\n' "$seg" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
-        # A redirect target is a path. Excluding backticks, quotes and parens
-        # from the capture, and requiring a letter or digit in what is left,
-        # is what keeps prose out: stripping quotes across a heredoc body
-        # merges its markdown, and a stray `>` before a backtick used to be
-        # extracted as a write to "`" — dirname of any bare word is ".", which
-        # exists, so the gate blocked a flow writing its own plan.
-        printf '%s\n' "$unquoted" \
-            | grep -oE '(^|[^0-9<>&])>>?[[:space:]]*[^[:space:]<>&|;`'"'"'"()]+' 2>/dev/null \
+        # A redirect target is a path: a letter or digit somewhere, and not
+        # built out of backticks, quotes or parens. `1>` and `2>` are
+        # redirects; `>&` is an fd dup and `->` is prose.
+        printf '%s\n' "$seg" \
+            | grep -oE '(^|[^->&])>>?[[:space:]]*[^[:space:]<>&|;`'"'"'"()]+' 2>/dev/null \
             | sed -E 's/.*>>?[[:space:]]*//' \
             | grep -E '[[:alnum:]]' 2>/dev/null
-        # In-place editors, copiers, interpreter one-liners: every non-flag
-        # token that names something on disk, or a new file in a directory
-        # that exists. The existence test is what separates a real target
-        # from a sed script (`s/a/b/`) or a regex that merely looks like one.
-        #
-        # The verb has to be in command position. Matching it anywhere meant
-        # any sentence containing "mv <path>" — a commit message, a jq --arg,
-        # an echoed note — read as a write to that path. Segments are already
-        # split on ; | &, so command position is the start of one.
-        if printf '%s\n' "$seg" | grep -qE '^[[:space:]]*(sudo[[:space:]]+)?(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
-            printf '%s\n' "$seg" | tr -s " \t\"'" '\n\n\n\n' \
+        # In-place editors, copiers, interpreter one-liners. The verb has to
+        # be in command position — matching it anywhere read any sentence
+        # containing "mv <path>" as a write — but command position allows the
+        # prefixes people actually type: VAR=v, env, sudo -u x, timeout 5,
+        # nice -n 10, command, time, xargs.
+        if printf '%s\n' "$seg" | grep -qE '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((sudo|env|command|time|nice|xargs|timeout)([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*([[:space:]]+[0-9]+)?[[:space:]]+)*(sed[[:space:]]+[^|;]*-i|perl[[:space:]]+[^|;]*-i|tee|cp|mv|touch|truncate|dd|python3?[[:space:]]+-c|node[[:space:]]+-e|ruby[[:space:]]+-e)([[:space:]]|$)' 2>/dev/null; then
+            # For an interpreter the path is inside the quotes; for everything
+            # else it is in the segment. Scan both — over-approximating here
+            # blocks a command that was already reaching for project code.
+            { printf '%s\n' "$seg" | tr -s " \t\"'" '\n\n\n\n' \
                 | grep -vE '^-|^$' 2>/dev/null | grep -E '/|\.' 2>/dev/null \
-                | grep -vE '[${}!*()]|/$' 2>/dev/null \
-                | while IFS= read -r tok; do
+                | grep -vE '[${}!*()]|/$' 2>/dev/null
+              printf '%s\n' "$raw_tokens"
+            } | sort -u | while IFS= read -r tok; do
+                      [ -n "$tok" ] || continue
                       if [ -e "$tok" ] || [ -d "$(dirname "$tok")" ]; then
                           printf '%s\n' "$tok"
                       fi
@@ -209,7 +221,13 @@ git_has_subcommand() {
     toks=( $(printf '%s' "$1" | tr '\n;|&' '    ') )
     n=${#toks[@]}
     for ((i = 0; i < n; i++)); do
-        [ "${toks[$i]}" = "git" ] || continue
+        # Match on the basename: `/usr/bin/git commit` is git, and comparing
+        # the literal token let an absolute path walk past every git gate —
+        # the commit backstop the edit gate leans on included.
+        case "${toks[$i]}" in
+            git|*/git) ;;
+            *) continue ;;
+        esac
         j=$((i + 1))
         while [ $j -lt $n ]; do
             case "${toks[$j]}" in
@@ -245,7 +263,7 @@ case "$TOOL" in
             # prose, so those keep their raw text: `bash -c "rm -rf /x"` is a
             # destructive command wearing quotes.
             DESTRUCTIVE_SCAN=$(printf '%s' "$CMD" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
-            if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]|;&(])(bash|sh|zsh|ksh|dash|eval|xargs|python3?|perl|ruby|node|psql|mysql|sqlite3)([[:space:]]|$)'; then
+            if printf '%s' "$CMD" | grep -Eq '(^|[[:space:]|;&(])(bash|sh|zsh|ksh|dash|eval|xargs|awk|python3?|perl|ruby|node|psql|mysql|mysqlsh|sqlite3|duckdb|bq|clickhouse-client|mongosh|cockroach|snowsql)([[:space:]]|$)'; then
                 DESTRUCTIVE_SCAN="$CMD"
             fi
             if git_has_subcommand "$CMD" push \

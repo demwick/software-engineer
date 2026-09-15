@@ -110,6 +110,38 @@ assert_eq 2 "$(rc "cat > src/app.js <<'EOF'
 const x = 1;
 EOF")"                                                          "still blocked: a heredoc into project code"
 
+# --- command position is not "first token of the whole command" ------------
+# Anchoring the verb at the start of a `;|&`-split segment closed the prose
+# false positives and opened these: every ordinary way a write verb is not the
+# very first word. An adversarial review found all of them; `find -exec sed -i`
+# is the one a real model reaches for.
+assert_eq 2 "$(rc "find . -name 'app.js' -exec sed -i '' 's/a/b/' {} +")" "find -exec sed -i blocked"
+assert_eq 2 "$(rc "FOO=1 cp /tmp/x src/app.js")"                "a VAR= prefix does not hide cp"
+assert_eq 2 "$(rc "env cp /tmp/x src/app.js")"                  "env does not hide cp"
+assert_eq 2 "$(rc "timeout 5 cp /tmp/x src/app.js")"            "timeout does not hide cp"
+assert_eq 2 "$(rc "nice -n 10 cp /tmp/x src/app.js")"           "nice does not hide cp"
+assert_eq 2 "$(rc "sudo -u nobody cp /tmp/x src/app.js")"       "sudo -u does not hide cp"
+assert_eq 2 "$(rc "{ cp /tmp/x src/app.js; }")"                 "a brace group does not hide cp"
+assert_eq 2 "$(rc "( cp /tmp/x src/app.js )")"                  "a subshell does not hide cp"
+assert_eq 2 "$(rc "if true; then cp /tmp/x src/app.js; fi")"    "a then-branch does not hide cp"
+assert_eq 2 "$(rc "for f in a b; do cp /tmp/x src/app.js; done")" "a do-body does not hide cp"
+
+# --- redirect spellings that are still redirects ---------------------------
+assert_eq 2 "$(rc "echo x 1> src/app.js")"                      "1> is a redirect"
+assert_eq 2 "$(rc "echo x 2> src/app.js")"                      "2> is a redirect"
+assert_eq 2 "$(rc "echo x >| src/app.js")"                      ">| is a redirect"
+assert_eq 0 "$(rc "npm test 2>&1")"                             "an fd dup is not a target"
+assert_eq 0 "$(rc "npm test >/dev/null 2>&1")"                  "/dev/null is still open"
+
+# --- quoted text is stripped before the command is split, not after --------
+# Splitting first broke quote pairing whenever the quoted text contained one
+# of ; | & — so a commit message with an ampersand blocked the commit.
+assert_eq 0 "$(rc "git commit -m \"fix(log): writes to > out.txt & then exits\"")" \
+    "an ampersand in a commit message does not resurrect the prose target"
+assert_eq 0 "$(rc "jq -n --arg m \"pipe a | b and redirect > c\" .")" \
+    "a pipe in quoted prose does not resurrect it either"
+assert_eq 0 "$(rc "echo 'first; then cp a b'")"                 "a semicolon in quoted prose is not a separator"
+
 # --- armed: the same writes go through ---
 printf '{"kind":"planned","id":"x","files":[]}' > "$W/.se/.active"
 assert_eq 0 "$(rc "sed -i '' 's/Hello/Hi/' src/app.js")"         "armed: sed -i allowed"
