@@ -19,7 +19,7 @@ There is a single entry point: say what you want.
 
 ```
 fix the glow on the secondary button          → direct: executor, one commit, suite runs
-add rate limiting to the login endpoint        → planned slice: plan in plan mode → execute → verify → review
+add rate limiting to the login endpoint        → planned slice: plan file → execute → verify → review
 I want to build a booking app for clinics       → full flow: intent → spec → ADR → roadmap → phases
 ```
 
@@ -62,7 +62,7 @@ The plugin's process is enforced, not described:
 - **No code without a plan.** In a managed project the `PreToolUse` hook blocks writes to project code until a flow arms `.se/.active` — which happens only after the plan is accepted (or the task is confirmed direct). It covers all three routes: `Write`/`Edit`, a shell write (`sed -i`, a `>` redirect, tee/cp/mv/touch), and `git commit` with project files staged. The commit check is the exact backstop, so however a file was changed, it does not reach history without a plan.
 - **Direct means small.** A direct task that touches a 4th file is blocked: triage misrouted it, escalate to a plan.
 - **The fix goes into the code.** A bug fix starts with a failing test; while `.se/.fixing` lists it, edits to that test are blocked.
-- **Done means verified.** The `Stop` hook runs the suite on every armed turn; a failure blocks the turn with the output until it is fixed (≤2 retries). The `verifier` agent — never the agent that wrote the code — reviews each planned slice with severity-classified findings.
+- **Done means verified.** The `Stop` hook runs the suite on every armed turn; a failure blocks the turn with the output until it is fixed (≤2 retries). The `verifier` agent — never the agent that wrote the code — reviews each planned slice with severity-classified findings. A phase then advances only through `state-update.sh --close-slice`, which reads both verification records and refuses on a missing or unfinished review, a verdict that contradicts its own findings, an unverified criterion, or evidence produced before the source changed. A `partial` closes only with an explicit `--accept-risk`, and the acceptance is recorded beside the review.
 - **The second mistake becomes a rule.** A finding the verifier has seen before is appended to the project's `CLAUDE.md` under *Things Claude gets wrong*.
 
 Irreversible git and database operations are hard-blocked (deferred to `claude-charter` when present).
