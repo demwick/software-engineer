@@ -78,12 +78,14 @@ printf '%s' "$INPUT" | jq \
 # that would have been rejected at close, and finding that out now is the
 # reviewer's chance to fix it.
 CHECK="$(cd "$(dirname "$0")" && pwd)/record-check.sh"
-if [ -f "$CHECK" ]; then
-    PROBLEM=$(bash "$CHECK" "$PROJECT_DIR" "$ID" review "$TMP" 2>&1) || {
-        printf '%s\n' "$PROBLEM" >&2
-        die "the review was rejected; nothing was written" 3
-    }
-fi
+# Fail closed, the way the closing gate does. Failing open meant a stripped
+# install wrote any JSON at all — no evidence, no coverage, junk in `source` —
+# so the same policy file gave two answers depending on which consumer asked.
+[ -f "$CHECK" ] || die "record-check.sh is missing; refusing to write an unvalidated review" 1
+PROBLEM=$(bash "$CHECK" "$PROJECT_DIR" "$ID" review "$TMP" 2>&1) || {
+    printf '%s\n' "$PROBLEM" >&2
+    die "the review was rejected; nothing was written" 3
+}
 
 mv "$TMP" "$OUT"
 trap - EXIT HUP INT TERM

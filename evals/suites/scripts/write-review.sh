@@ -96,4 +96,18 @@ assert_jq "$J" '.findings' '== []'           "findings defaults to []"
 assert_jq "$J" '.repeated_findings' '== []'  "repeated_findings defaults to []"
 assert_jq "$J" '.out_of_scope' '== []'       "out_of_scope defaults to []"
 
+# --- the writer fails closed, like the gate it shares its policy with -------
+# With record-check.sh absent it used to write anything at all — no evidence,
+# no coverage, junk in source — while --close-slice refused. One policy file,
+# two answers, depending on which consumer asked.
+FAKE="$(mktemp -d)"
+cp "$REPO_ROOT/scripts/write-review.sh" "$FAKE/write-review.sh"
+rm -f "$OUT"
+rc=0
+printf '%s' '{"status":"pass","review":"complete","criteria":[{"text":"anything","status":"met"}],"source":{"nope":1}}' \
+    | bash "$FAKE/write-review.sh" "$W" phase-1 >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || _fail "with record-check.sh missing the writer accepted an unvalidated review"
+[ ! -e "$W/.se/verification/phase-1.review.json" ] || _fail "it wrote the unvalidated review to disk"
+rm -rf "$FAKE"
+
 echo "PASS: write-review validates before it writes"

@@ -425,4 +425,76 @@ cp "$RMBAK" "$W/.se/roadmap.md"
 assert_eq 0 "$(rc phase-1)" "with the heading fixed it closes"
 assert_eq 2 "$(phase)" "and advances"
 
+# ================= a project nested inside a repo is still a project ========
+# git reports paths from the repository root; the artifact test matches
+# project-relative ones. Unstripped, a monorepo package read its own .se/
+# files as changed source and could never close — and committing them only
+# moved them from the status list into the diff list, so it never cleared.
+NEST="$(mktemp -d)"
+( cd "$NEST" && git init -q && git config user.email e@x && git config user.name n ) >/dev/null
+mkdir -p "$NEST/apps/web/.se/plans" "$NEST/apps/web/src" "$NEST/apps/api/src"
+cp "$RMBAK" "$NEST/apps/web/.se/roadmap.md"
+cp "$W/.se/plans/phase-1.md" "$NEST/apps/web/.se/plans/phase-1.md"
+printf 'echo web\n' > "$NEST/apps/web/src/app.sh"
+printf 'echo api\n' > "$NEST/apps/api/src/api.sh"
+jq -n '{schema_version:3, mode:"light", created:"2026-09-15", current_phase:1, total_phases:3}' \
+    > "$NEST/apps/web/.se/state.json"
+( cd "$NEST" && git add -A && git commit -qm "chore: monorepo" ) >/dev/null
+
+bash "$VP" "$NEST/apps/web" phase-1 planned passed "bash t.sh" 0 >/dev/null
+jq -n --arg c1 "$C1" --arg c2 "$C2" \
+    --argjson src "$(jq -c '.source' "$NEST/apps/web/.se/verification/phase-1.json")" \
+    '{status:"pass", review:"complete", reason:"ok",
+      criteria:[{text:$c1,status:"met",evidence:"e"},{text:$c2,status:"met",evidence:"e"}],
+      findings:[], source:$src}' | bash "$WR" "$NEST/apps/web" phase-1 >/dev/null
+nrc=0; bash "$SU" --project-dir "$NEST/apps/web" --close-slice phase-1 >/dev/null 2>&1 || nrc=$?
+assert_eq 0 "$nrc" "a project nested in a repo closes"
+assert_eq 2 "$(jq -r '.current_phase' "$NEST/apps/web/.se/state.json")" "and advances"
+
+# A sibling package's change is not this slice's source drift.
+jq -n '{schema_version:3, mode:"light", created:"2026-09-15", current_phase:1, total_phases:3}' \
+    > "$NEST/apps/web/.se/state.json"
+rm -f "$NEST/apps/web/.se/verification/phase-1.closed.json"
+printf 'echo api changed\n' >> "$NEST/apps/api/src/api.sh"
+nrc=0; bash "$SU" --project-dir "$NEST/apps/web" --close-slice phase-1 >/dev/null 2>&1 || nrc=$?
+assert_eq 0 "$nrc" "a sibling package's edit is not this slice's drift"
+# This package's own source still is.
+jq -n '{schema_version:3, mode:"light", created:"2026-09-15", current_phase:1, total_phases:3}' \
+    > "$NEST/apps/web/.se/state.json"
+rm -f "$NEST/apps/web/.se/verification/phase-1.closed.json"
+printf 'echo web changed\n' >> "$NEST/apps/web/src/app.sh"
+nrc=0; bash "$SU" --project-dir "$NEST/apps/web" --close-slice phase-1 >/dev/null 2>&1 || nrc=$?
+assert_eq 5 "$nrc" "this package's own source drift still refuses"
+rm -rf "$NEST"
+
+# ====================== a severity the rules cannot read ====================
+# The verdict rules compare against the literal words blocker and major. A
+# finding with any other severity was invisible to them, so a single typo
+# turned a fail into a clean close.
+reset_state 1 3; tier1 phase-1 passed
+sev_filter() { printf '.findings = [{severity: %s, file: "f", problem: "p", fix: "x"}]' "$1"; }
+for sev in '"critical"' '"Blocker"' '"high"' '["blocker"]' 'null'; do
+    assert_eq 3 "$(review_rc phase-1 "$(sev_filter "$sev")")" \
+        "severity $sev is rejected, not silently ignored"
+done
+assert_eq 0 "$(review_rc phase-1 '.status = "fail" | '"$(sev_filter '"blocker"')")" \
+    "blocker with verdict fail is accepted"
+assert_eq 0 "$(review_rc phase-1 '.status = "partial" | '"$(sev_filter '"major"')")" \
+    "major with verdict partial is accepted"
+assert_eq 0 "$(review_rc phase-1 "$(sev_filter '"minor"')")" "minor with verdict pass is accepted"
+assert_eq 0 "$(review_rc phase-1 "$(sev_filter '"nit"')")" "nit with verdict pass is accepted"
+
+# ================== an unborn HEAD is not a revision ========================
+# `git rev-parse HEAD` prints the literal "HEAD" and exits 128 on a repo with
+# no commits, and the record then named a revision no close could accept.
+UNBORN="$(mktemp -d)"
+( cd "$UNBORN" && git init -q ) >/dev/null
+mkdir -p "$UNBORN/.se/plans"
+jq -n '{schema_version:3, mode:"light", created:"2026-09-15", current_phase:1, total_phases:1}' > "$UNBORN/.se/state.json"
+cp "$W/.se/plans/phase-1.md" "$UNBORN/.se/plans/phase-1.md"
+bash "$VP" "$UNBORN" phase-1 planned passed "bash t.sh" 0 >/dev/null
+assert_jq "$(cat "$UNBORN/.se/verification/phase-1.json")" '.source.head_commit' '== null' \
+    "an unborn HEAD records null, not the string HEAD"
+rm -rf "$UNBORN"
+
 echo "PASS: a slice closes on evidence, or it does not close"

@@ -95,6 +95,8 @@ elif ((.findings // []) | type) != "array"
   then "findings must be an array"
 elif ([(.findings // [])[] | type != "object"] | any)
   then "every finding must be an object"
+elif ([(.findings // [])[] | (.severity // "") | IN("blocker","major","minor","nit") | not] | any)
+  then "every finding severity must be blocker|major|minor|nit — a severity the verdict rules do not recognise is invisible to them"
 elif (((.findings // []) | map(.severity // "") | index("blocker")) != null) and .status != "fail"
   then "a blocker finding with verdict \(.status) — a blocker is a fail"
 elif (([.criteria[] | select(.status == "unmet")] | length) > 0) and (.status | IN("partial","fail") | not)
@@ -168,7 +170,14 @@ is_artifact_path() {
 # staged, unstaged, or newly created and not yet added. A record bound only
 # to HEAD misses the last two entirely.
 source_drift() {  # <head_commit> ; echoes drifted paths
-    local head="$1" line p
+    local head="$1" line p prefix
+    # git reports paths from the repository root; is_artifact_path matches
+    # project-relative ones. Without stripping the prefix, a project nested in
+    # a repo — a monorepo package — reads its own .se/ artifacts as changed
+    # source and can never close; committing them only moves them from the
+    # status list into the diff list, so it never clears. The same strip is
+    # what keeps a sibling package's edit out of this slice's drift.
+    prefix=$(cd "$PROJECT_DIR" 2>/dev/null && git rev-parse --show-prefix 2>/dev/null || echo "")
     ( cd "$PROJECT_DIR" 2>/dev/null || exit 0
       git diff --name-only "${head}..HEAD" 2>/dev/null
       git status --porcelain --untracked-files=all 2>/dev/null | while IFS= read -r line; do
@@ -178,6 +187,12 @@ source_drift() {  # <head_commit> ; echoes drifted paths
       done
     ) | sed 's/^"//; s/"$//' | sort -u | while IFS= read -r p; do
         [ -n "$p" ] || continue
+        if [ -n "$prefix" ]; then
+            case "$p" in
+                "$prefix"*) p="${p#"$prefix"}" ;;
+                *) continue ;;
+            esac
+        fi
         is_artifact_path "$p" || printf '%s\n' "$p"
     done
 }

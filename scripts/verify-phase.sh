@@ -126,7 +126,10 @@ if [ -f "$PLAN" ]; then
     [ -n "$B" ] && PLAN_BLOB="\"$B\""
 fi
 HEAD_COMMIT="null"
-H=$(cd "$PROJECT_DIR" 2>/dev/null && git rev-parse HEAD 2>/dev/null || echo "")
+# --verify matters: on a repo with no commits `git rev-parse HEAD` prints the
+# literal string HEAD on stdout and exits 128, so the record would name a
+# revision that does not exist and no close could ever accept it.
+H=$(cd "$PROJECT_DIR" 2>/dev/null && git rev-parse --verify HEAD 2>/dev/null || echo "")
 [ -n "$H" ] && HEAD_COMMIT="\"$H\""
 SOURCE_JSON=$(jq -n --argjson b "$PLAN_BLOB" --argjson h "$HEAD_COMMIT" \
     '{plan_blob: $b, head_commit: $h}')
