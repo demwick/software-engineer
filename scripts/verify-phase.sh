@@ -62,20 +62,44 @@ TESTS_CMD="${5:-}"
 TESTS_RC="${6:-}"
 TESTS_REASON="${7:-}"
 
+# The label and the evidence beside it have to agree. A caller that reports
+# `passed` with a non-zero exit, or with no command at all, has a bug — and
+# believing the label over the exit code is exactly how a red run books as a
+# pass. A contradicted report is not evidence of failure either: it is
+# evidence of nothing, so it lands on not_run and the slice reads incomplete.
+contradiction=""
 case "$TESTS_STATUS" in
-    passed|failed) ;;
+    passed)
+        case "$TESTS_RC" in
+            ''|*[!0-9]*) contradiction="reported passed with an unusable exit code '${TESTS_RC}'" ;;
+            0)  [ -n "$TESTS_CMD" ] || contradiction="reported passed with no command" ;;
+            *)  contradiction="reported passed with exit code ${TESTS_RC}" ;;
+        esac
+        ;;
+    failed)
+        # A red run may legitimately arrive without an exit code: loop
+        # protection knows the suite failed without owning the command that
+        # produced it. Exit 0 is the contradiction.
+        case "$TESTS_RC" in
+            0) contradiction="reported failed with exit code 0" ;;
+        esac
+        ;;
     not_run)
         [ -n "$TESTS_REASON" ] || TESTS_REASON="no test result reported"
         ;;
     *)
         # An unrecognised or absent report is not a pass. The most common way
         # to get here is a caller that has not been taught the contract.
-        TESTS_REASON="caller reported no test result (got: '${TESTS_STATUS}')"
-        TESTS_STATUS="not_run"
-        TESTS_CMD=""
-        TESTS_RC=""
+        contradiction="caller reported no test result (got: '${TESTS_STATUS}')"
         ;;
 esac
+
+if [ -n "$contradiction" ]; then
+    TESTS_REASON="the caller's report contradicts itself: ${contradiction}"
+    TESTS_STATUS="not_run"
+    TESTS_CMD=""
+    TESTS_RC=""
+fi
 
 # exit_code and reason are null unless they carry something. jq needs real
 # JSON here, so build them as literals rather than strings.

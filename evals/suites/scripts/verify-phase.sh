@@ -83,6 +83,37 @@ assert_jq "$J" '.status' '== "incomplete"'    "no test result reported → incom
 assert_jq "$J" '.tests.status' '== "not_run"' "absent result is not_run"
 assert_jq "$J" '.tests.reason' '| test("caller")' "the reason names the caller"
 
+# --- a report that contradicts itself is not evidence ---
+# `passed` with a non-zero exit, or with no command at all, is a caller bug.
+# Believing the label over the exit code is how a red run books as a pass, so
+# the contradiction downgrades to not_run: we do not know what happened.
+bash "$VP" "$WORKDIR" phase-2 planned passed "npm test" 1
+J="$(cat "$OUT")"
+assert_jq "$J" '.status' '== "incomplete"'    "passed + non-zero exit → incomplete"
+assert_jq "$J" '.tests.status' '== "not_run"' "a contradicted pass is not a pass"
+assert_jq "$J" '.tests.reason' '| test("exit")' "the reason names the contradiction"
+
+bash "$VP" "$WORKDIR" phase-2 planned passed "" 0
+J="$(cat "$OUT")"
+assert_jq "$J" '.status' '== "incomplete"'    "passed with no command → incomplete"
+assert_jq "$J" '.tests.status' '== "not_run"' "a pass with no command is not a pass"
+
+# `failed` with exit 0 is the same bug pointing the other way.
+bash "$VP" "$WORKDIR" phase-2 planned failed "npm test" 0
+J="$(cat "$OUT")"
+assert_jq "$J" '.status' '== "incomplete"'    "failed + zero exit → incomplete"
+
+# A non-numeric exit code is not an exit code.
+bash "$VP" "$WORKDIR" phase-2 planned passed "npm test" "zero"
+J="$(cat "$OUT")"
+assert_jq "$J" '.status' '== "incomplete"'    "unparseable exit code → incomplete"
+
+# failed with no exit code is legitimate: the loop-protection path knows the
+# suite was red without owning the command that produced it.
+bash "$VP" "$WORKDIR" phase-2 planned failed "" "" "gave up after 2 retries"
+J="$(cat "$OUT")"
+assert_jq "$J" '.status' '== "fail"'          "a red run with no exit code is still a fail"
+
 # --- plan problems still fail, with the criteria inventory empty ---
 bash "$VP" "$WORKDIR" phase-9 planned passed "npm test" 0
 J="$(cat "$WORKDIR/.se/verification/phase-9.json")"

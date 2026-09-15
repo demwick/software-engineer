@@ -24,8 +24,13 @@
 #     | bash write-review.sh [project-dir] <id>
 #
 # Required: status (pass|partial|fail), review (complete|incomplete),
-#           criteria[] of {text, status: met|unmet|unverified}, source object.
-# Optional: reason, findings[], repeated_findings[], out_of_scope[].
+#           criteria[] of {text, status: met|unmet|unverified, evidence},
+#           source object. The record must also be internally consistent and
+#           must judge exactly the criteria Tier 1 inventoried — record-check.sh
+#           owns those rules, so a review accepted here is one the closing gate
+#           will also accept.
+# Optional: reason, findings[], repeated_findings[], out_of_scope[],
+#           tests_assessment (required when Tier 1 recorded no test run).
 #
 # Exit codes:
 #   0 — written
@@ -50,35 +55,13 @@ command -v jq >/dev/null 2>&1 || die "jq is required" 1
 INPUT=$(cat)
 printf '%s' "$INPUT" | jq -e . >/dev/null 2>&1 || die "stdin is not valid JSON" 2
 
-# One jq pass returns the first problem, or nothing. Keeping the rules here
-# rather than in a chain of shell tests means the reviewer's prompt and this
-# script cannot drift into disagreeing about what "complete" means.
-PROBLEM=$(printf '%s' "$INPUT" | jq -r '
-    def bad(msg): msg;
-    if has("status") | not then bad("missing required field: status")
-    elif (.status | IN("pass","partial","fail") | not)
-        then bad("status must be pass|partial|fail, got: \(.status|tostring)")
-    elif has("review") | not then bad("missing required field: review")
-    elif (.review | IN("complete","incomplete") | not)
-        then bad("review must be complete|incomplete, got: \(.review|tostring)")
-    elif has("criteria") | not then bad("missing required field: criteria")
-    elif (.criteria | type != "array") then bad("criteria must be an array")
-    elif ([.criteria[] | has("text") | not] | any)
-        then bad("every criteria entry needs text")
-    elif ([.criteria[] | (.status // "") | IN("met","unmet","unverified") | not] | any)
-        then bad("every criteria status must be met|unmet|unverified")
-    elif has("source") | not then bad("missing required field: source")
-    elif (.source | type != "object") then bad("source must be an object")
-    else empty
-    end' 2>/dev/null)
-
-[ -z "$PROBLEM" ] || die "$PROBLEM" 3
-
 mkdir -p "$STATE_DIR/verification"
 OUT="$STATE_DIR/verification/${ID}.review.json"
 TMP="${OUT}.tmp.$$"
+trap 'rm -f "$TMP"' EXIT HUP INT TERM
 
-# The envelope is the writer's, not the payload's: an agent cannot backdate a
+# Render first, validate the rendered record, write only what passed. The
+# envelope is the writer's, not the payload's: an agent cannot backdate a
 # review or claim someone else's slice id.
 printf '%s' "$INPUT" | jq \
     --argjson v "$RECORD_VERSION" --arg id "$ID" --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -86,12 +69,23 @@ printf '%s' "$INPUT" | jq \
       criteria, findings: (.findings // []),
       repeated_findings: (.repeated_findings // []),
       out_of_scope: (.out_of_scope // []),
-      source, verified_at: $ts}' > "$TMP" 2>/dev/null || {
-    rm -f "$TMP"
-    die "failed to render the record" 3
-}
+      tests_assessment: (.tests_assessment // null),
+      source, verified_at: $ts}' > "$TMP" 2>/dev/null || die "failed to render the record" 3
 
-[ -s "$TMP" ] || { rm -f "$TMP"; die "rendered an empty record" 3; }
+[ -s "$TMP" ] || die "rendered an empty record" 3
+
+# One policy, shared with the closing gate: a review this rejects is a review
+# that would have been rejected at close, and finding that out now is the
+# reviewer's chance to fix it.
+CHECK="$(cd "$(dirname "$0")" && pwd)/record-check.sh"
+if [ -f "$CHECK" ]; then
+    PROBLEM=$(bash "$CHECK" "$PROJECT_DIR" "$ID" review "$TMP" 2>&1) || {
+        printf '%s\n' "$PROBLEM" >&2
+        die "the review was rejected; nothing was written" 3
+    }
+fi
+
 mv "$TMP" "$OUT"
+trap - EXIT HUP INT TERM
 printf 'write-review: %s\n' "$OUT"
 exit 0

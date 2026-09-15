@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# --close-slice is the only forward path through a phase, and it reads the
-# verification records to decide. One test per refusal rule, because the rule
-# that is never exercised is the rule that quietly stops firing — and a
-# refusal that still writes half an advance is worse than no gate at all, so
-# every refusal also asserts the state file is untouched.
+# --close-slice is the only forward path through a phase, and it decides from
+# the verification records. Every case here runs the real chain — plan, a real
+# check result, verify-phase.sh, write-review.sh, the close — because the bugs
+# this suite exists to catch all lived in the seams between those scripts, not
+# inside any one of them. Every refusal also asserts the state file did not
+# move: a gate that refuses and advances anyway is worse than no gate.
 # Contract: docs/specs/2026-09-15-evidence-gated-closing.md
 # SPDX-License-Identifier: AGPL-3.0-or-later
 set -euo pipefail
@@ -12,134 +13,336 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 source "$REPO_ROOT/evals/lib/assert.sh"
 require_jq
-source "$REPO_ROOT/evals/lib/fixtures.sh"
 
 SU="$REPO_ROOT/scripts/state-update.sh"
+VP="$REPO_ROOT/scripts/verify-phase.sh"
+WR="$REPO_ROOT/scripts/write-review.sh"
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
-mkdir -p "$W/.se/verification"
 
-SRC='{"plan_blob":"aaa","head_commit":"bbb"}'
+C1="GET /x returns 200"
+C2="errors surface to the caller"
 
-reset_state() {
+# A real project: a git repo, a roadmap, a plan that passes plan-validate.
+( cd "$W" && git init -q && git config user.email e@x && git config user.name n ) >/dev/null
+mkdir -p "$W/.se/plans" "$W/.se/verification"
+cat > "$W/.se/roadmap.md" <<'EOF'
+# Project Roadmap
+## Phases
+### Phase 1: the slice
+**Status:** pending
+### Phase 2: the next one
+**Status:** pending
+### Phase 3: the last one
+**Status:** pending
+EOF
+write_plan() {  # write_plan <id>
+    cat > "$W/.se/plans/$1.md" <<EOF
+# Plan: $1
+## Files
+- src/app.sh
+## Tasks
+### Task 1: implement
+- What: implement it
+- Check: \`bash t.sh\`
+- Commit: \`feat(x): do it\`
+## Acceptance criteria
+- [ ] $C1
+- [ ] $C2
+## Risks
+- none — confirm: no
+## Proof
+- the suite green
+EOF
+}
+write_plan phase-1
+printf 'echo app\n' > "$W/src_placeholder" ; mkdir -p "$W/src"; printf 'echo app\n' > "$W/src/app.sh"
+( cd "$W" && git add -A && git commit -qm "chore: init" ) >/dev/null
+
+reset_state() {  # reset_state [current_phase] [total_phases]
     jq -n --argjson cp "${1:-1}" --argjson tp "${2:-3}" \
         '{schema_version:3, mode:"light", created:"2026-09-15",
           current_phase:$cp, total_phases:$tp}' > "$W/.se/state.json"
+    find "$W/.se/verification" -name '*.closed.json' -delete 2>/dev/null || true
+    find "$W/.se/verification" -name '*.accepted.json' -delete 2>/dev/null || true
 }
 
-tier1() {  # tier1 <status> [record_version]
-    jq -n --arg s "$1" --argjson v "${2:-1}" --argjson src "$SRC" \
-        '{record_version:$v, id:"p1", status:$s,
-          tests:{status:"passed", command:"npm test", exit_code:0},
-          criteria:[{text:"c1", status:"unverified"}], source:$src}' \
-        > "$W/.se/verification/p1.json"
+tier1() {  # tier1 <id> <tests-status> [command] [exit] [reason]
+    bash "$VP" "$W" "$1" planned "${2:-passed}" "${3:-bash t.sh}" "${4:-0}" "${5:-}" >/dev/null
 }
 
-tier2() {  # tier2 <status> <review> [criteria-status] [source-json]
-    jq -n --arg s "$1" --arg r "$2" --arg cs "${3:-met}" \
-        --argjson src "${4:-$SRC}" \
-        '{record_version:1, id:"p1", status:$s, review:$r, reason:"r",
-          criteria:[{text:"c1", status:$cs, evidence:"e"}],
-          findings:[{severity:"major", file:"f:1", problem:"p", fix:"x"}],
-          repeated_findings:[], out_of_scope:[], source:$src}' \
-        > "$W/.se/verification/p1.review.json"
+# review <id> <jq-filter-applied-to-the-default-payload>
+review() {
+    local id="$1" filter="${2:-.}"
+    jq -n --arg c1 "$C1" --arg c2 "$C2" \
+        --argjson src "$(jq -c '.source' "$W/.se/verification/${id}.json")" \
+        '{status:"pass", review:"complete", reason:"all criteria met",
+          criteria:[{text:$c1,status:"met",evidence:"t.sh:3"},
+                    {text:$c2,status:"met",evidence:"t.sh:9"}],
+          findings:[], repeated_findings:[], out_of_scope:[], source:$src}' \
+        | jq "$filter" | bash "$WR" "$W" "$id" >/dev/null 2>&1
+}
+# review_rc <id> <filter> → the writer's exit code
+review_rc() {
+    local id="$1" filter="${2:-.}" rc=0
+    jq -n --arg c1 "$C1" --arg c2 "$C2" \
+        --argjson src "$(jq -c '.source' "$W/.se/verification/${id}.json")" \
+        '{status:"pass", review:"complete", reason:"all criteria met",
+          criteria:[{text:$c1,status:"met",evidence:"t.sh:3"},
+                    {text:$c2,status:"met",evidence:"t.sh:9"}],
+          findings:[], repeated_findings:[], out_of_scope:[], source:$src}' \
+        | jq "$filter" | bash "$WR" "$W" "$id" >/dev/null 2>&1 || rc=$?
+    echo "$rc"
+}
+# force_review <id> <filter> — bypass the writer to plant a record the writer
+# would have refused. Used only to prove the closing gate re-validates rather
+# than trusting the file's provenance.
+force_review() {
+    local id="$1" filter="$2"
+    jq -n --arg c1 "$C1" --arg c2 "$C2" \
+        --argjson src "$(jq -c '.source' "$W/.se/verification/${id}.json")" \
+        '{record_version:1, id:"'"$id"'", status:"pass", review:"complete", reason:"r",
+          criteria:[{text:$c1,status:"met",evidence:"e"},
+                    {text:$c2,status:"met",evidence:"e"}],
+          findings:[], repeated_findings:[], out_of_scope:[],
+          tests_assessment:null, source:$src, verified_at:"2026-09-15T00:00:00Z"}' \
+        | jq "$filter" > "$W/.se/verification/${id}.review.json"
 }
 
-# rc <args...> — run --close-slice, echo the exit code
-rc() { local c=0; bash "$SU" --project-dir "$W" --close-slice "$@" >/dev/null 2>&1 || c=$?; echo "$c"; }
-msg() { bash "$SU" --project-dir "$W" --close-slice "$@" 2>&1 >/dev/null || true; }
-phase() { jq -r '.current_phase' "$W/.se/state.json"; }
+rc()   { local c=0; bash "$SU" --project-dir "$W" --close-slice "$@" >/dev/null 2>&1 || c=$?; echo "$c"; }
+msg()  { bash "$SU" --project-dir "$W" --close-slice "$@" 2>&1 >/dev/null || true; }
+phase(){ jq -r '.current_phase' "$W/.se/state.json"; }
+snap() { md5 -q "$W/.se/state.json" 2>/dev/null || md5sum "$W/.se/state.json" | cut -d' ' -f1; }
 
-# --- rules 1, 2, 9: no usable Tier-1 evidence → exit 5 ---
-reset_state 1 3; tier2 pass complete
-rm -f "$W/.se/verification/p1.json"
-assert_eq 5 "$(rc p1)" "no Tier-1 record → 5"
-assert_eq 1 "$(phase)" "a refusal does not advance the phase"
+# =============================== the writer rejects what the gate would ======
+reset_state 1 3; tier1 phase-1 passed
 
-printf 'not json' > "$W/.se/verification/p1.json"
-assert_eq 5 "$(rc p1)" "unparseable Tier-1 record → 5"
+assert_eq 3 "$(review_rc phase-1 '.criteria = []')" "empty criteria rejected at write time"
+assert_eq 3 "$(review_rc phase-1 '.criteria = [42]')" "a criteria entry that is not an object is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria[0] |= del(.evidence)')" "met without evidence is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria[0].evidence = "   "')" "whitespace is not evidence"
+assert_eq 3 "$(review_rc phase-1 '.findings = [{severity:"blocker",file:"f",problem:"p",fix:"x"}]')" \
+    "pass carrying a blocker is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria[1].status = "unmet" | .criteria[1].evidence = "missing handler"')" \
+    "pass carrying an unmet criterion is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria[1].status = "unverified"')" \
+    "complete review leaving a criterion unverified is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria[1].text = "something the plan never asked for"')" \
+    "a criterion the plan does not ask for is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria = [.criteria[0], .criteria[0]]')" \
+    "judging one criterion twice is rejected"
+assert_eq 3 "$(review_rc phase-1 '.criteria = [.criteria[0]]')" \
+    "leaving a plan criterion unjudged is rejected"
+[ ! -e "$W/.se/verification/phase-1.review.json" ] || _fail "a rejected review was written to disk"
 
-for st in fail incomplete; do
-    tier1 "$st"
-    assert_eq 5 "$(rc p1)" "Tier-1 $st → 5"
-    assert_eq 1 "$(phase)" "Tier-1 $st leaves the phase alone"
-done
-assert_contains "$(tier1 incomplete; msg p1)" "incomplete" "the refusal names the Tier-1 status"
+# The legitimate shapes still go through.
+assert_eq 0 "$(review_rc phase-1 '.')" "a consistent review is accepted"
+assert_eq 0 "$(review_rc phase-1 '.status = "fail" | .findings = [{severity:"blocker",file:"f",problem:"p",fix:"x"}]')" \
+    "a blocker with verdict fail is accepted"
+assert_eq 0 "$(review_rc phase-1 '.status = "partial" | .criteria[1].status = "unmet" | .criteria[1].evidence = "no handler"')" \
+    "an unmet criterion with verdict partial is accepted"
+assert_eq 0 "$(review_rc phase-1 '.review = "incomplete" | .status = "partial" | .criteria[1].status = "unverified"')" \
+    "an unfinished review may leave a criterion unverified"
 
-tier1 pass 0
-assert_eq 5 "$(rc p1)" "a record with no usable record_version → 5"
+# ================================= the gate re-validates the files ===========
+# A record the writer would have refused still has to be refused at close:
+# .se/ is always open to the model, so provenance is not evidence.
+reset_state 1 3; tier1 phase-1 passed
+force_review phase-1 '.criteria = []'
+assert_eq 6 "$(rc phase-1)" "planted empty criteria refused at close"
+force_review phase-1 '.findings = [{severity:"blocker",file:"f",problem:"p",fix:"x"}]'
+assert_eq 6 "$(rc phase-1)" "planted pass+blocker refused at close"
+force_review phase-1 'del(.status)'
+assert_eq 6 "$(rc phase-1)" "planted record with no status refused at close"
+force_review phase-1 '.criteria[0] |= del(.evidence)'
+assert_eq 6 "$(rc phase-1)" "planted evidence-free met refused at close"
+force_review phase-1 '.record_version = 2'
+assert_eq 6 "$(rc phase-1)" "an unknown review version is not evidence"
+# Coverage is checked on both sides. The writer catches it for a reviewer that
+# uses the writer; this catches it for a record that appeared some other way.
+force_review phase-1 '.criteria = [.criteria[0]]'
+assert_eq 6 "$(rc phase-1)" "a planted review that judges only half the plan refused at close"
+force_review phase-1 '.criteria[1].text = "a criterion the plan never asked for"'
+assert_eq 6 "$(rc phase-1)" "a planted review judging an unrelated criterion refused at close"
+force_review phase-1 '.id = "some-other-slice"'
+assert_eq 6 "$(rc phase-1)" "a review naming another slice cannot close this one"
+assert_eq 1 "$(phase)" "none of the planted records advanced the phase"
 
-# --- rules 3, 4, 5: no usable review → exit 6 ---
-tier1 pass
-rm -f "$W/.se/verification/p1.review.json"
-assert_eq 6 "$(rc p1)" "no review → 6"
-assert_contains "$(msg p1)" "review" "the refusal names the missing review"
+# =================================== Tier-1 evidence =========================
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+BEFORE="$(snap)"
+rm -f "$W/.se/verification/phase-1.json"
+assert_eq 5 "$(rc phase-1)" "no Tier-1 record → 5"
+assert_eq "$BEFORE" "$(snap)" "a refusal leaves the state file byte-identical"
 
-tier2 pass incomplete
-assert_eq 6 "$(rc p1)" "review: incomplete → 6"
+printf 'not json' > "$W/.se/verification/phase-1.json"
+assert_eq 5 "$(rc phase-1)" "unparseable Tier-1 record → 5"
 
-tier2 pass complete met '{"plan_blob":"ccc","head_commit":"bbb"}'
-assert_eq 6 "$(rc p1)" "a review of other material → 6"
-assert_contains "$(msg p1)" "source" "the refusal names the revision mismatch"
+tier1 phase-1 failed "bash t.sh" 1
+assert_eq 5 "$(rc phase-1)" "a red suite → 5"
+assert_contains "$(msg phase-1)" "fail" "the refusal names the Tier-1 verdict"
 
-# --- rules 6, 7, 8: the verdict does not permit closing → exit 7 ---
-tier2 fail complete
-assert_eq 7 "$(rc p1)" "review status fail → 7"
+tier1 phase-1 passed
+jq '.record_version = 99' "$W/.se/verification/phase-1.json" > "$W/t" && mv "$W/t" "$W/.se/verification/phase-1.json"
+assert_eq 5 "$(rc phase-1)" "an unknown Tier-1 version is not evidence"
 
-tier2 pass complete unverified
-assert_eq 7 "$(rc p1)" "an unverified criterion → 7"
+# The plan is re-checked against the contract that gated it, not merely counted.
+tier1 phase-1 passed; review phase-1
+cp "$W/.se/plans/phase-1.md" "$W/plan.bak"
+printf '# Plan: phase-1\n## Files\n- a\n## Tasks\n### Task 1: x\n## Acceptance criteria\n- [ ] %s\n- [ ] %s\n## Risks\n- none\n' "$C1" "$C2" > "$W/.se/plans/phase-1.md"
+assert_eq 5 "$(rc phase-1)" "a plan that no longer satisfies plan-validate → 5"
+cp "$W/plan.bak" "$W/.se/plans/phase-1.md"
 
-tier2 partial complete
-assert_eq 7 "$(rc p1)" "partial without --accept-risk → 7"
-assert_contains "$(msg p1)" "accept-risk" "the refusal names what would satisfy it"
+rm -f "$W/.se/plans/phase-1.md"
+assert_eq 5 "$(rc phase-1)" "a plan that is gone → 5"
+cp "$W/plan.bak" "$W/.se/plans/phase-1.md"
 
-# --- the clean path advances exactly one phase ---
-reset_state 1 3; tier1 pass; tier2 pass complete
-assert_eq 0 "$(rc p1)" "a clean slice closes"
-assert_eq 2 "$(phase)" "the phase advances by one"
-assert_jq "$(cat "$W/.se/state.json")" '.last_session' '!= null' "last_session refreshed"
-assert_jq "$(cat "$W/.se/state.json")" 'has("completed")' '== false' "not the last phase → not completed"
+# =============================== evidence must still apply ===================
+# Source edited but not committed: HEAD still matches, the tree does not.
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+printf 'echo changed\n' >> "$W/src/app.sh"
+assert_eq 5 "$(rc phase-1)" "uncommitted source edits stale the evidence"
+assert_contains "$(msg phase-1)" "src/app.sh" "the refusal names the drifted path"
+( cd "$W" && git checkout -- src/app.sh )
 
-# --- the last phase completes the project, and never overshoots ---
-reset_state 3 3; tier1 pass; tier2 pass complete
-assert_eq 0 "$(rc p1)" "the last phase closes"
+# A new, unadded source file is source too.
+printf 'echo new\n' > "$W/src/extra.sh"
+assert_eq 5 "$(rc phase-1)" "an untracked new source file stales the evidence"
+rm -f "$W/src/extra.sh"
+
+# Source committed after the review: HEAD moved, and it moved over source.
+printf 'echo changed\n' >> "$W/src/app.sh"
+( cd "$W" && git add -A && git commit -qm "feat: change after review" ) >/dev/null
+assert_eq 5 "$(rc phase-1)" "source committed after the review stales the evidence"
+assert_eq 1 "$(phase)" "stale evidence never advances the phase"
+
+# The plan edited after the review.
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+printf '\n- [ ] a third criterion\n' >> "$W/.se/plans/phase-1.md"
+assert_eq 5 "$(rc phase-1)" "a plan edited after the review stales the evidence"
+cp "$W/plan.bak" "$W/.se/plans/phase-1.md"
+
+# An artifact-only commit is the close's own commit: it must not invalidate
+# the very records it is committing.
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+( cd "$W" && git add -A && git commit -qm "chore(se): close phase-1 artifacts" ) >/dev/null
+assert_eq 0 "$(rc phase-1)" "an artifact-only commit does not stale the evidence"
+assert_eq 2 "$(phase)" "the clean path advances one phase"
+
+# ==================================== slice identity =========================
+reset_state 1 3
+write_plan phase-2; ( cd "$W" && git add -A && git commit -qm "docs(se): plan phase-2" ) >/dev/null
+tier1 phase-2 passed; review phase-2
+assert_eq 5 "$(rc phase-2)" "phase-2 evidence cannot close while the project is on phase 1"
+assert_eq 1 "$(phase)" "a wrong-phase close changes nothing"
+
+# An ad-hoc planned slice closes without advancing the roadmap.
+write_plan csv-export; ( cd "$W" && git add -A && git commit -qm "docs(se): plan csv-export" ) >/dev/null
+tier1 csv-export passed; review csv-export
+assert_eq 0 "$(rc csv-export)" "an ad-hoc planned slice closes"
+assert_eq 1 "$(phase)" "an ad-hoc slice does not advance the roadmap phase"
+assert_file_exists "$W/.se/verification/csv-export.closed.json" "the close is recorded"
+assert_jq "$(cat "$W/.se/verification/csv-export.closed.json")" '.slice_kind' '== "adhoc"' \
+    "the close record knows what kind of slice it closed"
+
+# A path-escaping id never reaches the filesystem.
+assert_eq 2 "$(rc ../../etc/passwd)" "a slice id that escapes .se/verification is refused"
+
+# ====================================== idempotency ==========================
+reset_state 1 3; tier1 phase-1 passed; review phase-1
+( cd "$W" && git add -A && git commit -qm "chore(se): artifacts" ) >/dev/null
+assert_eq 0 "$(rc phase-1)" "first close succeeds"
+assert_eq 2 "$(phase)" "first close advances"
+assert_eq 0 "$(rc phase-1)" "closing the same slice again is a no-op, not an error"
+assert_eq 2 "$(phase)" "the phase does not advance twice"
+assert_eq 0 "$(rc phase-1)" "and again"
+assert_eq 2 "$(phase)" "still once"
+
+# Interrupted between the close record and the state write: re-running finishes
+# the job rather than re-judging evidence the close commit has already moved.
+reset_state 1 3
+jq -n '{record_version:1, id:"phase-1", slice_kind:"roadmap", from_phase:1,
+        to_phase:2, completed:false, source:{}, accepted_risk:null,
+        closed_at:"2026-09-15T00:00:00Z"}' > "$W/.se/verification/phase-1.closed.json"
+rm -f "$W/.se/verification/phase-1.review.json"
+assert_eq 0 "$(rc phase-1)" "an interrupted close resumes without the review in hand"
+assert_eq 2 "$(phase)" "the interrupted close completes its state write"
+
+# ====================================== last phase ===========================
+reset_state 3 3; tier1 phase-1 passed; review phase-1
+rm -f "$W/.se/verification/phase-1.closed.json"
+# phase-1 evidence cannot close phase 3.
+assert_eq 5 "$(rc phase-1)" "phase-1 evidence cannot close phase 3"
+cat >> "$W/.se/roadmap.md" <<'EOF'
+EOF
+write_plan phase-3; ( cd "$W" && git add -A && git commit -qm "docs(se): plan phase-3" ) >/dev/null
+tier1 phase-3 passed; review phase-3
+( cd "$W" && git add -A && git commit -qm "chore(se): artifacts" ) >/dev/null
+assert_eq 0 "$(rc phase-3)" "the last phase closes"
 assert_jq "$(cat "$W/.se/state.json")" '.completed' '== true' "last phase → completed"
 assert_jq "$(cat "$W/.se/state.json")" '.current_phase' '<= 3' "current_phase never exceeds total_phases"
+assert_eq 0 "$(rc phase-3)" "re-closing the last phase is a no-op"
 
-# --- accepting a known risk closes a partial, and records what was accepted ---
-reset_state 1 3; tier1 pass; tier2 partial complete
-BEFORE="$(cat "$W/.se/verification/p1.review.json")"
-assert_eq 0 "$(rc p1 --accept-risk "shipping the 500 path as-is for the demo")" \
-    "partial + accept-risk closes"
-assert_eq 2 "$(phase)" "accepted partial advances"
-A="$W/.se/verification/p1.accepted.json"
+# ====================================== accepted risk ========================
+reset_state 1 3
+tier1 phase-1 passed
+review phase-1 '.status = "partial" | .criteria[1].status = "unmet" | .criteria[1].evidence = "no handler on the 500 path" | .findings = [{severity:"major",file:"src/app.sh:3",problem:"500 swallowed",fix:"surface it"}]'
+( cd "$W" && git add -A && git commit -qm "chore(se): artifacts" ) >/dev/null
+assert_eq 7 "$(rc phase-1)" "partial without --accept-risk → 7"
+assert_contains "$(msg phase-1)" "accept-risk" "the refusal names what would satisfy it"
+BEFORE_REVIEW="$(cat "$W/.se/verification/phase-1.review.json")"
+assert_eq 0 "$(rc phase-1 --accept-risk "shipping the 500 path for the demo")" "partial + accept-risk closes"
+assert_eq 2 "$(phase)" "an accepted partial advances"
+A="$W/.se/verification/phase-1.accepted.json"
 assert_file_exists "$A" "the acceptance is recorded"
 assert_jq "$(cat "$A")" '.reason' '| test("demo")' "the reason is kept"
 assert_jq "$(cat "$A")" '.findings | length' '== 1' "the findings that stood are kept"
-assert_jq "$(cat "$A")" '.accepted_at' '!= null' "the acceptance is timestamped"
-assert_eq "$BEFORE" "$(cat "$W/.se/verification/p1.review.json")" \
+assert_eq "$BEFORE_REVIEW" "$(cat "$W/.se/verification/phase-1.review.json")" \
     "accepting a risk never edits the reviewer's record"
 
-# --- accept-risk buys nothing else ---
-reset_state 1 3; tier1 pass; tier2 fail complete
-assert_eq 7 "$(rc p1 --accept-risk "please")" "accept-risk does not rescue a fail"
-tier2 pass incomplete
-assert_eq 6 "$(rc p1 --accept-risk "please")" "accept-risk does not rescue an incomplete review"
-tier2 pass complete unverified
-assert_eq 7 "$(rc p1 --accept-risk "please")" "accept-risk does not rescue an unverified criterion"
-tier1 incomplete; tier2 pass complete
-assert_eq 5 "$(rc p1 --accept-risk "please")" "accept-risk does not rescue missing Tier-1 evidence"
-assert_eq 1 "$(phase)" "none of those advanced the phase"
+# accept-risk buys exactly one thing: a partial verdict.
+reset_state 1 3; tier1 phase-1 failed "bash t.sh" 1; review phase-1 2>/dev/null || true
+assert_eq 5 "$(rc phase-1 --accept-risk "please")" "accept-risk does not rescue a red suite"
+reset_state 1 3; tier1 phase-1 passed
+force_review phase-1 '.review = "incomplete" | .criteria[1].status = "unverified"'
+assert_eq 6 "$(rc phase-1 --accept-risk "please")" "accept-risk does not rescue an unfinished review"
+assert_eq 1 "$(phase)" "neither advanced the phase"
 
-# --- the guarded keys cannot be written around ---
-g() { local c=0; bash "$SU" --project-dir "$W" "$@" >/dev/null 2>&1 || c=$?; echo "$c"; }
+# ======================== a runner-less project can still close ==============
+# The plan requires it; Tier-1 pass alone would make it impossible. The
+# reviewer has to say, in the record, that what it saw stands in for the run.
+reset_state 1 3
+tier1 phase-1 not_run "" "" "no test runner in this project"
+assert_eq 3 "$(review_rc phase-1 '.')" "with no test run, a review that does not assess it is rejected"
+review phase-1 '.tests_assessment = {status:"accepted", reason:"both criteria checked by reading the rendered output"}'
+( cd "$W" && git add -A && git commit -qm "chore(se): artifacts" ) >/dev/null
+assert_eq 0 "$(rc phase-1)" "a runner-less slice closes on an assessed review"
+assert_eq 2 "$(phase)" "and advances"
+T1J="$(cat "$W/.se/verification/phase-1.json")"
+assert_jq "$T1J" '.tests.status' '== "not_run"' "not_run is still not_run after closing"
+case "$T1J" in *"tests passed"*) _fail "a runner-less close claims tests passed" ;; esac
+
+# The reviewer may also say the missing run is not coverable.
+reset_state 1 3
+tier1 phase-1 not_run "" "" "no test runner in this project"
+review phase-1 '.tests_assessment = {status:"insufficient", reason:"the HTTP behaviour cannot be checked by reading"}'
+assert_eq 7 "$(rc phase-1)" "an insufficient assessment does not close"
+assert_eq 1 "$(phase)" "and does not advance"
+
+# ================================ the guarded keys ===========================
+g()    { local c=0; bash "$SU" --project-dir "$W" "$@" >/dev/null 2>&1 || c=$?; echo "$c"; }
 gmsg() { bash "$SU" --project-dir "$W" "$@" 2>&1 >/dev/null || true; }
 reset_state 1 3
 assert_eq 8 "$(g completed=true)"     "completed=true through the generic path → 8"
 assert_eq 8 "$(g current_phase=2)"    "a forward current_phase → 8"
 assert_eq 8 "$(g current_phase=3 last_commit=abc)" "a forward move hidden among other keys → 8"
+# jq parses these as numbers, so a guard that only looks at the string shape
+# waves them straight through into current_phase.
+assert_eq 8 "$(g current_phase=2e0)"  "2e0 is the number 2 → 8"
+assert_eq 8 "$(g current_phase=1.5)"  "a fractional phase → 8"
+assert_eq 8 "$(g current_phase=+2)"   "a signed integer → 8"
 assert_contains "$(gmsg completed=true)" "close-slice" "the refusal names the operation to use"
-assert_eq 1 "$(phase)" "a guarded refusal changes nothing"
+assert_eq 1 "$(phase)" "no guarded refusal changed the phase"
 
 # The legitimate transitions stay open.
 assert_eq 0 "$(g total_phases=5)"     "extending a roadmap still works"
