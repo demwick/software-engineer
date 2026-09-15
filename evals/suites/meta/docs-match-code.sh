@@ -92,4 +92,20 @@ grep -qiF 'it does not block' "$REPO_ROOT/skills/triage/references/flow-light.md
 grep -qF 'accepted.json' "$REPO_ROOT/docs/STATE.md" \
     || fail "docs/STATE.md does not document .se/verification/<id>.accepted.json"
 
+# --- 7. the marker has one writer, and one owner for intent -> spec ---------
+# docs/specs/2026-09-15-marker-and-resume.md. Three flows used to printf the
+# literal; a shape nobody owns is a shape that drifts in one flow while every
+# check keeps passing against its own copy.
+for f in flow-light flow-direct flow-full; do
+    grep -qF 'arm-gate.sh' "$REPO_ROOT/skills/triage/references/${f}.md" \
+        || fail "${f}.md must arm through scripts/arm-gate.sh"
+    grep -qE 'printf .*"kind":' "$REPO_ROOT/skills/triage/references/${f}.md" \
+        && fail "${f}.md still writes the .se/.active literal by hand"
+done
+SPEC_CALLS=$(grep -c 'Invoke `/spec`' "$REPO_ROOT/skills/triage/references/flow-full.md" || true)
+[ "${SPEC_CALLS:-0}" -eq 0 ] \
+    || fail "flow-full invokes /spec while skills/intent already hands off to it — one transition, two owners"
+grep -qF 'roadmap.md' "$REPO_ROOT/skills/triage/references/flow-full.md" \
+    || fail "flow-full Step 0 must test for roadmap.md, not merely .se/"
+
 echo "PASS: the runtime docs match the code"

@@ -38,6 +38,13 @@ INPUT=$(cat 2>/dev/null || echo "{}")
 
 clear_markers() { rm -f "$ACTIVE" "$ATTEMPTS_FILE" "$FIXING"; }
 
+# A marker this cannot read is a marker nothing should act on — but leaving it
+# in place would arm the gate for every later turn, so clear it and stop.
+ARM_GATE="${CLAUDE_PLUGIN_ROOT:-}/scripts/arm-gate.sh"
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$ARM_GATE" ]; then
+    bash "$ARM_GATE" . --check >/dev/null 2>&1 || { clear_markers; exit 0; }
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
     clear_markers
     exit 0

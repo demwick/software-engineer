@@ -26,7 +26,7 @@ Escalating costs one plan; a wrong shallow guess costs more.
 In an SE-managed project, arm the gate with the direct kind — the guard counts distinct files and blocks the 4th:
 
 ```bash
-[ -f .se/state.json ] && printf '{"kind":"direct","id":"%s","files":[]}' "<short-slug>" > .se/.active
+[ -f .se/state.json ] && bash "${CLAUDE_PLUGIN_ROOT}/scripts/arm-gate.sh" . direct <short-slug>
 ```
 
 A block on the 4th file is the signal triage misrouted: stop, and run `flow-light.md` for this task.

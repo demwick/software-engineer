@@ -48,7 +48,7 @@ Every `## Risks` line with `confirm: yes` is put to the user with `AskUserQuesti
 Arm the gate **in the same turn** as the launch — the Stop hook clears it at turn end:
 
 ```bash
-printf '{"kind":"planned","id":"%s","files":[]}' "<id>" > .se/.active
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/arm-gate.sh" . planned <id>
 [ -f .se/state.json ] && bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-update.sh" current_step="<id>: executing"
 ```
 

@@ -11,7 +11,8 @@ Fuzzy and/or broad — a new product, "finish this project", a feature with open
 
 ## Step 0: New or existing?
 
-- `.se/` exists → do not overwrite. Offer: extend the roadmap (below), `/se-status`, or — only if the direction fundamentally changed — `scripts/archive-state.sh` and start over. Stop until the user picks.
+- `.se/state.json` **and** `.se/roadmap.md` exist → bootstrap is finished; do not overwrite. Offer: extend the roadmap (below), `/se-status`, or — only if the direction fundamentally changed — `scripts/archive-state.sh` and start over. Stop until the user picks.
+- `.se/` exists but one of those two is missing → an interrupted bootstrap. Resume from the first step whose artifact is absent rather than restarting: an existing `.se/intent/<slug>.md` is the intent, an existing `.se/specs/<slug>.md` is the spec, and Step 4 rebuilds whatever is left. Say which artifacts you found before continuing.
 - No `.se/`, directory effectively empty → **from-scratch**.
 - No `.se/`, code exists → **finish-existing**: launch the built-in `Explore` agent (very thorough) to answer, with file:line evidence: the stack and the file that proves it; how tests run (run the command); entry points and the modules that matter; what is missing or risky in tests, error handling, security. Write its answer to `.se/research.md` and summarize the top three findings for the user.
 
@@ -21,7 +22,7 @@ Narrate `→ intent`. Invoke `/intent` with the user's goal (and the research fi
 
 ## Step 2: Spec
 
-Narrate `→ spec`. Invoke `/spec` with the intent path. It writes and commits `.se/specs/<slug>.md`, `status: accepted` after the user confirms. From here the spec is binding: a contradiction later stops the flow and asks.
+`/intent` hands off to `/spec` itself — do not invoke it a second time here, or the user is asked to accept the same spec twice. Wait for `.se/specs/<slug>.md` to land with `status: accepted`, then confirm it exists. If it does not, invoke `/spec` with the intent path. From here the spec is binding: a contradiction later stops the flow and asks.
 
 ## Step 3: ADR
 
@@ -45,7 +46,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/state-init.sh" --mode <from-scratch|finish-e
 Only then scaffold, and arm the gate for it — a scaffold is code, and the ordering above is what lets the guard see it:
 
 ```bash
-printf '{"kind":"bootstrap","id":"bootstrap","files":[]}' > .se/.active
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/arm-gate.sh" . bootstrap bootstrap
 ```
 
 Scaffold the minimum that runs (`npm run dev`, `pytest`, or equivalent) — no auth boilerplate, CI, analytics, or feature flags unless the spec needs them. `bootstrap` is the third marker kind: gated like any write, but with no three-file budget (a scaffold is larger) and no Tier-1 record (there is no plan to check criteria against).

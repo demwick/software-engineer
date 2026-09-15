@@ -25,7 +25,15 @@ emit_empty() {
 # projects inherited an armed .se/.active from an interrupted turn, and the
 # next session's first edit sailed through the gate with no triage. The
 # injection needs a roadmap to describe; the cleanup needs only a project.
+# Clearing a permission marker is not the same as forgetting the work it was
+# armed for. The marker is a per-turn grant and must not survive the session;
+# the slice it belonged to may be half-finished, and a new session that says
+# nothing about it is how a half-finished slice gets started over.
+INTERRUPTED=""
 if [ -f "${STATE_DIR}/state.json" ]; then
+    if [ -f "${STATE_DIR}/.active" ] && command -v jq >/dev/null 2>&1; then
+        INTERRUPTED=$(jq -r '.id // ""' "${STATE_DIR}/.active" 2>/dev/null || echo "")
+    fi
     rm -f "${STATE_DIR}/.active" "${STATE_DIR}/.fixing" "${STATE_DIR}/.verify-attempts" 2>/dev/null || true
 fi
 
@@ -34,6 +42,34 @@ if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; the
 fi
 
 command -v jq >/dev/null 2>&1 || emit_empty
+
+# What is half-done, from the artifacts rather than from a marker: progress the
+# executor recorded per task, and verification that never reached a close.
+RESUME_LINES=""
+for pf in "${STATE_DIR}"/plans/*.progress.json; do
+    [ -f "$pf" ] || continue
+    pid=$(jq -r '.id // ""' "$pf" 2>/dev/null || echo "")
+    ptask=$(jq -r '.current_task // "?"' "$pf" 2>/dev/null || echo "?")
+    pdone=$(jq -r '(.completed_tasks // []) | length' "$pf" 2>/dev/null || echo 0)
+    [ -n "$pid" ] || continue
+    RESUME_LINES="${RESUME_LINES}
+- Unfinished slice ${pid}: on task ${ptask}, ${pdone} committed. Its plan is .se/plans/${pid}.md"
+done
+for vf in "${STATE_DIR}"/verification/*.json; do
+    [ -f "$vf" ] || continue
+    case "$vf" in *.review.json|*.closed.json|*.accepted.json) continue ;; esac
+    vid=$(jq -r '.id // ""' "$vf" 2>/dev/null || echo "")
+    vst=$(jq -r '.status // ""' "$vf" 2>/dev/null || echo "")
+    [ -n "$vid" ] || continue
+    [ -f "${STATE_DIR}/verification/${vid}.closed.json" ] && continue
+    case "$vst" in
+        pass) [ -f "${STATE_DIR}/verification/${vid}.review.json" ] \
+                || RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} passed Tier 1 and has no review yet. Run the verifier, then close it" ;;
+        fail|incomplete) RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} is recorded ${vst} and is not closed. Re-run its checks before anything else" ;;
+    esac
+done
 
 MODE=$(jq -r '.mode // "unknown"' "${STATE_DIR}/state.json" 2>/dev/null || echo "unknown")
 CURRENT=$(jq -r '.current_phase // 1' "${STATE_DIR}/state.json" 2>/dev/null || echo "1")
@@ -71,7 +107,7 @@ Current state:
 - Active phase: ${PHASE_NAME}
 - Last session: ${LAST_SESSION}
 - Last commit: ${LAST_COMMIT}${STEP_LINE}
-- Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}
+- Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}${RESUME_LINES}
 
 Every engineering request goes through the triage skill: it decides the
 depth (direct / planned slice / full flow), writes the artifacts under
@@ -89,6 +125,10 @@ Detect & Defer: charter=true → ADRs go to .claude/knowledge/adr/, the
 destructive-op guard defers to charter, the verifier uses the charter
 PASS/FAIL/PARTIAL verdict. centaur=true → acceptance-time diff-risk
 belongs to centaur; the plugin risk role stays forward-looking (the plan Risks section).
+
+An unfinished slice listed above is resumable: the plan and the progress file
+say where it stopped, and a close refuses until its evidence is current again.
+The gate markers were cleared with the last session, so arming comes first.
 
 Do not mention this block unless the user asks about software-engineer state.
 </software-engineer-session-state>

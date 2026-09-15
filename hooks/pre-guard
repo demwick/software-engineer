@@ -47,6 +47,19 @@ DIRECT_MAX_FILES=3
 STATE_DIR=".se"
 STATE_FILE="${STATE_DIR}/state.json"
 ACTIVE="${STATE_DIR}/.active"
+
+# Is a valid slice armed? arm-gate.sh owns the marker's shape; asking it keeps
+# this hook from carrying a second copy of that shape to drift from. Without
+# the plugin root (a stripped install) fall back to existence, which is the
+# behaviour this hook had before the marker had an owner.
+gate_armed() {
+    local ag="${CLAUDE_PLUGIN_ROOT:-}/scripts/arm-gate.sh"
+    if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$ag" ]; then
+        bash "$ag" . --check >/dev/null 2>&1
+        return $?
+    fi
+    [ -f "$ACTIVE" ]
+}
 FIXING="${STATE_DIR}/.fixing"
 
 INPUT=$(cat 2>/dev/null || echo "{}")
@@ -110,7 +123,7 @@ gate_path() {
     local rel="$1"
     is_open "$rel" && return 0
     if [ -f "$FIXING" ] && grep -Fxq "$rel" "$FIXING" 2>/dev/null; then deny_fixing "$rel"; fi
-    [ -f "$ACTIVE" ] || deny_unarmed "$rel"
+    gate_armed || deny_unarmed "$rel"
     direct_budget "$rel"
     return 0
 }
@@ -235,7 +248,7 @@ $(git diff --name-only 2>/dev/null || true)"
 
             # 2a. Nothing lands in history unarmed — the exact backstop for
             #     any write technique the heuristic gate below misses.
-            if [ ! -f "$ACTIVE" ]; then
+            if ! gate_armed; then
                 GATED=""
                 while IFS= read -r f; do
                     [ -n "$f" ] || continue
