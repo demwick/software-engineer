@@ -138,6 +138,7 @@ write_targets() {
     # <<EOF` is markdown, and `-> expect` in it became a write to "expect".
     # Keep the line that opens the heredoc — its `> path` is a real redirect —
     # and drop the body up to the delimiter.
+    local stripped
     stripped=$(printf '%s\n' "$1" | awk '
         d != "" { if ($0 == d) { d = "" } ; next }
         { if (match($0, /<<-?[ \t]*[\x27"]?[A-Za-z_][A-Za-z0-9_]*[\x27"]?/)) {
@@ -156,6 +157,7 @@ write_targets() {
         # segment with quoted spans removed. Interpreter one-liners keep their
         # own detection below, which reads the unstripped segment, so a write
         # hidden inside `python3 -c "..."` is still caught.
+        local unquoted
         unquoted=$(printf '%s\n' "$seg" | sed -e "s/'[^']*'/ /g" -e 's/"[^"]*"/ /g')
         # A redirect target is a path. Excluding backticks, quotes and parens
         # from the capture, and requiring a letter or digit in what is left,
