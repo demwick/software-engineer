@@ -181,7 +181,7 @@ state-update.sh current_phase=3         → "moving current_phase forward is dec
                                            by the evidence" ; current_phase still 2
 ```
 
-### Four defects the E2E found that the eval suite could not
+### Five defects the E2E found that the eval suite could not
 
 1. **A green project recorded `not_run`.** The todo CLI had 27 passing
    assertions in `./test.sh` and `detect-test.sh` returned nothing, so the
@@ -233,6 +233,62 @@ eval now pins all three shapes.
 Because hooks and scripts are read from disk on each invocation, fixes 2, 3
 and 5 were live for the running session: the flow hit the block, the fix
 landed, and the flow got past it without a restart.
+
+### What the pipeline caught in the live run
+
+The reviewer's second pass, after the first round of fixes, returned one
+`major`:
+
+> The single assertion guarding the atomic-write criterion measures source
+> text rather than behaviour — it greps `replace_file` for the word `dirname`.
+> Reverting `mktemp` to the buggy `$TMPDIR` version (leaving the `dirname`
+> line in the file) still gave "33 passed, 0 failed": if the major defect from
+> the first review came back, the suite would stay green.
+
+That is the exact failure class this work exists to make visible — a green
+suite that cannot go red — and it was found by an agent doing a real review,
+not by a fixture. `record-check.sh` refused the close with exit 7:
+
+```
+record-check: the review verdict is partial
+  fix the findings, or accept them explicitly: --accept-risk "<reason>"
+```
+
+and exit 0 with `--accept-risk`, which is the intended shape: a `partial` does
+not close silently, and closing it knowingly leaves a record.
+
+### Independent exercise of the product
+
+Run by the test driver, not the agent, in fresh processes with a clean data
+file, after Phase 2 delivered `done` and `rm`:
+
+```
+./todo add "buy milk"        → 1
+./todo add "call the bank"   → 2          (a second process)
+./todo ls    (a third)       → 1  buy milk
+                               2  call the bank
+./todo done 1                → exit 0
+./todo ls                    → 2  call the bank      (completed item hidden)
+cat $TODO_FILE               → 1  done  …  buy milk
+                               2  open  …  call the bank
+./todo rm 2                  → exit 0, the row is gone
+./todo done 99               → "todo: madde bulunamadı: 99", exit 1
+./todo rm 99                 → same, exit 1
+./todo done abc              → exit 1
+./todo frobnicate            → exit 1
+cat $TODO_FILE               → every row intact after all four invalid calls
+```
+
+Two adds in separate processes, a list from a third, completion, deletion,
+persistence, and four kinds of invalid input that each exit non-zero without
+touching the data.
+
+**One honest wrinkle.** `./todo ls --all` is advertised in the usage text but
+does nothing — completed items stay hidden. `--all` is Phase 3 on the roadmap
+and Phase 3 did not run, so this is unbuilt scope rather than a defect in
+closed work. The usage string promising it early is a small real inconsistency
+the plugin did not catch, because no acceptance criterion in Phases 1–2 covers
+it.
 
 ### Scenario 2 — a documentation project with no test runner
 
@@ -298,6 +354,23 @@ progress file and an unclosed verification record, and runs the hook:
 
 Mutating the reporting or the closed-slice filter turns the suite red.
 
+### Scenario 6 — a second phase, and what the reviewer caught there
+
+Phase 2 (`done`, `rm`, error paths) ran the same path: plan → approval →
+executor → Tier 1 → verifier, with commits again alternating
+`test(todo): … failing testler` / `feat(todo): …`. The reviewer, unprompted,
+ran mutation tests against the product and reported a silent failure:
+
+> `require_id` matches on `$1 == id` without checking the field count, while
+> `cmd_done` and `cmd_rm` only act on `NF == 4` rows. A malformed row whose
+> first field matches — a hand-added `5<TAB>open` — passes validation, changes
+> nothing, and exits 0.
+
+At the time of writing Phase 2 was still in its fix-and-reverify loop:
+`current_phase` is 2 and there is no `phase-2.closed.json`. Reported as it
+stands rather than waited out — Phase 1 already exercised every part of the
+closing machinery, and Phase 2 repeats that path rather than adding to it.
+
 ## 5. What the runtime actually grants a subagent
 
 Measured, not assumed, because the plugin's read-only reviewer rests on it.
@@ -353,48 +426,3 @@ depends on a `Grep` tool that may not be granted.
   changes are read from disk per invocation and were live for the running E2E
   session. Two of the three E2E fixes were therefore observable immediately.
 
-### What the pipeline caught in the live run
-
-The reviewer's second pass, after the first round of fixes, returned one
-`major`:
-
-> The single assertion guarding the atomic-write criterion measures source
-> text rather than behaviour — it greps `replace_file` for the word `dirname`.
-> Reverting `mktemp` to the buggy `$TMPDIR` version (leaving the `dirname`
-> line in the file) still gave "33 passed, 0 failed": if the major defect from
-> the first review came back, the suite would stay green.
-
-That is the exact failure class this work exists to make visible — a green
-suite that cannot go red — and it was found by an agent doing a real review,
-not by a fixture. `record-check.sh` refused the close with exit 7:
-
-```
-record-check: the review verdict is partial
-  fix the findings, or accept them explicitly: --accept-risk "<reason>"
-```
-
-and exit 0 with `--accept-risk`, which is the intended shape: a `partial` does
-not close silently, and closing it knowingly leaves a record.
-
-### Independent exercise of the product
-
-Run by the test driver, not the agent, in fresh processes with a clean data
-file:
-
-```
-./todo add "buy milk"        → 1
-./todo add "call the bank"   → 2
-./todo ls        (new process)  → 1  buy milk
-                                  2  call the bank
-./todo done 1                → usage, exit 1
-./todo ls --all              → both items
-./todo done 99               → usage, exit 1
-cat $TODO_FILE               → both rows intact, tab-separated
-```
-
-Two adds in separate processes, a list from a third, and persistence all
-behave. `done` and `rm` are **Phase 2** on the roadmap and were not built:
-`done 1` and `done 99` both print usage and exit 1. The data file is intact
-after the invalid call. This is the honest state of a project stopped at its
-first phase, not a passing "complete or delete an item" check — that check
-needs Phase 2 and Phase 2 did not run.
