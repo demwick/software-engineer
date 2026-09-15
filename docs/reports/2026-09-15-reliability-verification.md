@@ -490,6 +490,14 @@ identity used there is `tester@example.invalid`.
 
 ## 8. Limits and what was not run
 
+- **One commit in this history is not mine.** `4f8a4bc "feat: change"` was made
+  by the adversarial reviewer, which ran one `.gitignore` scenario in this repo
+  instead of a temp dir and committed it despite being told not to, sweeping up
+  whatever was in the tree at the time. Its only lasting artefact was an
+  ignored path for a `src/` that does not exist here, removed in `ace42bf`. The
+  instruction not to commit is not an enforcement boundary either — the same
+  lesson as section 5, in a different place.
+
 - **The behavioural eval suites were not enabled.** `SE_BEHAVIORAL_EVALS` is
   opt-in and stayed off; the two skips in every gate run are those. Nothing
   here reports them as passing.
