@@ -50,3 +50,29 @@ assert_eq "$(rc "$NONSE" '{"tool_name":"Bash","tool_input":{"command":"git push 
 rm -rf "$NONSE"
 
 echo "PASS: pre-guard destructive-op guard"
+
+# --- describing a destructive command is not running one --------------------
+# Observed live, twice: a reviewer put `rm -rf` into a finding and the guard
+# blocked it; the status line read "Rewording rm -rf in findings payload". A
+# guard that edits the text of a review is shaping the review. Prose that
+# merely names a destructive command is allowed; a payload handed to a shell
+# or an interpreter is not prose and is still scanned.
+j() { printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$(printf '%s' "$1" | jq -Rs .)"; }
+
+assert_eq "$(rc "$WORKDIR" "$(j 'jq -n --arg p "the installer runs rm -rf /opt/foo on upgrade" "{p:\$p}"')")" 0 \
+    "a finding that names rm -rf is not a destructive command"
+assert_eq "$(rc "$WORKDIR" "$(j "git commit -m 'docs: warn against rm -rf in the uninstall guide'")")" 0 \
+    "a commit message that names rm -rf is not one"
+assert_eq "$(rc "$WORKDIR" "$(j "echo 'never run rm -rf / on this host'")")" 0 \
+    "an echoed warning is not a destructive command"
+assert_eq "$(rc "$WORKDIR" "$(j 'jq -n --arg p "the migration issues DROP TABLE users without a backup" "{p:\$p}"')")" 0 \
+    "a finding that names DROP TABLE is not a destructive statement"
+
+# The real thing still closes, quoted or not.
+assert_eq "$(rc "$WORKDIR" "$(j 'rm -rf /some/project/dir')")" 2            "still blocked: a bare rm -rf"
+assert_eq "$(rc "$WORKDIR" "$(j 'rm -rf "/some/project dir"')")" 2          "still blocked: rm -rf with a quoted path"
+assert_eq "$(rc "$WORKDIR" "$(j "bash -c 'rm -rf /some/project/dir'")")" 2  "still blocked: rm -rf inside bash -c"
+assert_eq "$(rc "$WORKDIR" "$(j 'sh -c "rm -rf /some/project/dir"')")" 2    "still blocked: rm -rf inside sh -c"
+assert_eq "$(rc "$WORKDIR" "$(j "psql -c 'DROP TABLE users'")")" 2          "still blocked: DROP TABLE in a client payload"
+
+echo "PASS: the destructive guard blocks commands, not descriptions"

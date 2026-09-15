@@ -9,3 +9,4 @@ scripts/detect-plugin.sh
 scripts/guardrails.sh
 scripts/health.sh
 scripts/prompt-router.sh
+src/new.py
