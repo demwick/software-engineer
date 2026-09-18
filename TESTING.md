@@ -7,7 +7,7 @@
 
 # Testing Checklist
 
-`bash evals/run.sh` covers the deterministic layer (hooks, scripts, state, frontmatter, the prompt surface). What follows needs a live session: skill dispatch, plan mode, subagents, hooks firing on real tool calls.
+`bash evals/run.sh` covers the deterministic layer (hooks, scripts, state, frontmatter, the prompt surface). What follows needs a live session: skill dispatch, the plan file and its acceptance, subagents, hooks firing on real tool calls.
 
 `PLUGIN=/path/to/software-engineer` below.
 
@@ -43,7 +43,7 @@ In a managed project, outside any flow, ask Claude to edit a source file "withou
 
 *"add a CSV export endpoint to the existing user API"*
 
-**Expect:** ≤2 questions; plan mode; `.se/plans/csv-export.md` in the template shape, `plan-validate.sh` green, committed `docs(se): plan csv-export`; `confirm: yes` risks put to you before anything runs; `→ executor`, then the suite via `test-digest.sh`, `verification/csv-export.json`, `→ verifier`, `csv-export.review.json`, a `chore(se): close csv-export` commit. **Fail:** code before the plan file; no verifier; artifacts left uncommitted.
+**Expect:** ≤2 questions; `.se/plans/csv-export.md` in the template shape, `plan-validate.sh` green, committed `docs(se): plan csv-export`; `confirm: yes` risks put to you before anything runs; `→ executor`, then the suite via `test-digest.sh`, `verification/csv-export.json` carrying `record_version`, a `tests` block with the real command and exit code, per-criterion `unverified`, and a `source` binding; `→ verifier`, `csv-export.review.json` written through `write-review.sh`; then `state-update.sh --close-slice csv-export`, `csv-export.closed.json`, and a `chore(se): close csv-export` commit. **Fail:** code before the plan file; no verifier; a record that says `tests passed` without a command; the phase advancing through a bare `current_phase=`; artifacts left uncommitted.
 
 ## 4. Bug fix lock
 

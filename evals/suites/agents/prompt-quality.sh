@@ -62,7 +62,7 @@ grep -rqi 'plan mode' skills/ && fail "skills/ reintroduced plan mode; the plan 
 # manifest description and the README still sold "plan (in plan mode)" long
 # after v5 retired it, and this check only looked at skills/ — so the sentence
 # a marketplace listing shows was the one nothing verified.
-for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md docs/STATE.md; do
+for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md docs/STATE.md TESTING.md docs/DEVELOPMENT.md; do
     grep -qi 'plan mode' "$f" && fail "$f still advertises plan mode; v5 plans in a committed file that plan-validate.sh lints"
 done
 # And the two manifests describe the same plugin.

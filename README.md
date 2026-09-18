@@ -32,6 +32,22 @@ Triage classifies every request on **uncertainty** (is it clear what you want?) 
 
 ## Install
 
+From a marketplace, which is how a project you are working on should get it:
+
+```bash
+claude plugin marketplace add demwick/software-engineer   # or a local clone's path
+claude plugin install software-engineer@demwick
+```
+
+An install is a **copy**, not a live view of the source, and
+`claude plugin update` compares **version numbers** rather than content — so a
+change that does not bump `version` in `.claude-plugin/plugin.json` never
+reaches an installed project. Bump the version to ship.
+
+To work *on* the plugin, point a session at the working tree instead. Hooks and
+scripts are read from disk on every invocation, so edits to them apply without
+a restart; prompts (agents, skills) are loaded at session start and need one:
+
 ```bash
 claude --plugin-dir /path/to/software-engineer
 ```
@@ -48,7 +64,10 @@ Every planned change commits its record under `.se/`:
 | `.se/specs/<slug>.md` | `spec` — validated, accepted by you | the binding source of truth; a contradiction later **stops and asks** |
 | `.se/adr/NNNN-*.md` | `adr` — for hard-to-reverse decisions | context, decision, consequences, alternatives |
 | `.se/plans/<id>.md` | written by the flow, linted by `plan-validate.sh`, accepted with `AskUserQuestion` | files, ordered tasks with checks, acceptance criteria, risks, proof |
-| `.se/verification/<id>.json` + `.review.json` | Tier 1 (script) and Tier 2 (`verifier` agent) | the suite result, the criteria, the senior review |
+| `.se/verification/<id>.json` | Tier 1 — `verify-phase.sh` | mechanical fact: which command ran, its exit code, the plan's criteria as an inventory, and the plan blob + commit it was produced from |
+| `.se/verification/<id>.review.json` | Tier 2 — the `verifier` agent, through `write-review.sh` | each criterion met/unmet/unverified **with its evidence**, findings by severity, and what the review did not cover |
+| `.se/verification/<id>.closed.json` | `state-update.sh --close-slice` | the closing decision — so a repeat is a no-op and an interrupt mid-close is resumable |
+| `.se/verification/<id>.accepted.json` | `--close-slice --accept-risk` | a `partial` the user closed knowingly: the reason and the findings that stood, recorded beside the review rather than inside it |
 | `.se/roadmap.md` | the full flow | 3–7 phases from the code to the spec |
 
 Runtime state (`state.json`, markers, logs) stays gitignored. `git log .se/` is the audit trail.
@@ -59,7 +78,7 @@ Runtime state (`state.json`, markers, logs) stays gitignored. `git log .se/` is 
 
 The plugin's process is enforced, not described:
 
-- **No code without a plan.** In a managed project the `PreToolUse` hook blocks writes to project code until a flow arms `.se/.active` — which happens only after the plan is accepted (or the task is confirmed direct). It covers all three routes: `Write`/`Edit`, a shell write (`sed -i`, a `>` redirect, tee/cp/mv/touch), and `git commit` with project files staged. The commit check is the exact backstop, so however a file was changed, it does not reach history without a plan.
+- **No code without a plan.** In a managed project the `PreToolUse` hook blocks writes to project code until a flow arms `.se/.active` through `arm-gate.sh` — which happens only after the plan is accepted (or the task is confirmed direct). A marker the readers cannot parse counts as no marker, because a gate whose job is to stay shut has to fail shut. It covers all three routes: `Write`/`Edit`, a shell write (`sed -i`, a `>` redirect, tee/cp/mv/touch), and `git commit` with project files staged. The commit check is the exact backstop, so however a file was changed, it does not reach history without a plan.
 - **Direct means small.** A direct task that touches a 4th file is blocked: triage misrouted it, escalate to a plan.
 - **The fix goes into the code.** A bug fix starts with a failing test; while `.se/.fixing` lists it, edits to that test are blocked.
 - **Done means verified.** The `Stop` hook runs the suite on every armed turn; a failure blocks the turn with the output until it is fixed (≤2 retries). The `verifier` agent — never the agent that wrote the code — reviews each planned slice with severity-classified findings. A phase then advances only through `state-update.sh --close-slice`, which reads both verification records and refuses on a missing or unfinished review, a verdict that contradicts its own findings, an unverified criterion, or evidence produced before the source changed. A `partial` closes only with an explicit `--accept-risk`, and the acceptance is recorded beside the review.
@@ -77,7 +96,9 @@ plan file ──▶ .se/plans/<id>.md ──▶ plan-validate ──▶ risks co
    chore(se): close <id> ◀── Act ◀── verifier (Tier 2) ◀── suite + record (Tier 1) ◀── executor
 ```
 
-The full flow runs this once per roadmap phase, one phase per turn; say "continue" to advance.
+The full flow runs this once per roadmap phase, one phase per turn; say "continue" to advance. The close is the decision, not the bookkeeping: it runs before the roadmap is marked done, and it refuses rather than advancing on evidence that no longer describes the tree — a plan edited after the review, or source changed since, committed or not.
+
+A session that opens a project mid-slice is told what is unfinished and what it needs: a slice reviewed clean but never closed, one whose review said `fail`, one with a review and no Tier-1 record, or an executor that stopped partway with its progress on disk.
 
 ---
 
@@ -118,7 +139,7 @@ No Node, Python, or Go runtime is needed for the plugin itself.
 
 ## Contributing
 
-Clone, load with `--plugin-dir`, run `/reload-plugins` to pick up changes, and test against a throwaway project with [`TESTING.md`](TESTING.md). `bash evals/run.sh` is the deterministic gate. Internals: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); the architecture and its reasons: [`DESIGN.md`](DESIGN.md) and [`docs/specs/2026-09-04-playbook-architecture.md`](docs/specs/2026-09-04-playbook-architecture.md).
+Clone, load with `--plugin-dir`, and test against a throwaway project with [`TESTING.md`](TESTING.md) — hook and script edits apply on the next tool call, prompt edits on the next session. `bash evals/run.sh` is the deterministic gate. Internals: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md); the architecture and its reasons: [`DESIGN.md`](DESIGN.md) and [`docs/specs/2026-09-04-playbook-architecture.md`](docs/specs/2026-09-04-playbook-architecture.md).
 
 **Commit style:** `feat(skills): add …`, `fix(hooks): …`, `docs(readme): …`
 

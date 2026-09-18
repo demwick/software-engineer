@@ -24,7 +24,7 @@ A thin layer over Claude Code's native primitives — skills, two subagents, thr
 | `executor` | medium | Read, Write, Edit, Glob, Grep, Bash, WebFetch | every flow, after the gate is armed |
 | `verifier` | medium | Read, Glob, Grep, Bash | the planned slice's Act step, once per slice |
 
-Both are `model: inherit` with `memory: project`. Planning is Claude Code's plan mode; codebase surveys use the built-in `Explore` agent.
+Both are `model: inherit` with `memory: project`. Planning is a committed plan file the flow writes and `plan-validate.sh` lints, accepted with `AskUserQuestion`; codebase surveys use the built-in `Explore` agent.
 
 **Hooks** (`hooks/hooks.json`):
 
