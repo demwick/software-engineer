@@ -58,6 +58,20 @@ grep -qi 'hook' agents/verifier.md && fail "verifier.md names a hook as the cons
 # edit gate's: nothing writes code until a flow arms .se/.active. Keeping both
 # meant two approval dialogs back to back for the same decision.
 grep -rqi 'plan mode' skills/ && fail "skills/ reintroduced plan mode; the plan file is the artifact, AskUserQuestion is the acceptance"
+# The user-facing surface has to agree with the architecture. It did not: the
+# manifest description and the README still sold "plan (in plan mode)" long
+# after v5 retired it, and this check only looked at skills/ — so the sentence
+# a marketplace listing shows was the one nothing verified.
+for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md docs/STATE.md; do
+    grep -qi 'plan mode' "$f" && fail "$f still advertises plan mode; v5 plans in a committed file that plan-validate.sh lints"
+done
+# And the two manifests describe the same plugin.
+pj_desc="$(jq -r '.description' .claude-plugin/plugin.json)"
+mp_desc="$(jq -r '.plugins[0].description' .claude-plugin/marketplace.json)"
+[ "$pj_desc" = "$mp_desc" ] || fail "plugin.json and marketplace.json describe the plugin differently"
+pj_ver="$(jq -r '.version' .claude-plugin/plugin.json)"
+mp_ver="$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)"
+[ "$pj_ver" = "$mp_ver" ] || fail "plugin.json says version $pj_ver, marketplace.json says $mp_ver" 
 for t in EnterPlanMode ExitPlanMode; do
     grep -rqF "$t" skills/ && fail "skills/ must not grant $t"
 done

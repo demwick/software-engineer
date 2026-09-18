@@ -47,7 +47,7 @@ Every planned change commits its record under `.se/`:
 | `.se/intent/<slug>.md` | `intent` — a requirements dialogue: outcome, users, scale, auth, ranked NFRs, **non-goals** | what is wanted and why, in your terms |
 | `.se/specs/<slug>.md` | `spec` — validated, accepted by you | the binding source of truth; a contradiction later **stops and asks** |
 | `.se/adr/NNNN-*.md` | `adr` — for hard-to-reverse decisions | context, decision, consequences, alternatives |
-| `.se/plans/<id>.md` | Claude Code **plan mode**, linted by `plan-validate.sh` | files, ordered tasks with checks, acceptance criteria, risks, proof |
+| `.se/plans/<id>.md` | written by the flow, linted by `plan-validate.sh`, accepted with `AskUserQuestion` | files, ordered tasks with checks, acceptance criteria, risks, proof |
 | `.se/verification/<id>.json` + `.review.json` | Tier 1 (script) and Tier 2 (`verifier` agent) | the suite result, the criteria, the senior review |
 | `.se/roadmap.md` | the full flow | 3–7 phases from the code to the spec |
 
@@ -72,7 +72,7 @@ Irreversible git and database operations are hard-blocked (deferred to `claude-c
 ## How a planned slice runs
 
 ```
-plan mode ──▶ .se/plans/<id>.md ──▶ plan-validate ──▶ risks confirmed ──▶ arm .active
+plan file ──▶ .se/plans/<id>.md ──▶ plan-validate ──▶ risks confirmed ──▶ arm .active
                                                                               │
    chore(se): close <id> ◀── Act ◀── verifier (Tier 2) ◀── suite + record (Tier 1) ◀── executor
 ```
