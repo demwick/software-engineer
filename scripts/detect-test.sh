@@ -23,6 +23,7 @@
 #   7. mix.exs                               → mix test
 #   8. deno.json / deno.jsonc                → deno test
 #   9. an executable ./test.sh or ./run-tests.sh  → bash <script>
+#  10. bare test_*.py / *_test.py, no manifest   → python3 -m pytest
 
 set -euo pipefail
 
@@ -109,6 +110,22 @@ for s in test.sh run-tests.sh; do
         echo "bash $s"
         exit 0
     fi
+done
+
+# 10. A Python project can carry pytest files and no manifest at all. Last
+# rung with rung 9, for the same reason: a manifest is the project's own
+# declared entry point and outranks a layout we inferred. `python3 -m` rather
+# than bare `pytest` so it works without the console script on PATH.
+# `ls pat1 pat2` exits non-zero when either pattern matches nothing, so test
+# each expansion instead of trusting one exit code for both.
+for d in . tests test; do
+    [ -d "$d" ] || continue
+    for f in "$d"/test_*.py "$d"/*_test.py; do
+        if [ -e "$f" ]; then
+            echo "python3 -m pytest"
+            exit 0
+        fi
+    done
 done
 
 # Nothing matched

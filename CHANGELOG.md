@@ -13,6 +13,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-09-19
+
+**Added**
+
+- `detect-test.sh` rung 10: a Python project carrying `test_*.py` or
+  `*_test.py` with no manifest at all. Such a project recorded
+  `tests.status: "not_run"` for ever and could only close through the
+  runner-less path meant for documentation.
+
 ## [5.1.2] — 2026-09-19
 
 **Fixed**
