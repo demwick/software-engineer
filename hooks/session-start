@@ -37,9 +37,12 @@ if [ -f "${STATE_DIR}/state.json" ]; then
     rm -f "${STATE_DIR}/.active" "${STATE_DIR}/.fixing" "${STATE_DIR}/.verify-attempts" 2>/dev/null || true
 fi
 
-if [ ! -f "${STATE_DIR}/state.json" ] || [ ! -f "${STATE_DIR}/roadmap.md" ]; then
-    emit_empty
-fi
+# state.json alone makes a project managed — the same bar pre-guard uses, and
+# the same reason the marker cleanup above does not ask for a roadmap. A
+# project built from ad-hoc planned slices never writes roadmap.md, and gating
+# the whole report on one meant those projects were told nothing at all about
+# work left half-finished. The roadmap-derived lines degrade instead.
+[ -f "${STATE_DIR}/state.json" ] || emit_empty
 
 command -v jq >/dev/null 2>&1 || emit_empty
 
@@ -71,10 +74,20 @@ for vf in "${STATE_DIR}"/verification/*.json; do
     case "$vst" in
         pass)
             if [ -f "${STATE_DIR}/verification/${vid}.review.json" ]; then
-                # The commonest interrupt: reviewed, and the turn ended before
-                # the close ran.
-                RESUME_LINES="${RESUME_LINES}
-- Slice ${vid} is verified and reviewed but never closed. Run state-update.sh --close-slice ${vid}"
+                # Reviewed, and the turn ended before the close ran — but what
+                # to do next depends on the verdict. Telling the user to close a
+                # slice whose review failed sends them into a refusal.
+                rvd=$(jq -r '.status // ""' "${STATE_DIR}/verification/${vid}.review.json" 2>/dev/null || echo "")
+                case "$rvd" in
+                    pass) RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} is verified and reviewed clean but never closed. Run state-update.sh --close-slice ${vid}" ;;
+                    partial) RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} reviewed partial and is not closed. Fix the findings and re-review, or close it with --accept-risk once the user accepts them" ;;
+                    fail) RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} reviewed FAIL and is not closed. Its findings come first; the close refuses until a re-review is clean" ;;
+                    *) RESUME_LINES="${RESUME_LINES}
+- Slice ${vid} has a review this cannot read (${rvd:-no status}) and is not closed. Re-run the verifier" ;;
+                esac
             else
                 RESUME_LINES="${RESUME_LINES}
 - Slice ${vid} passed Tier 1 and has no review yet. Run the verifier, then close it"
@@ -108,17 +121,24 @@ STEP_LINE=""
 [ -n "${CURRENT_STEP}" ] && STEP_LINE="
 - Current step: ${CURRENT_STEP}"
 
-PHASE_NAME=$(grep -E "^### Phase ${CURRENT}:" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+: //' || echo "")
-[ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
+# The roadmap lines are the roadmap's. A project built from ad-hoc planned
+# slices has no phases, and "Phase 0 of 0 / <unnamed>" is noise that reads like
+# a broken install.
+PHASE_LINES=""
+if [ -f "${STATE_DIR}/roadmap.md" ] && [ "${TOTAL}" != "0" ]; then
+    PHASE_NAME=$(grep -E "^### Phase ${CURRENT}[:.)[:space:]-]" "${STATE_DIR}/roadmap.md" 2>/dev/null | head -1 | sed -E 's/^### Phase [0-9]+[:.)]?[[:space:]]*//' || echo "")
+    [ -z "${PHASE_NAME}" ] && PHASE_NAME="<unnamed>"
+    PHASE_LINES="
+- Progress: Phase ${CURRENT} of ${TOTAL}
+- Active phase: ${PHASE_NAME}"
+fi
 
 CONTEXT=$(cat <<EOF
 <software-engineer-session-state>
 This project is managed by software-engineer.
 
 Current state:
-- Mode: ${MODE}
-- Progress: Phase ${CURRENT} of ${TOTAL}
-- Active phase: ${PHASE_NAME}
+- Mode: ${MODE}${PHASE_LINES}
 - Last session: ${LAST_SESSION}
 - Last commit: ${LAST_COMMIT}${STEP_LINE}
 - Ecosystem: charter=${CHARTER}, centaur=${CENTAUR}${MARKER_LINE}${RESUME_LINES}

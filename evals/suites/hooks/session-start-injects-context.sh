@@ -78,4 +78,37 @@ out5="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
 ctx5="$(printf '%s' "$out5" | jq -r '.hookSpecificOutput.additionalContext')"
 assert_contains "$ctx5" "armed-slice" "the slice the cleared marker was armed for is named"
 
+# A review that failed is not an invitation to close. Reading only "Tier 1
+# passed and a review exists" told the user to run --close-slice on a slice the
+# gate will refuse. Observed on a real project whose review was `fail`.
+printf '{"record_version":1,"id":"failed-review","status":"pass","tests":{"status":"passed"},"criteria":[],"source":{}}' \
+    > "$WORKDIR/.se/verification/failed-review.json"
+printf '{"record_version":1,"id":"failed-review","status":"fail","review":"complete","criteria":[],"source":{}}' \
+    > "$WORKDIR/.se/verification/failed-review.review.json"
+out6="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
+ctx6="$(printf '%s' "$out6" | jq -r '.hookSpecificOutput.additionalContext')"
+assert_contains "$ctx6" "failed-review" "a slice whose review failed is reported"
+printf '%s' "$ctx6" | grep -E 'failed-review.*close-slice' >/dev/null \
+    && _fail "it tells the user to close a slice whose review failed"
+rm -f "$WORKDIR/.se/verification/failed-review"*
+
+# A project with no roadmap still gets its report. Ad-hoc planned slices never
+# write roadmap.md — pre-guard already treats state.json alone as managed, and
+# gating the injection on a roadmap meant those projects were told nothing at
+# all about work left half-done.
+NOMAP="$(fixture_repo empty)"
+fixture_state "$NOMAP" executing
+mkdir -p "$NOMAP/.se/plans" "$NOMAP/.se/verification"
+printf '{"id":"adhoc-slice","current_task":2,"completed_tasks":[1],"last_commit":"a","updated":"t"}' \
+    > "$NOMAP/.se/plans/adhoc-slice.progress.json"
+[ ! -e "$NOMAP/.se/roadmap.md" ] || _fail "the no-roadmap fixture has a roadmap"
+out7="$(cd "$NOMAP" && bash "$REPO_ROOT/hooks/session-start")"
+ctx7="$(printf '%s' "$out7" | jq -r '.hookSpecificOutput.additionalContext')"
+assert_contains "$ctx7" "adhoc-slice" "a roadmap-less project still reports its unfinished slice"
+# And the roadmap-derived lines stay out rather than reading "Phase 0 of 0".
+case "$ctx7" in *"Phase 0 of 0"*) _fail "a roadmap-less project reports a phase count it does not have" ;; esac
+case "$ctx7" in *"<unnamed>"*)    _fail "a roadmap-less project reports an unnamed active phase" ;; esac
+assert_contains "$ctx7" "Mode:" "the rest of the state block still renders"
+rm -rf "$NOMAP"
+
 echo "PASS: session-start injects state and surfaces unfinished work"
