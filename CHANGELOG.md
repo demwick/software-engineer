@@ -13,6 +13,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [5.1.1] — 2026-09-19
+
+**Fixed**
+
+- `session-start` reported nothing at all in a project with no `roadmap.md`, so
+  a project built from ad-hoc planned slices never heard about its own
+  unfinished work. `state.json` alone now makes a project managed, and the
+  roadmap-derived lines stay out rather than rendering "Phase 0 of 0".
+- The reviewed-but-unclosed line told the user to close a slice whose review
+  said `fail`. It reads the verdict now.
+
 ## [5.1.0] — 2026-09-19
 
 ### Verification is evidence-based
