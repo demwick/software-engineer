@@ -13,6 +13,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [5.1.0] — 2026-09-19
+
 ### Verification is evidence-based
 
 A slice closes because its evidence says so, or it does not close.
@@ -55,6 +57,19 @@ Verification report: `docs/reports/2026-09-15-reliability-verification.md`.
   from *describing* a defect.
 - Instruction budget 48 KB → 56 KB, rationale in
   `evals/suites/agents/prompt-quality.sh`.
+
+**Migration — read this before upgrading a project with an existing `.se/`**
+
+Records written before this release carry no `record_version`, no `tests`
+block and no `source`. `--close-slice` treats them as pre-contract and refuses
+with exit 5 rather than guessing, so a slice mid-flight at upgrade time needs
+its checks re-run and its review re-written before it can close. Nothing is
+rewritten or deleted; the artifacts stay on disk. A slice already closed under
+v5.0.0 is unaffected — closing is what changed, not history.
+
+Two calls that used to work now refuse, both deliberately: `state-update.sh
+completed=true` and a forward `current_phase=`. `--close-slice <id>` is the
+only forward path.
 
 **Fixed**
 
