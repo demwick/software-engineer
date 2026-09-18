@@ -13,6 +13,14 @@ This project follows [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [5.1.2] — 2026-09-19
+
+**Fixed**
+
+- A review with no Tier-1 record beside it was invisible to the resume report,
+  so a slice reviewed `partial` with unmet criteria sat unmentioned. It is
+  reported now, saying what it needs: its checks re-run and recorded.
+
 ## [5.1.1] — 2026-09-19
 
 **Fixed**

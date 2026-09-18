@@ -1,7 +1,7 @@
 {
   "name": "software-engineer",
   "description": "AI Software Engineer — one natural-language entry point that runs the AI-native SDLC: intent, spec, ADR, a linted plan file, implementation, evidence-gated verification and senior review, every artifact committed and every step gated by hooks. Defers to claude-charter and centaur-layer when present.",
-  "version": "5.1.1",
+  "version": "5.1.2",
   "author": {
     "name": "demwick"
   },

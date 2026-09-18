@@ -92,6 +92,17 @@ printf '%s' "$ctx6" | grep -E 'failed-review.*close-slice' >/dev/null \
     && _fail "it tells the user to close a slice whose review failed"
 rm -f "$WORKDIR/.se/verification/failed-review"*
 
+# A review with no Tier-1 record beside it is a real state — a slice reviewed
+# before the record was written, or after it was lost. Walking only the Tier-1
+# files made it invisible, which is how a partial review with unmet criteria sat
+# unmentioned in a real project.
+printf '{"record_version":1,"id":"orphan","status":"partial","review":"complete","criteria":[],"source":{}}' \
+    > "$WORKDIR/.se/verification/orphan.review.json"
+out8="$(cd "$WORKDIR" && bash "$REPO_ROOT/hooks/session-start")"
+ctx8="$(printf '%s' "$out8" | jq -r '.hookSpecificOutput.additionalContext')"
+assert_contains "$ctx8" "orphan" "a review with no Tier-1 record is reported"
+rm -f "$WORKDIR/.se/verification/orphan.review.json"
+
 # A project with no roadmap still gets its report. Ad-hoc planned slices never
 # write roadmap.md — pre-guard already treats state.json alone as managed, and
 # gating the injection on a roadmap meant those projects were told nothing at

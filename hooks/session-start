@@ -64,6 +64,20 @@ for pf in "${STATE_DIR}"/plans/*.progress.json; do
     RESUME_LINES="${RESUME_LINES}
 - Unfinished slice ${pid}: on task ${ptask}, ${pdone} committed. Its plan is .se/plans/${pid}.md"
 done
+# A review with no Tier-1 record beside it is a real state — reviewed before the
+# record was written, or after it was lost. Walking only the Tier-1 files left
+# it invisible.
+for rf in "${STATE_DIR}"/verification/*.review.json; do
+    [ -f "$rf" ] || continue
+    rid=$(jq -r '.id // ""' "$rf" 2>/dev/null || echo "")
+    [ -n "$rid" ] || continue
+    [ -f "${STATE_DIR}/verification/${rid}.json" ] && continue
+    [ -f "${STATE_DIR}/verification/${rid}.closed.json" ] && continue
+    rst=$(jq -r '.status // "?"' "$rf" 2>/dev/null || echo "?")
+    RESUME_LINES="${RESUME_LINES}
+- Slice ${rid} has a ${rst} review but no Tier-1 record, so nothing can close it. Re-run its checks and record them"
+done
+
 for vf in "${STATE_DIR}"/verification/*.json; do
     [ -f "$vf" ] || continue
     case "$vf" in *.review.json|*.closed.json|*.accepted.json) continue ;; esac
